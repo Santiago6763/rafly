@@ -1,0 +1,1004 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RAFLY — Sorteos en vivo</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Figtree:wght@400;500;600&display=swap">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --void:#050510;--bg:#0a0a1a;--surface:#111128;--elevated:#1a1a3e;
+  --primary:#8b5cf6;--primary-dim:#6d28d9;--secondary:#06d6a0;
+  --accent:#f72585;--accent-dim:#c81e6a;
+  --gold:#d4a847;--gold-dim:#a07a2a;
+  --text:#e2e0f0;--text-muted:#6b6b8d;--text-dim:#3e3e5a;
+  --border:rgba(139,92,246,.15);
+  --glow-primary:rgba(139,92,246,.35);--glow-secondary:rgba(6,214,160,.3);
+  --glow-accent:rgba(247,37,133,.35);
+  --ease-out-expo:cubic-bezier(.16,1,.3,1);
+}
+html{height:100%}
+body{
+  font-family:'Figtree',system-ui,-apple-system,sans-serif;
+  background:var(--bg);color:var(--text);min-height:100%;
+  overflow-x:hidden;position:relative;
+}
+#bgCanvas,#confettiCanvas{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:0}
+#confettiCanvas{z-index:100}
+
+/* ── Header ── */
+header{
+  position:fixed;top:0;left:0;right:0;z-index:50;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:.75rem 1.5rem;
+  background:rgba(5,5,16,.7);backdrop-filter:blur(16px);
+  border-bottom:1px solid var(--border);
+}
+.logo{font-family:'Syne',sans-serif;font-weight:800;font-size:1.5rem;color:var(--primary);letter-spacing:-.02em;text-shadow:0 0 24px var(--glow-primary)}
+.logo span{color:var(--accent);text-shadow:0 0 24px var(--glow-accent)}
+.header-center{display:flex;align-items:center;gap:.6rem;font-size:.85rem;color:var(--text-muted)}
+.stat-pill{background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:.25rem .75rem;font-variant-numeric:tabular-nums;display:flex;align-items:center;gap:.4rem}
+.stat-pill b{color:var(--primary);font-weight:600}
+.dot-live{width:6px;height:6px;border-radius:50%;background:var(--secondary);box-shadow:0 0 8px var(--glow-secondary);animation:pulse-dot 2s infinite}
+@keyframes pulse-dot{0%,100%{opacity:1}50%{opacity:.3}}
+.header-actions{display:flex;gap:.5rem}
+.btn-icon{width:40px;height:40px;border-radius:10px;border:1px solid var(--border);background:var(--surface);color:var(--text-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1.1rem;transition:all .25s var(--ease-out-expo)}
+.btn-icon:hover{background:var(--elevated);color:var(--text);border-color:var(--primary)}
+
+/* ── Side Panel ── */
+.panel-overlay{position:fixed;inset:0;background:rgba(5,5,16,.5);z-index:60;opacity:0;pointer-events:none;transition:opacity .35s var(--ease-out-expo)}
+.panel-overlay.open{opacity:1;pointer-events:auto}
+.side-panel{position:fixed;top:0;left:0;bottom:0;width:400px;max-width:92vw;background:var(--bg);border-right:1px solid var(--border);z-index:61;transform:translateX(-100%);transition:transform .4s var(--ease-out-expo);display:flex;flex-direction:column}
+.side-panel.open{transform:translateX(0)}
+.panel-header{padding:1rem 1.25rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;margin-top:60px}
+.panel-header h2{font-family:'Syne',sans-serif;font-weight:700;font-size:1.1rem}
+.tabs{display:flex;gap:2px;padding:.5rem 1rem 0;border-bottom:1px solid var(--border);overflow-x:auto}
+.tab{padding:.5rem .75rem;font-size:.78rem;font-weight:500;color:var(--text-muted);cursor:pointer;border:none;background:none;border-bottom:2px solid transparent;transition:all .2s;white-space:nowrap}
+.tab:hover{color:var(--text)}
+.tab.active{color:var(--primary);border-bottom-color:var(--primary)}
+.tab-content{flex:1;overflow-y:auto;padding:1.25rem}
+.tab-pane{display:none}
+.tab-pane.active{display:block}
+
+/* Form controls */
+.field{margin-bottom:1rem}
+.field label{display:block;font-size:.78rem;font-weight:500;color:var(--text-muted);margin-bottom:.4rem;text-transform:uppercase;letter-spacing:.05em}
+textarea,input[type="text"]{width:100%;padding:.6rem .8rem;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-family:inherit;font-size:.88rem;resize:vertical;transition:border-color .2s}
+textarea:focus,input[type="text"]:focus{outline:none;border-color:var(--primary)}
+textarea{min-height:140px}
+.toggle-row{display:flex;align-items:center;justify-content:space-between;padding:.6rem 0;border-bottom:1px solid var(--border)}
+.toggle-row span{font-size:.88rem}
+.toggle{width:44px;height:24px;border-radius:12px;background:var(--text-dim);position:relative;cursor:pointer;border:none;transition:background .25s;flex-shrink:0}
+.toggle.on{background:var(--primary)}
+.toggle::after{content:'';position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;background:#fff;transition:transform .25s var(--ease-out-expo)}
+.toggle.on::after{transform:translateX(20px)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;padding:.6rem 1.2rem;border-radius:8px;border:none;font-family:inherit;font-size:.88rem;font-weight:600;cursor:pointer;transition:all .25s var(--ease-out-expo)}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-primary:hover{background:var(--primary-dim);box-shadow:0 0 20px var(--glow-primary)}
+.btn-secondary{background:var(--surface);color:var(--text-muted);border:1px solid var(--border)}
+.btn-secondary:hover{color:var(--text);border-color:var(--primary)}
+.btn-accent{background:var(--accent);color:#fff}
+.btn-accent:hover{background:var(--accent-dim);box-shadow:0 0 20px var(--glow-accent)}
+.btn-block{width:100%}
+.btn-row{display:flex;gap:.5rem}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.file-upload{position:relative}
+.file-upload input[type="file"]{position:absolute;inset:0;opacity:0;cursor:pointer}
+.participant-count{text-align:center;padding:.6rem;border-radius:8px;background:var(--surface);border:1px solid var(--border);font-variant-numeric:tabular-nums;font-size:.88rem;color:var(--text-muted);margin-top:.75rem}
+.participant-count b{color:var(--secondary);font-weight:600}
+
+/* ── Instagram Tab ── */
+.ig-connect-box{text-align:center;padding:1.5rem .5rem}
+.ig-connect-box p{font-size:.88rem;color:var(--text-muted);margin-bottom:1.25rem;line-height:1.5}
+.ig-connect-btn{
+  background:linear-gradient(135deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888);
+  color:#fff;border:none;padding:.7rem 1.5rem;border-radius:10px;
+  font-family:inherit;font-weight:600;font-size:.95rem;cursor:pointer;
+  display:inline-flex;align-items:center;gap:.5rem;
+  transition:transform .2s,box-shadow .2s;
+}
+.ig-connect-btn:hover{transform:scale(1.03);box-shadow:0 4px 20px rgba(220,39,67,.3)}
+.ig-connect-btn svg{width:20px;height:20px;fill:currentColor}
+.ig-profile{display:flex;align-items:center;gap:.75rem;padding:.75rem;border-radius:10px;background:var(--surface);border:1px solid var(--border);margin-bottom:1rem}
+.ig-avatar{width:44px;height:44px;border-radius:50%;object-fit:cover;border:2px solid var(--primary)}
+.ig-username{font-weight:600;font-size:.95rem}
+.ig-disconnect{font-size:.72rem;color:var(--text-muted);cursor:pointer;border:none;background:none;text-decoration:underline;margin-top:.15rem;display:block;font-family:inherit}
+.ig-disconnect:hover{color:var(--accent)}
+.ig-section-title{font-size:.78rem;font-weight:500;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.6rem;margin-top:1rem}
+.ig-posts-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.ig-post{position:relative;aspect-ratio:1;border-radius:6px;overflow:hidden;cursor:pointer;border:2px solid transparent;transition:border-color .2s}
+.ig-post:hover{border-color:var(--primary)}
+.ig-post.selected{border-color:var(--secondary);box-shadow:0 0 12px var(--glow-secondary)}
+.ig-post img{width:100%;height:100%;object-fit:cover}
+.ig-post-badge{position:absolute;bottom:4px;right:4px;background:rgba(0,0,0,.7);color:#fff;font-size:.65rem;padding:.15rem .4rem;border-radius:4px;font-variant-numeric:tabular-nums}
+.ig-post-type{position:absolute;top:4px;right:4px;background:rgba(0,0,0,.6);color:#fff;font-size:.6rem;padding:.1rem .3rem;border-radius:3px}
+.ig-comment-info{text-align:center;padding:1rem;border-radius:8px;background:var(--surface);border:1px solid var(--border);margin-top:1rem}
+.ig-comment-info b{color:var(--secondary);font-weight:600}
+.ig-loading{text-align:center;padding:2rem;color:var(--text-muted)}
+.ig-loading .spinner{display:inline-block;width:24px;height:24px;border:2px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.ig-error{text-align:center;padding:1rem;color:var(--accent);font-size:.85rem;background:rgba(247,37,133,.05);border-radius:8px;margin-top:.5rem}
+
+/* History list */
+.history-list{list-style:none}
+.history-item{display:flex;align-items:center;gap:.75rem;padding:.65rem 0;border-bottom:1px solid var(--border)}
+.history-num{width:28px;height:28px;border-radius:50%;background:var(--surface);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:600;color:var(--primary);flex-shrink:0}
+.history-name{font-weight:500;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.history-time{font-size:.75rem;color:var(--text-muted);flex-shrink:0}
+.history-empty{text-align:center;color:var(--text-muted);padding:2rem 0;font-size:.88rem}
+
+/* ── Main Stage ── */
+main{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:5rem 1rem 2rem;position:relative;z-index:1}
+.example-badge{display:inline-flex;align-items:center;gap:.4rem;padding:.3rem .8rem;border-radius:16px;background:rgba(139,92,246,.1);border:1px solid var(--border);font-size:.75rem;color:var(--primary);margin-bottom:1rem}
+.wheel-stage{position:relative;display:flex;flex-direction:column;align-items:center}
+.wheel-wrapper{position:relative;filter:drop-shadow(0 0 40px var(--glow-primary));transition:filter .5s}
+.wheel-wrapper.spinning{filter:drop-shadow(0 0 60px var(--glow-accent))}
+#wheelCanvas{display:block;transform:perspective(900px) rotateX(var(--tiltX,0deg)) rotateY(var(--tiltY,0deg));transition:transform .15s linear}
+.spin-btn{
+  margin-top:1.5rem;padding:.9rem 3rem;border-radius:50px;border:none;
+  font-family:'Syne',sans-serif;font-weight:800;font-size:1.3rem;
+  color:#fff;cursor:pointer;
+  background:linear-gradient(135deg,var(--accent),var(--primary));
+  box-shadow:0 0 30px var(--glow-accent),0 4px 20px rgba(0,0,0,.4);
+  transition:all .3s var(--ease-out-expo);letter-spacing:.02em;
+}
+.spin-btn:hover:not(:disabled){transform:scale(1.05);box-shadow:0 0 50px var(--glow-accent),0 4px 30px rgba(0,0,0,.5)}
+.spin-btn:disabled{opacity:.4;cursor:not-allowed;filter:grayscale(.5)}
+.spin-btn:not(:disabled){animation:btn-glow 3s infinite}
+@keyframes btn-glow{0%,100%{box-shadow:0 0 30px var(--glow-accent),0 4px 20px rgba(0,0,0,.4)}50%{box-shadow:0 0 50px var(--glow-accent),0 0 80px rgba(247,37,133,.15),0 4px 20px rgba(0,0,0,.4)}}
+.ig-source-badge{display:inline-flex;align-items:center;gap:.4rem;padding:.25rem .7rem;border-radius:14px;background:rgba(220,39,67,.1);border:1px solid rgba(220,39,67,.2);font-size:.72rem;color:#dc2743;margin-bottom:1rem}
+
+/* ── Winner Overlay ── */
+.winner-overlay{position:fixed;inset:0;z-index:90;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(5,5,16,.85);backdrop-filter:blur(12px);opacity:0;pointer-events:none;transition:opacity .5s var(--ease-out-expo)}
+.winner-overlay.visible{opacity:1;pointer-events:auto}
+.winner-card{text-align:center;transform:scale(.8);transition:transform .6s var(--ease-out-expo)}
+.winner-overlay.visible .winner-card{transform:scale(1)}
+.winner-label{font-family:'Syne',sans-serif;font-weight:700;font-size:1rem;color:var(--secondary);text-transform:uppercase;letter-spacing:.15em;margin-bottom:.5rem}
+.winner-name{font-family:'Syne',sans-serif;font-weight:800;font-size:clamp(2.2rem,6vw,4rem);color:#fff;text-shadow:0 0 40px var(--glow-primary),0 0 80px rgba(139,92,246,.2);margin-bottom:.5rem;word-break:break-all}
+.winner-meta{font-size:.88rem;color:var(--text-muted);margin-bottom:2rem}
+.winner-actions{display:flex;gap:.75rem;flex-wrap:wrap;justify-content:center}
+
+/* ── Certificate Modal ── */
+.cert-modal{position:fixed;inset:0;z-index:110;display:flex;align-items:center;justify-content:center;background:rgba(5,5,16,.9);backdrop-filter:blur(8px);opacity:0;pointer-events:none;transition:opacity .35s}
+.cert-modal.visible{opacity:1;pointer-events:auto}
+.cert-inner{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.5rem;max-width:90vw;max-height:90vh;overflow:auto;text-align:center}
+.cert-inner canvas{max-width:100%;height:auto;border-radius:8px;margin-bottom:1rem}
+.cert-inner h3{font-family:'Syne',sans-serif;margin-bottom:1rem}
+
+/* ── History Bar ── */
+.history-bar{position:fixed;bottom:0;left:0;right:0;z-index:40;background:rgba(5,5,16,.8);backdrop-filter:blur(12px);border-top:1px solid var(--border);transform:translateY(100%);transition:transform .4s var(--ease-out-expo);max-height:45vh;overflow-y:auto}
+.history-bar.visible{transform:translateY(0)}
+.history-bar-header{display:flex;align-items:center;justify-content:space-between;padding:.6rem 1.5rem;border-bottom:1px solid var(--border);position:sticky;top:0;background:rgba(5,5,16,.95)}
+.history-bar-header h3{font-family:'Syne',sans-serif;font-weight:700;font-size:.9rem}
+.history-strip{display:flex;gap:.6rem;flex-wrap:wrap;padding:.75rem 1.5rem}
+.history-chip{display:flex;align-items:center;gap:.4rem;padding:.35rem .7rem;border-radius:20px;background:var(--surface);border:1px solid var(--border);font-size:.8rem;white-space:nowrap}
+.history-chip .num{color:var(--primary);font-weight:600;font-size:.7rem}
+
+@media(max-width:640px){
+  .side-panel{width:100%;max-width:100%}
+  #wheelCanvas{width:min(85vw,380px)!important;height:min(85vw,380px)!important}
+  .spin-btn{padding:.75rem 2.2rem;font-size:1.1rem}
+  .winner-actions{flex-direction:column;align-items:stretch}
+  header{padding:.6rem 1rem}
+  .logo{font-size:1.2rem}
+  .header-center{display:none}
+  .ig-posts-grid{grid-template-columns:repeat(3,1fr);gap:4px}
+}
+</style>
+</head>
+<body>
+
+<canvas id="bgCanvas"></canvas>
+<canvas id="confettiCanvas"></canvas>
+
+<header>
+  <div class="logo">RAF<span>LY</span></div>
+  <div class="header-center">
+    <div class="stat-pill"><div class="dot-live"></div> <b id="countDisplay">16</b> participantes</div>
+  </div>
+  <div class="header-actions">
+    <button class="btn-icon" id="historyToggle" title="Historial">&#9776;</button>
+    <button class="btn-icon" id="panelToggle" title="Panel de control">&#9881;</button>
+  </div>
+</header>
+
+<div class="panel-overlay" id="panelOverlay"></div>
+<aside class="side-panel" id="sidePanel">
+  <div class="panel-header">
+    <h2>Panel de control</h2>
+    <button class="btn-icon" id="panelClose" style="border:none;background:none;color:var(--text-muted);font-size:1.3rem;cursor:pointer">&times;</button>
+  </div>
+  <div class="tabs">
+    <button class="tab active" data-tab="instagram">Instagram</button>
+    <button class="tab" data-tab="load">Manual</button>
+    <button class="tab" data-tab="filters">Filtros</button>
+    <button class="tab" data-tab="history">Historial</button>
+  </div>
+  <div class="tab-content">
+
+    <!-- ── Instagram Tab ── -->
+    <div class="tab-pane active" id="pane-instagram">
+      <div id="igDisconnected">
+        <div class="ig-connect-box">
+          <p>Conectá tu cuenta de Instagram Business para importar los comentarios de tus publicaciones directamente.</p>
+          <button class="ig-connect-btn" onclick="connectInstagram()">
+            <svg viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
+            Conectar con Instagram
+          </button>
+          <p style="font-size:.72rem;color:var(--text-dim);margin-top:1rem">Requiere cuenta Business o Creator vinculada a una página de Facebook.</p>
+        </div>
+      </div>
+
+      <div id="igConnected" hidden>
+        <div class="ig-profile">
+          <img id="igAvatar" class="ig-avatar" alt="" src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg'/>">
+          <div style="flex:1;min-width:0">
+            <div id="igUsername" class="ig-username"></div>
+            <button class="ig-disconnect" onclick="disconnectInstagram()">Desconectar</button>
+          </div>
+        </div>
+
+        <div class="ig-section-title">Seleccioná una publicación</div>
+        <div id="igPostsContainer">
+          <div class="ig-loading"><div class="spinner"></div><br>Cargando publicaciones...</div>
+        </div>
+
+        <div id="igCommentInfo" hidden class="ig-comment-info">
+          <p style="margin-bottom:.6rem"><b id="igCommentCount">0</b> comentarios encontrados</p>
+          <button class="btn btn-accent btn-block" onclick="loadIgCommentsToWheel()">Cargar al sorteo</button>
+        </div>
+        <div id="igError" hidden class="ig-error"></div>
+      </div>
+    </div>
+
+    <!-- ── Manual Tab ── -->
+    <div class="tab-pane" id="pane-load">
+      <div class="field">
+        <label>Pegar comentarios / participantes</label>
+        <textarea id="inputArea" placeholder="Pegá los comentarios de Instagram, uno por línea.&#10;&#10;Ejemplo:&#10;@maria_garcia quiero participar!&#10;@carlos_lopez me sumo!&#10;@ana_martinez"></textarea>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary btn-block" id="loadBtn">Cargar participantes</button>
+      </div>
+      <div style="text-align:center;color:var(--text-dim);font-size:.78rem;padding:.6rem 0">o bien</div>
+      <div class="file-upload">
+        <button class="btn btn-secondary btn-block">Subir archivo CSV / TXT</button>
+        <input type="file" id="fileInput" accept=".csv,.txt,.text">
+      </div>
+      <div class="participant-count" id="loadedCount">Participantes cargados: <b>0</b></div>
+      <div style="margin-top:.75rem">
+        <button class="btn btn-secondary btn-block" id="clearBtn">Limpiar todo</button>
+      </div>
+    </div>
+
+    <!-- ── Filters Tab ── -->
+    <div class="tab-pane" id="pane-filters">
+      <div class="toggle-row">
+        <span>Requiere mención (@)</span>
+        <button class="toggle" id="filterMention" role="switch" aria-checked="false"></button>
+      </div>
+      <div class="toggle-row">
+        <span>Excluir duplicados</span>
+        <button class="toggle on" id="filterDupes" role="switch" aria-checked="true"></button>
+      </div>
+      <div class="toggle-row">
+        <span>Excluir ganadores anteriores</span>
+        <button class="toggle on" id="filterWinners" role="switch" aria-checked="true"></button>
+      </div>
+      <div class="field" style="margin-top:1rem">
+        <label>Requiere hashtag</label>
+        <input type="text" id="filterHashtag" placeholder="#sorteo">
+      </div>
+      <div class="field">
+        <label>Cuentas bloqueadas (una por línea)</label>
+        <textarea id="filterBlocked" style="min-height:80px" placeholder="@cuenta_spam&#10;@bot_123"></textarea>
+      </div>
+      <button class="btn btn-primary btn-block" id="applyFilters">Aplicar filtros</button>
+    </div>
+
+    <!-- ── History Tab ── -->
+    <div class="tab-pane" id="pane-history">
+      <ul class="history-list" id="historyList">
+        <li class="history-empty">Todavía no hay ganadores</li>
+      </ul>
+    </div>
+
+  </div>
+</aside>
+
+<main>
+  <div class="example-badge" id="exampleBadge"><div class="dot-live"></div> Datos de ejemplo</div>
+  <div class="ig-source-badge" id="igSourceBadge" hidden>Comentarios de Instagram</div>
+  <div class="wheel-stage">
+    <div class="wheel-wrapper" id="wheelWrapper">
+      <canvas id="wheelCanvas" width="460" height="460"></canvas>
+    </div>
+    <button class="spin-btn" id="spinBtn">¡GIRAR!</button>
+  </div>
+</main>
+
+<div class="winner-overlay" id="winnerOverlay">
+  <div class="winner-card">
+    <div class="winner-label">Ganador/a</div>
+    <div class="winner-name" id="winnerName"></div>
+    <div class="winner-meta" id="winnerMeta"></div>
+    <div class="winner-actions">
+      <button class="btn btn-accent" id="certBtn">Certificado</button>
+      <button class="btn btn-primary" id="spinAgainBtn">Sortear de nuevo</button>
+      <button class="btn btn-secondary" id="closeWinnerBtn">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<div class="cert-modal" id="certModal">
+  <div class="cert-inner">
+    <h3>Certificado de Sorteo</h3>
+    <canvas id="certCanvas" width="1200" height="800"></canvas>
+    <div style="display:flex;gap:.5rem;justify-content:center">
+      <button class="btn btn-accent" id="downloadCert">Descargar</button>
+      <button class="btn btn-secondary" id="closeCert">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<div class="history-bar" id="historyBar">
+  <div class="history-bar-header">
+    <h3>Ganadores</h3>
+    <button class="btn-icon" id="closeHistory" style="width:28px;height:28px;font-size:.9rem">&times;</button>
+  </div>
+  <div class="history-strip" id="historyStrip">
+    <span style="color:var(--text-muted);font-size:.85rem">Sin ganadores aún</span>
+  </div>
+</div>
+
+<script>
+/* ══════════════════════════════════════════════════
+   RAFLY — Sorteos en vivo con Instagram
+   ══════════════════════════════════════════════════ */
+
+const EXAMPLES = [
+  '@maria_garcia','@carlos_lopez','@ana_martinez','@pedro_silva',
+  '@lucia_fernandez','@diego_torres','@valentina_ruiz','@martin_gonzalez',
+  '@sofia_diaz','@nicolas_herrera','@camila_moreno','@santiago_castro',
+  '@isabella_flores','@mateo_vargas','@emma_romero','@benjamin_acosta'
+];
+const SEGMENT_COLORS = ['#7c3aed','#6d28d9','#f72585','#c026d3','#3b82f6','#0891b2','#06d6a0','#059669'];
+const CONFETTI_COLORS = ['#8b5cf6','#f72585','#06d6a0','#3b82f6','#fbbf24','#ec4899','#14b8a6'];
+const MAX_SEGMENTS = 16;
+
+const state = {
+  rawParticipants: [],
+  participants: [...EXAMPLES],
+  displayNames: [...EXAMPLES],
+  displayWinnerIdx: 0,
+  winners: [],
+  isSpinning: false,
+  currentWinner: null,
+  drawCount: 0,
+  usingExamples: true,
+  wheelRotation: 0,
+  mouseX: 0, mouseY: 0,
+  particleSpeed: 1,
+  filters: { mention: false, dupes: true, winners: true, hashtag: '', blocked: '' },
+  igComments: [],       // Raw IG comments for current post
+  igSelectedPost: null, // Currently selected IG post
+  igSource: false       // Whether data came from IG
+};
+
+/* ═══════════════════════════════════════════════════
+   INSTAGRAM INTEGRATION
+   ═══════════════════════════════════════════════════ */
+
+async function checkIgConnection() {
+  try {
+    const res = await fetch('/api/status');
+    const data = await res.json();
+    if (data.connected) {
+      showIgConnected(data);
+      fetchIgPosts();
+    }
+  } catch (e) {
+    // Server not available or no IG features — that's fine
+  }
+
+  // Check URL params for auth callback
+  const params = new URLSearchParams(location.search);
+  if (params.get('ig_connected') === 'true') {
+    history.replaceState(null, '', '/');
+    checkIgConnection();
+  }
+  if (params.get('ig_error')) {
+    const err = params.get('ig_error');
+    showIgError(decodeURIComponent(err));
+    history.replaceState(null, '', '/');
+  }
+}
+
+function connectInstagram() {
+  window.location.href = '/auth/instagram';
+}
+
+async function disconnectInstagram() {
+  try {
+    await fetch('/api/disconnect', { method: 'POST' });
+  } catch (e) {}
+  document.getElementById('igConnected').hidden = true;
+  document.getElementById('igDisconnected').hidden = false;
+}
+
+function showIgConnected(data) {
+  document.getElementById('igDisconnected').hidden = true;
+  document.getElementById('igConnected').hidden = false;
+  document.getElementById('igUsername').textContent = '@' + data.username;
+  if (data.profilePic) {
+    document.getElementById('igAvatar').src = data.profilePic;
+  }
+}
+
+function showIgError(msg) {
+  const el = document.getElementById('igError');
+  const messages = {
+    'auth_denied': 'Autorización cancelada. Intentá de nuevo.',
+    'no_page': 'No se encontró una página de Facebook vinculada a tu cuenta.',
+    'no_business': 'Tu cuenta de Instagram no es Business/Creator o no está vinculada a una página de Facebook.'
+  };
+  el.textContent = messages[msg] || msg;
+  el.hidden = false;
+  setTimeout(() => el.hidden = true, 8000);
+}
+
+async function fetchIgPosts() {
+  const container = document.getElementById('igPostsContainer');
+  container.innerHTML = '<div class="ig-loading"><div class="spinner"></div><br>Cargando publicaciones...</div>';
+
+  try {
+    const res = await fetch('/api/media?limit=18');
+    const data = await res.json();
+
+    if (!data.posts || data.posts.length === 0) {
+      container.innerHTML = '<div class="ig-loading">No se encontraron publicaciones.</div>';
+      return;
+    }
+
+    container.innerHTML = '<div class="ig-posts-grid" id="igPostsGrid"></div>';
+    const grid = document.getElementById('igPostsGrid');
+
+    for (const post of data.posts) {
+      const thumb = post.thumbnail_url || post.media_url;
+      const div = document.createElement('div');
+      div.className = 'ig-post';
+      div.dataset.postId = post.id;
+      div.innerHTML = `
+        <img src="${thumb}" alt="" loading="lazy">
+        <span class="ig-post-badge">${post.comments_count || 0} com.</span>
+        ${post.media_type === 'VIDEO' ? '<span class="ig-post-type">VIDEO</span>' : ''}
+        ${post.media_type === 'CAROUSEL_ALBUM' ? '<span class="ig-post-type">ALBUM</span>' : ''}
+      `;
+      div.addEventListener('click', () => selectIgPost(post, div));
+      grid.appendChild(div);
+    }
+
+  } catch (e) {
+    container.innerHTML = '<div class="ig-error">Error al cargar publicaciones. Intentá reconectar.</div>';
+  }
+}
+
+async function selectIgPost(post, el) {
+  // Deselect previous
+  document.querySelectorAll('.ig-post.selected').forEach(p => p.classList.remove('selected'));
+  el.classList.add('selected');
+  state.igSelectedPost = post;
+
+  const infoEl = document.getElementById('igCommentInfo');
+  const countEl = document.getElementById('igCommentCount');
+  infoEl.hidden = true;
+
+  // Show loading in the info area
+  const errorEl = document.getElementById('igError');
+  errorEl.hidden = true;
+  infoEl.hidden = false;
+  countEl.parentElement.innerHTML = '<div class="spinner" style="display:inline-block;width:18px;height:18px;border:2px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin .8s linear infinite;vertical-align:middle"></div> Cargando comentarios...';
+
+  try {
+    const res = await fetch(`/api/media/${post.id}/comments`);
+    const data = await res.json();
+
+    if (data.error) throw new Error(data.error);
+
+    state.igComments = data.comments || [];
+    infoEl.innerHTML = `
+      <p style="margin-bottom:.6rem"><b>${state.igComments.length}</b> comentarios encontrados${data.truncated ? ' (truncados)' : ''}</p>
+      <button class="btn btn-accent btn-block" onclick="loadIgCommentsToWheel()">Cargar al sorteo</button>
+    `;
+    infoEl.hidden = false;
+
+  } catch (e) {
+    infoEl.hidden = true;
+    errorEl.textContent = 'Error al cargar comentarios: ' + e.message;
+    errorEl.hidden = false;
+  }
+}
+
+function loadIgCommentsToWheel() {
+  if (!state.igComments.length) return;
+
+  // Extract usernames from IG comments
+  const usernames = state.igComments.map(c => '@' + c.username);
+  state.igSource = true;
+  loadParticipants(usernames);
+
+  // Show IG source badge
+  document.getElementById('igSourceBadge').hidden = false;
+  document.getElementById('exampleBadge').hidden = true;
+
+  // Close panel for the show
+  closePanel();
+}
+
+/* ═══════════════════════════════════════════════════
+   PARTICLES (orbit background)
+   ═══════════════════════════════════════════════════ */
+const bgCanvas = document.getElementById('bgCanvas');
+const bgCtx = bgCanvas.getContext('2d');
+let particles = [];
+
+function resizeBg() {
+  const dpr = window.devicePixelRatio || 1;
+  bgCanvas.width = window.innerWidth * dpr;
+  bgCanvas.height = window.innerHeight * dpr;
+  bgCtx.scale(dpr, dpr);
+  bgCanvas.style.width = window.innerWidth + 'px';
+  bgCanvas.style.height = window.innerHeight + 'px';
+}
+
+function createParticles() {
+  particles = [];
+  const cx = window.innerWidth / 2, cy = window.innerHeight / 2;
+  for (let i = 0; i < 50; i++) {
+    particles.push({
+      cx, cy,
+      rx: 80 + Math.random() * (window.innerWidth * 0.45),
+      ry: 40 + Math.random() * (window.innerHeight * 0.35),
+      angle: Math.random() * Math.PI * 2,
+      speed: 0.0008 + Math.random() * 0.003,
+      tilt: (Math.random() - 0.5) * 0.6,
+      size: 0.8 + Math.random() * 2.5,
+      color: CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)],
+      opacity: 0.15 + Math.random() * 0.4
+    });
+  }
+}
+
+function drawParticles() {
+  const w = window.innerWidth, h = window.innerHeight;
+  bgCtx.clearRect(0, 0, w, h);
+  const px = (state.mouseX / w - 0.5) * 30;
+  const py = (state.mouseY / h - 0.5) * 20;
+  for (const p of particles) {
+    p.angle += p.speed * state.particleSpeed;
+    const x = p.cx + px * (p.size / 3) + Math.cos(p.angle) * p.rx;
+    const y = p.cy + py * (p.size / 3) + Math.sin(p.angle) * p.ry * Math.cos(p.tilt);
+    bgCtx.beginPath();
+    bgCtx.arc(x, y, p.size, 0, Math.PI * 2);
+    bgCtx.fillStyle = p.color;
+    bgCtx.globalAlpha = p.opacity;
+    bgCtx.shadowColor = p.color;
+    bgCtx.shadowBlur = p.size * 6;
+    bgCtx.fill();
+  }
+  bgCtx.globalAlpha = 1;
+  bgCtx.shadowBlur = 0;
+  requestAnimationFrame(drawParticles);
+}
+
+/* ═══════════════════════════════════════════════════
+   WHEEL
+   ═══════════════════════════════════════════════════ */
+const wheelCanvas = document.getElementById('wheelCanvas');
+const wheelCtx = wheelCanvas.getContext('2d');
+let wheelW, wheelH;
+
+function setupWheel() {
+  const size = Math.min(460, window.innerWidth * 0.85);
+  const dpr = window.devicePixelRatio || 1;
+  wheelCanvas.style.width = size + 'px';
+  wheelCanvas.style.height = size + 'px';
+  wheelCanvas.width = size * dpr;
+  wheelCanvas.height = size * dpr;
+  wheelCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  wheelW = size; wheelH = size;
+  renderWheel();
+}
+
+function renderWheel() {
+  const ctx = wheelCtx;
+  const cx = wheelW / 2, cy = wheelH / 2;
+  const radius = Math.min(cx, cy) * 0.88;
+  const names = state.displayNames;
+  const n = names.length;
+  if (n === 0) return;
+  const seg = (Math.PI * 2) / n;
+  ctx.clearRect(0, 0, wheelW, wheelH);
+
+  // Outer glow rings
+  for (let r = 0; r < 3; r++) {
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius + 6 + r * 4, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(139,92,246,${0.15 - r * 0.04})`;
+    ctx.lineWidth = 2;
+    ctx.shadowColor = '#8b5cf6';
+    ctx.shadowBlur = 15 + r * 8;
+    ctx.stroke();
+  }
+  ctx.shadowBlur = 0;
+
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(state.wheelRotation);
+  for (let i = 0; i < n; i++) {
+    const a0 = i * seg, a1 = (i + 1) * seg;
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, radius, a0, a1); ctx.closePath();
+    ctx.fillStyle = SEGMENT_COLORS[i % SEGMENT_COLORS.length]; ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.07)'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.save();
+    ctx.rotate(a0 + seg / 2);
+    ctx.textAlign = 'right'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#fff';
+    const fs = n > 12 ? 11 : n > 8 ? 13 : 15;
+    ctx.font = `600 ${fs}px Figtree, sans-serif`;
+    let label = names[i];
+    const maxLen = n > 10 ? 10 : 14;
+    if (label.length > maxLen) label = label.substring(0, maxLen) + '…';
+    ctx.fillText(label, radius - 16, 0);
+    ctx.restore();
+  }
+  ctx.restore();
+
+  // Hub
+  const hubR = radius * 0.14;
+  const hg = ctx.createRadialGradient(cx, cy, 0, cx, cy, hubR);
+  hg.addColorStop(0, '#1a1a3e'); hg.addColorStop(1, '#0a0a1a');
+  ctx.beginPath(); ctx.arc(cx, cy, hubR, 0, Math.PI * 2);
+  ctx.fillStyle = hg; ctx.fill();
+  ctx.strokeStyle = '#8b5cf6'; ctx.lineWidth = 2;
+  ctx.shadowColor = '#8b5cf6'; ctx.shadowBlur = 10; ctx.stroke(); ctx.shadowBlur = 0;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#8b5cf6'; ctx.font = `800 ${hubR * 0.8}px Syne, sans-serif`;
+  ctx.fillText('R', cx, cy);
+
+  // Pointer
+  ctx.save();
+  ctx.translate(cx, cy - radius - 2);
+  ctx.beginPath(); ctx.moveTo(0, 18); ctx.lineTo(-13, -6); ctx.lineTo(13, -6); ctx.closePath();
+  ctx.fillStyle = '#f72585'; ctx.shadowColor = '#f72585'; ctx.shadowBlur = 18; ctx.fill();
+  ctx.restore();
+}
+
+/* ═══════════════════════════════════════════════════
+   SPIN LOGIC
+   ═══════════════════════════════════════════════════ */
+function prepareDisplay(all, winnerIdx) {
+  if (all.length <= MAX_SEGMENTS) {
+    state.displayNames = [...all];
+    state.displayWinnerIdx = winnerIdx;
+    return;
+  }
+  const winner = all[winnerIdx];
+  const others = all.filter((_, i) => i !== winnerIdx);
+  const shuffled = others.sort(() => Math.random() - 0.5).slice(0, MAX_SEGMENTS - 1);
+  const insertAt = Math.floor(Math.random() * MAX_SEGMENTS);
+  shuffled.splice(insertAt, 0, winner);
+  state.displayNames = shuffled;
+  state.displayWinnerIdx = insertAt;
+}
+
+function spin() {
+  const p = state.participants;
+  if (state.isSpinning || p.length < 2) return;
+  state.isSpinning = true;
+  document.getElementById('spinBtn').disabled = true;
+  document.getElementById('spinBtn').textContent = 'SORTEANDO…';
+  document.getElementById('wheelWrapper').classList.add('spinning');
+  document.getElementById('exampleBadge').hidden = true;
+
+  const winIdx = Math.floor(Math.random() * p.length);
+  state.currentWinner = p[winIdx];
+  prepareDisplay(p, winIdx);
+
+  const n = state.displayNames.length;
+  const seg = (Math.PI * 2) / n;
+  const jitter = (Math.random() - 0.5) * seg * 0.55;
+  const baseAngle = -(Math.PI / 2) - state.displayWinnerIdx * seg - seg / 2 + jitter;
+  const fullSpins = (7 + Math.random() * 5) * 2 * Math.PI;
+  const target = baseAngle + fullSpins;
+  const startRot = state.wheelRotation;
+  const delta = target - startRot;
+  const duration = 5500 + Math.random() * 2000;
+  const t0 = performance.now();
+
+  function frame(now) {
+    const elapsed = now - t0;
+    let t = Math.min(elapsed / duration, 1);
+    const eased = 1 - Math.pow(1 - t, 5);
+    state.wheelRotation = startRot + delta * eased;
+    state.particleSpeed = 1 + (1 - t) * 4;
+    renderWheel();
+    if (t < 1) requestAnimationFrame(frame);
+    else { state.isSpinning = false; state.particleSpeed = 1; document.getElementById('wheelWrapper').classList.remove('spinning'); announceWinner(); }
+  }
+  requestAnimationFrame(frame);
+}
+
+function announceWinner() {
+  state.drawCount++;
+  const winner = state.currentWinner;
+  const now = new Date();
+  state.winners.push({ name: winner, time: now, num: state.drawCount });
+  document.getElementById('winnerName').textContent = winner;
+  document.getElementById('winnerMeta').textContent = `Sorteo #${state.drawCount} — ${now.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}`;
+  document.getElementById('winnerOverlay').classList.add('visible');
+  if (state.filters.winners) { state.participants = state.participants.filter(p => p !== winner); updateCount(); }
+  updateHistoryUI(); fireConfetti(); updateSpinBtn();
+}
+
+function closeWinner() { document.getElementById('winnerOverlay').classList.remove('visible'); renderWheel(); }
+
+/* ═══════════════════════════════════════════════════
+   CONFETTI
+   ═══════════════════════════════════════════════════ */
+const confCanvas = document.getElementById('confettiCanvas');
+const confCtx = confCanvas.getContext('2d');
+let confParticles = [], confAnim = null;
+
+function resizeConf() {
+  const dpr = window.devicePixelRatio || 1;
+  confCanvas.width = window.innerWidth * dpr; confCanvas.height = window.innerHeight * dpr;
+  confCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  confCanvas.style.width = window.innerWidth + 'px'; confCanvas.style.height = window.innerHeight + 'px';
+}
+
+function fireConfetti() {
+  confParticles = [];
+  const cx = window.innerWidth / 2, cy = window.innerHeight * 0.35;
+  for (let i = 0; i < 120; i++) {
+    confParticles.push({ x: cx, y: cy, vx: (Math.random() - 0.5) * 18, vy: -Math.random() * 22 - 4,
+      g: .35 + Math.random() * .15, rot: Math.random() * Math.PI * 2, rs: (Math.random() - .5) * .25,
+      w: 5 + Math.random() * 8, h: 3 + Math.random() * 5,
+      color: CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)], opacity: 1 });
+  }
+  if (confAnim) cancelAnimationFrame(confAnim);
+  animConfetti();
+}
+
+function animConfetti() {
+  const w = window.innerWidth, h = window.innerHeight;
+  confCtx.clearRect(0, 0, w, h);
+  let alive = false;
+  for (const c of confParticles) {
+    if (c.opacity <= 0) continue; alive = true;
+    c.vy += c.g; c.x += c.vx; c.y += c.vy; c.rot += c.rs; c.vx *= .99;
+    if (c.y > h) c.opacity -= .05; c.opacity -= .002;
+    confCtx.save(); confCtx.globalAlpha = Math.max(0, c.opacity);
+    confCtx.translate(c.x, c.y); confCtx.rotate(c.rot);
+    confCtx.fillStyle = c.color; confCtx.fillRect(-c.w / 2, -c.h / 2, c.w, c.h);
+    confCtx.restore();
+  }
+  if (alive) confAnim = requestAnimationFrame(animConfetti);
+  else confCtx.clearRect(0, 0, w, h);
+}
+
+/* ═══════════════════════════════════════════════════
+   CERTIFICATE
+   ═══════════════════════════════════════════════════ */
+async function drawCertificate() {
+  await document.fonts.ready;
+  const c = document.getElementById('certCanvas');
+  const ctx = c.getContext('2d');
+  const w = 1200, h = 800;
+  const grad = ctx.createLinearGradient(0, 0, w, h);
+  grad.addColorStop(0, '#0a0a1a'); grad.addColorStop(1, '#111128');
+  ctx.fillStyle = grad; ctx.fillRect(0, 0, w, h);
+  ctx.strokeStyle = '#d4a847'; ctx.lineWidth = 3; roundRect(ctx, 28, 28, w - 56, h - 56, 6); ctx.stroke();
+  ctx.strokeStyle = 'rgba(212,168,71,.25)'; ctx.lineWidth = 1; roundRect(ctx, 42, 42, w - 84, h - 84, 4); ctx.stroke();
+  const corners = [[50,50],[w-50,50],[50,h-50],[w-50,h-50]];
+  ctx.strokeStyle = '#d4a847'; ctx.lineWidth = 2;
+  for (const [cx2,cy2] of corners) {
+    const dx = cx2 < w/2 ? 1 : -1, dy = cy2 < h/2 ? 1 : -1;
+    ctx.beginPath(); ctx.moveTo(cx2, cy2 + 20*dy); ctx.lineTo(cx2, cy2); ctx.lineTo(cx2 + 20*dx, cy2); ctx.stroke();
+  }
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#d4a847'; ctx.font = '800 40px Syne, sans-serif'; ctx.fillText('CERTIFICADO DE SORTEO', w/2, 155);
+  ctx.strokeStyle = 'rgba(212,168,71,.4)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(320, 178); ctx.lineTo(880, 178); ctx.stroke();
+  ctx.fillStyle = '#c0bdd0'; ctx.font = '500 22px Figtree, sans-serif'; ctx.fillText('Se certifica que el participante:', w/2, 270);
+  ctx.fillStyle = '#8b5cf6'; ctx.font = '800 46px Syne, sans-serif';
+  ctx.shadowColor = '#8b5cf6'; ctx.shadowBlur = 25; ctx.fillText(state.currentWinner || '', w/2, 360); ctx.shadowBlur = 0;
+  ctx.fillStyle = '#c0bdd0'; ctx.font = '500 22px Figtree, sans-serif'; ctx.fillText('ha resultado ganador/a del sorteo realizado', w/2, 440);
+  const d = new Date();
+  ctx.fillText(`el ${d.toLocaleDateString('es-AR',{day:'numeric',month:'long',year:'numeric'})} a las ${d.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'})}`, w/2, 480);
+  ctx.fillStyle = '#6b6b8d'; ctx.font = '400 17px Figtree, sans-serif';
+  ctx.fillText(`Total de participantes: ${state.rawParticipants.length || EXAMPLES.length}`, w/2, 555);
+  ctx.fillText(`Ref: RAFLY-${d.getFullYear()}-${String(state.drawCount).padStart(4,'0')}`, w/2, 585);
+  ctx.fillStyle = 'rgba(139,92,246,.08)'; ctx.font = '800 130px Syne, sans-serif'; ctx.fillText('RAFLY', w/2, 710);
+  ctx.fillStyle = '#4a4a6a'; ctx.font = '400 14px Figtree, sans-serif'; ctx.fillText('Generado por RAFLY — Sorteos en vivo', w/2, 760);
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath(); ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y); ctx.arcTo(x+w,y,x+w,y+r,r);
+  ctx.lineTo(x+w,y+h-r); ctx.arcTo(x+w,y+h,x+w-r,y+h,r); ctx.lineTo(x+r,y+h); ctx.arcTo(x,y+h,x,y+h-r,r);
+  ctx.lineTo(x,y+r); ctx.arcTo(x,y,x+r,y,r); ctx.closePath();
+}
+
+function downloadCertificate() {
+  const c = document.getElementById('certCanvas');
+  try {
+    const a = document.createElement('a');
+    a.href = c.toDataURL('image/png');
+    a.download = `certificado-rafly-${state.drawCount}.png`;
+    a.click();
+  } catch (e) { alert('Hacé una captura de pantalla del certificado para guardarlo.'); }
+}
+
+/* ═══════════════════════════════════════════════════
+   FILTERS & PARSING
+   ═══════════════════════════════════════════════════ */
+function parseInput(text) {
+  return text.split('\n').map(l => l.trim()).filter(l => l.length > 0)
+    .map(l => { const m = l.match(/@[\w.]+/); return m ? m[0] : l; });
+}
+
+function applyFilters(raw) {
+  let list = [...raw];
+  const f = state.filters;
+  if (f.mention) list = list.filter(p => p.startsWith('@'));
+  if (f.dupes) list = [...new Set(list)];
+  if (f.blocked) {
+    const bl = f.blocked.split('\n').map(b => b.trim().toLowerCase()).filter(Boolean);
+    list = list.filter(p => !bl.includes(p.toLowerCase()));
+  }
+  if (f.winners && state.winners.length > 0) {
+    const won = new Set(state.winners.map(w => w.name));
+    list = list.filter(p => !won.has(p));
+  }
+  return list;
+}
+
+function loadParticipants(raw) {
+  state.rawParticipants = raw;
+  state.usingExamples = false;
+  state.participants = applyFilters(raw);
+  state.displayNames = state.participants.length <= MAX_SEGMENTS
+    ? [...state.participants]
+    : state.participants.sort(() => Math.random() - 0.5).slice(0, MAX_SEGMENTS);
+  document.getElementById('exampleBadge').hidden = true;
+  updateCount(); renderWheel(); updateSpinBtn();
+}
+
+function updateCount() {
+  document.getElementById('countDisplay').textContent = state.participants.length;
+  document.getElementById('loadedCount').innerHTML = `Participantes cargados: <b>${state.participants.length}</b>`;
+}
+
+function updateSpinBtn() {
+  const btn = document.getElementById('spinBtn');
+  btn.disabled = state.participants.length < 2 || state.isSpinning;
+  if (!state.isSpinning) btn.textContent = '¡GIRAR!';
+}
+
+function updateHistoryUI() {
+  const ul = document.getElementById('historyList');
+  if (state.winners.length === 0) ul.innerHTML = '<li class="history-empty">Todavía no hay ganadores</li>';
+  else ul.innerHTML = state.winners.map((w, i) => `<li class="history-item"><div class="history-num">${i+1}</div><div class="history-name">${w.name}</div><div class="history-time">${w.time.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'})}</div></li>`).reverse().join('');
+  const strip = document.getElementById('historyStrip');
+  if (state.winners.length === 0) strip.innerHTML = '<span style="color:var(--text-muted);font-size:.85rem">Sin ganadores aún</span>';
+  else strip.innerHTML = state.winners.map((w, i) => `<div class="history-chip"><span class="num">#${i+1}</span> ${w.name}</div>`).join('');
+}
+
+/* ═══════════════════════════════════════════════════
+   UI & PANEL
+   ═══════════════════════════════════════════════════ */
+function openPanel() { document.getElementById('sidePanel').classList.add('open'); document.getElementById('panelOverlay').classList.add('open'); }
+function closePanel() { document.getElementById('sidePanel').classList.remove('open'); document.getElementById('panelOverlay').classList.remove('open'); }
+
+/* ═══════════════════════════════════════════════════
+   INIT
+   ═══════════════════════════════════════════════════ */
+function init() {
+  resizeBg(); resizeConf(); createParticles(); setupWheel();
+  drawParticles(); updateCount(); updateSpinBtn();
+
+  window.addEventListener('resize', () => { resizeBg(); resizeConf(); createParticles(); setupWheel(); });
+  document.addEventListener('mousemove', e => { state.mouseX = e.clientX; state.mouseY = e.clientY; });
+
+  // 3D tilt (orbit feel)
+  const ws = document.getElementById('wheelWrapper');
+  ws.addEventListener('mousemove', e => {
+    if (state.isSpinning) return;
+    const r = ws.getBoundingClientRect();
+    const x = (e.clientX - r.left) / r.width - 0.5;
+    const y = (e.clientY - r.top) / r.height - 0.5;
+    wheelCanvas.style.setProperty('--tiltX', `${y * -10}deg`);
+    wheelCanvas.style.setProperty('--tiltY', `${x * 10}deg`);
+  });
+  ws.addEventListener('mouseleave', () => { wheelCanvas.style.setProperty('--tiltX', '0deg'); wheelCanvas.style.setProperty('--tiltY', '0deg'); });
+
+  document.getElementById('spinBtn').addEventListener('click', spin);
+  document.getElementById('panelToggle').addEventListener('click', openPanel);
+  document.getElementById('panelClose').addEventListener('click', closePanel);
+  document.getElementById('panelOverlay').addEventListener('click', closePanel);
+
+  // Tabs
+  document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+      tab.classList.add('active');
+      document.getElementById('pane-' + tab.dataset.tab).classList.add('active');
+    });
+  });
+
+  // Manual load
+  document.getElementById('loadBtn').addEventListener('click', () => {
+    const text = document.getElementById('inputArea').value;
+    if (!text.trim()) return;
+    state.igSource = false;
+    document.getElementById('igSourceBadge').hidden = true;
+    loadParticipants(parseInput(text));
+  });
+
+  document.getElementById('fileInput').addEventListener('change', e => {
+    const file = e.target.files[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => { document.getElementById('inputArea').value = ev.target.result;
+      state.igSource = false; document.getElementById('igSourceBadge').hidden = true;
+      loadParticipants(parseInput(ev.target.result)); };
+    reader.readAsText(file);
+  });
+
+  document.getElementById('clearBtn').addEventListener('click', () => {
+    document.getElementById('inputArea').value = '';
+    state.rawParticipants = []; state.participants = [...EXAMPLES]; state.displayNames = [...EXAMPLES];
+    state.usingExamples = true; state.winners = []; state.drawCount = 0; state.igSource = false;
+    document.getElementById('exampleBadge').hidden = false;
+    document.getElementById('igSourceBadge').hidden = true;
+    updateCount(); updateHistoryUI(); renderWheel(); updateSpinBtn();
+  });
+
+  // Toggles
+  function setupToggle(id, key) {
+    const btn = document.getElementById(id);
+    btn.addEventListener('click', () => { state.filters[key] = !state.filters[key]; btn.classList.toggle('on', state.filters[key]); btn.setAttribute('aria-checked', state.filters[key]); });
+  }
+  setupToggle('filterMention', 'mention');
+  setupToggle('filterDupes', 'dupes');
+  setupToggle('filterWinners', 'winners');
+
+  document.getElementById('applyFilters').addEventListener('click', () => {
+    state.filters.hashtag = document.getElementById('filterHashtag').value.trim();
+    state.filters.blocked = document.getElementById('filterBlocked').value;
+    if (state.rawParticipants.length > 0) {
+      state.participants = applyFilters(state.rawParticipants);
+      state.displayNames = state.participants.length <= MAX_SEGMENTS ? [...state.participants] : state.participants.sort(() => Math.random() - 0.5).slice(0, MAX_SEGMENTS);
+      updateCount(); renderWheel(); updateSpinBtn();
+    }
+  });
+
+  // Winner overlay
+  document.getElementById('closeWinnerBtn').addEventListener('click', closeWinner);
+  document.getElementById('spinAgainBtn').addEventListener('click', () => { closeWinner(); setTimeout(spin, 400); });
+  document.getElementById('certBtn').addEventListener('click', async () => { await drawCertificate(); document.getElementById('certModal').classList.add('visible'); });
+  document.getElementById('downloadCert').addEventListener('click', downloadCertificate);
+  document.getElementById('closeCert').addEventListener('click', () => document.getElementById('certModal').classList.remove('visible'));
+
+  // History bar
+  document.getElementById('historyToggle').addEventListener('click', () => document.getElementById('historyBar').classList.toggle('visible'));
+  document.getElementById('closeHistory').addEventListener('click', () => document.getElementById('historyBar').classList.remove('visible'));
+
+  // Check Instagram connection
+  checkIgConnection();
+}
+
+init();
+</script>
+
+</body>
+</html>
