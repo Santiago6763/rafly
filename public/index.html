@@ -491,14 +491,12 @@ async function selectIgPost(post, el) {
   state.igSelectedPost = post;
 
   const infoEl = document.getElementById('igCommentInfo');
-  const countEl = document.getElementById('igCommentCount');
-  infoEl.hidden = true;
-
-  // Show loading in the info area
   const errorEl = document.getElementById('igError');
   errorEl.hidden = true;
+
+  // Show loading in the info area
+  infoEl.innerHTML = '<div class="spinner" style="display:inline-block;width:18px;height:18px;border:2px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin .8s linear infinite;vertical-align:middle"></div> Cargando comentarios...';
   infoEl.hidden = false;
-  countEl.parentElement.innerHTML = '<div class="spinner" style="display:inline-block;width:18px;height:18px;border:2px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin .8s linear infinite;vertical-align:middle"></div> Cargando comentarios...';
 
   try {
     const res = await fetch(`/api/media/${post.id}/comments`);
