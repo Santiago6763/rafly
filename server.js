@@ -209,10 +209,8 @@ app.post('/api/disconnect', (req, res) => {
   res.json({ ok: true });
 });
 
-// ── API: Scrape comentarios por URL (sin vincular cuenta) ─────
-// Extrae shortcode de la URL y usa endpoints públicos de Instagram
+// ── API: Scrape comentarios por URL (multi-plataforma) ─────
 function extractShortcode(url) {
-  // Soporta: /p/XXXXX, /reel/XXXXX, /tv/XXXXX
   const patterns = [
     /instagram\.com\/(?:p|reel|tv)\/([A-Za-z0-9_-]+)/,
     /instagr\.am\/p\/([A-Za-z0-9_-]+)/
@@ -224,9 +222,157 @@ function extractShortcode(url) {
   return null;
 }
 
+function extractYouTubeId(url) {
+  const patterns = [
+    /youtube\.com\/watch\?v=([A-Za-z0-9_-]{11})/,
+    /youtu\.be\/([A-Za-z0-9_-]{11})/,
+    /youtube\.com\/shorts\/([A-Za-z0-9_-]{11})/,
+    /youtube\.com\/live\/([A-Za-z0-9_-]{11})/
+  ];
+  for (const p of patterns) {
+    const m = url.match(p);
+    if (m) return m[1];
+  }
+  return null;
+}
+
+function extractTikTokId(url) {
+  const m = url.match(/tiktok\.com\/@[^/]+\/video\/(\d+)/);
+  return m ? m[1] : null;
+}
+
+function detectPlatform(url) {
+  if (/youtube\.com|youtu\.be/i.test(url)) return 'youtube';
+  if (/tiktok\.com/i.test(url)) return 'tiktok';
+  if (/instagram\.com|instagr\.am/i.test(url)) return 'instagram';
+  return null;
+}
+
+// ── YouTube comment scraping ──
+async function scrapeYouTubeComments(videoId) {
+  // Use YouTube's internal API (no key needed, limited results)
+  const comments = [];
+  let postInfo = null;
+
+  try {
+    // Get video info via oEmbed
+    const oembedRes = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`);
+    if (oembedRes.ok) {
+      const oembed = await oembedRes.json();
+      postInfo = {
+        thumbnail: `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
+        author: oembed.author_name
+      };
+    }
+  } catch (e) { /* oEmbed failed */ }
+
+  if (!postInfo) {
+    postInfo = {
+      thumbnail: `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
+      author: null
+    };
+  }
+
+  // Try to get comments via YouTube page scraping
+  try {
+    const pageRes = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
+        'Accept-Language': 'en-US,en;q=0.9'
+      }
+    });
+    if (pageRes.ok) {
+      const html = await pageRes.text();
+      // Extract initial data JSON
+      const match = html.match(/var ytInitialData\s*=\s*({.*?});\s*<\/script>/s);
+      if (match) {
+        try {
+          const data = JSON.parse(match[1]);
+          // Navigate to comment section in the data structure
+          const contents = data?.contents?.twoColumnWatchNextResults?.results?.results?.contents;
+          if (contents) {
+            for (const section of contents) {
+              const items = section?.itemSectionRenderer?.contents;
+              if (items) {
+                for (const item of items) {
+                  const commentRenderer = item?.commentThreadRenderer?.comment?.commentRenderer;
+                  if (commentRenderer) {
+                    const username = commentRenderer.authorText?.simpleText || 'unknown';
+                    const text = (commentRenderer.contentText?.runs || []).map(r => r.text).join('');
+                    const timestamp = commentRenderer.publishedTimeText?.runs?.[0]?.text || '';
+                    comments.push({ username, text, timestamp });
+                  }
+                }
+              }
+            }
+          }
+        } catch (pe) { /* parse error */ }
+      }
+    }
+  } catch (e) { /* page fetch failed */ }
+
+  return { comments, post: postInfo };
+}
+
+// ── TikTok comment scraping ──
+async function scrapeTikTokComments(url) {
+  let postInfo = null;
+  const comments = [];
+
+  // Try oEmbed for video info
+  try {
+    const oembedRes = await fetch(`https://www.tiktok.com/oembed?url=${encodeURIComponent(url)}`);
+    if (oembedRes.ok) {
+      const oembed = await oembedRes.json();
+      postInfo = {
+        thumbnail: oembed.thumbnail_url,
+        author: oembed.author_name
+      };
+    }
+  } catch (e) { /* oEmbed failed */ }
+
+  // TikTok comments are very hard to scrape without API access
+  // We return post info and note that manual paste is needed for comments
+  return { comments, post: postInfo };
+}
+
 app.post('/api/scrape', async (req, res) => {
-  const { url } = req.body;
+  const { url, platform: clientPlatform } = req.body;
   if (!url) return res.status(400).json({ error: 'URL requerida' });
+
+  const platform = clientPlatform || detectPlatform(url) || 'instagram';
+
+  // ── YouTube ──
+  if (platform === 'youtube') {
+    const videoId = extractYouTubeId(url);
+    if (!videoId) return res.status(400).json({ error: 'URL de YouTube no válida. Usá un link de video, short o live.' });
+    try {
+      const { comments, post } = await scrapeYouTubeComments(videoId);
+      return res.json({
+        success: true, shortcode: videoId, post, comments,
+        total: comments.length, method: comments.length > 0 ? 'youtube_scrape' : 'none',
+        note: comments.length === 0 ? 'No se pudieron extraer comentarios de YouTube automáticamente. YouTube limita el acceso público. Podés pegar los comentarios manualmente.' : null
+      });
+    } catch (err) {
+      return res.status(500).json({ error: 'Error al procesar video de YouTube: ' + err.message });
+    }
+  }
+
+  // ── TikTok ──
+  if (platform === 'tiktok') {
+    try {
+      const { comments, post } = await scrapeTikTokComments(url);
+      return res.json({
+        success: true, shortcode: extractTikTokId(url) || 'tiktok', post, comments,
+        total: comments.length, method: comments.length > 0 ? 'tiktok_scrape' : 'none',
+        note: comments.length === 0 ? 'TikTok no permite acceso público a comentarios. Podés copiar y pegar los comentarios manualmente desde la app.' : null
+      });
+    } catch (err) {
+      return res.status(500).json({ error: 'Error al procesar video de TikTok: ' + err.message });
+    }
+  }
+
+  // ── Instagram (original flow) ──
 
   const shortcode = extractShortcode(url);
   if (!shortcode) return res.status(400).json({ error: 'URL de Instagram no válida. Usá un link de post, reel o carrusel.' });
