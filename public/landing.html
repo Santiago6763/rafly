@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RAFLY — Sorteos en vivo para Instagram</title>
+<meta name="description" content="Hacé sorteos en vivo con Instagram. Extraé comentarios, filtrá participantes, elegí ganadores con animaciones y generá certificados. Gratis.">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Exo+2:wght@300;400;500;600;700&display=swap">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --void:#03030a;--bg:#060614;--surface:#0c0c24;--elevated:#12123a;
+  --neon-cyan:#00e5ff;--neon-magenta:#ff00aa;--neon-purple:#7b2eff;
+  --neon-green:#00ff88;--neon-gold:#ffd700;
+  --glow-cyan:rgba(0,229,255,.4);--glow-magenta:rgba(255,0,170,.4);
+  --text:#e0e0f8;--text-muted:#8a8aaa;--text-dim:#4a4a65;
+  --border:rgba(0,229,255,.12);
+}
+html{scroll-behavior:smooth}
+body{font-family:'Exo 2',system-ui,sans-serif;background:var(--bg);color:var(--text);overflow-x:hidden;line-height:1.6}
+
+/* ── Stars background ── */
+.stars{position:fixed;inset:0;pointer-events:none;z-index:0}
+.star{position:absolute;border-radius:50%;background:#fff;animation:twinkle var(--dur) ease-in-out infinite}
+@keyframes twinkle{0%,100%{opacity:var(--o)}50%{opacity:0}}
+
+/* ── Header ── */
+.landing-header{
+  position:fixed;top:0;left:0;right:0;z-index:50;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:.8rem 2rem;background:rgba(6,6,20,.85);backdrop-filter:blur(16px);
+  border-bottom:1px solid var(--border);
+}
+.logo{font-family:'Orbitron',monospace;font-weight:900;font-size:1.5rem;background:linear-gradient(135deg,var(--neon-cyan),var(--neon-magenta));-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:.08em}
+.nav-links{display:flex;gap:1.5rem;align-items:center}
+.nav-links a{color:var(--text-muted);text-decoration:none;font-size:.85rem;font-weight:500;transition:color .2s}
+.nav-links a:hover{color:var(--neon-cyan)}
+.btn-cta{
+  display:inline-flex;align-items:center;gap:.4rem;
+  padding:.6rem 1.4rem;border-radius:50px;border:none;
+  background:linear-gradient(135deg,var(--neon-cyan),var(--neon-magenta));
+  color:#fff;font-family:'Orbitron',monospace;font-weight:700;font-size:.85rem;
+  cursor:pointer;text-decoration:none;letter-spacing:.05em;
+  transition:transform .2s,box-shadow .2s;
+}
+.btn-cta:hover{transform:scale(1.05);box-shadow:0 0 30px var(--glow-cyan)}
+.btn-cta-outline{
+  display:inline-flex;align-items:center;gap:.4rem;
+  padding:.6rem 1.4rem;border-radius:50px;
+  border:2px solid var(--neon-cyan);background:transparent;
+  color:var(--neon-cyan);font-family:'Orbitron',monospace;font-weight:700;font-size:.85rem;
+  cursor:pointer;text-decoration:none;letter-spacing:.05em;transition:all .2s;
+}
+.btn-cta-outline:hover{background:rgba(0,229,255,.08);box-shadow:0 0 20px rgba(0,229,255,.15)}
+
+/* ── Hero ── */
+.hero{
+  min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  text-align:center;padding:6rem 1.5rem 4rem;position:relative;z-index:1;
+}
+.hero-badge{
+  display:inline-flex;align-items:center;gap:.4rem;
+  padding:.3rem .8rem;border-radius:20px;border:1px solid rgba(0,255,136,.2);
+  background:rgba(0,255,136,.05);color:var(--neon-green);font-size:.75rem;font-weight:600;
+  margin-bottom:1.5rem;letter-spacing:.03em;
+}
+.hero-badge .dot{width:6px;height:6px;border-radius:50%;background:var(--neon-green);animation:pulse-dot 2s infinite}
+@keyframes pulse-dot{0%,100%{opacity:1}50%{opacity:.3}}
+.hero h1{
+  font-family:'Orbitron',monospace;font-weight:900;
+  font-size:clamp(2.2rem,5vw,4rem);line-height:1.15;
+  margin-bottom:1rem;max-width:700px;
+}
+.hero h1 .gradient{background:linear-gradient(135deg,var(--neon-cyan),var(--neon-magenta));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hero p{font-size:1.1rem;color:var(--text-muted);max-width:550px;margin-bottom:2rem;font-weight:300;line-height:1.7}
+.hero-buttons{display:flex;gap:1rem;flex-wrap:wrap;justify-content:center}
+.hero-visual{
+  margin-top:3rem;position:relative;max-width:800px;width:100%;
+}
+.hero-mockup{
+  width:100%;border-radius:12px;border:1px solid var(--border);
+  box-shadow:0 0 60px rgba(0,229,255,.08),0 20px 60px rgba(0,0,0,.4);
+  background:var(--surface);overflow:hidden;
+}
+.mockup-bar{height:32px;background:var(--elevated);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 .8rem;gap:.4rem}
+.mockup-dot{width:8px;height:8px;border-radius:50%}
+.mockup-content{padding:1.5rem;text-align:left;font-size:.8rem;color:var(--text-muted)}
+.mockup-slot{
+  display:flex;flex-direction:column;align-items:center;gap:.5rem;
+  padding:2rem;background:var(--elevated);border-radius:8px;margin-bottom:1rem;
+}
+.mockup-slot-names{font-family:'Orbitron',monospace;color:var(--neon-cyan);font-weight:700;font-size:1.1rem;text-shadow:0 0 12px var(--glow-cyan)}
+.mockup-btn{padding:.5rem 1.5rem;border-radius:30px;border:2px solid var(--neon-cyan);color:#fff;background:transparent;font-family:'Orbitron',monospace;font-weight:700;font-size:.85rem;box-shadow:0 0 15px var(--glow-cyan)}
+.glow-orb{position:absolute;border-radius:50%;filter:blur(60px);pointer-events:none;z-index:-1}
+
+/* ── Features ── */
+.section{padding:5rem 1.5rem;position:relative;z-index:1}
+.section-header{text-align:center;margin-bottom:3rem}
+.section-header h2{font-family:'Orbitron',monospace;font-weight:700;font-size:1.6rem;margin-bottom:.6rem}
+.section-header p{color:var(--text-muted);font-size:.95rem;max-width:500px;margin:0 auto}
+.features-grid{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+  gap:1.2rem;max-width:1000px;margin:0 auto;
+}
+.feature-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:12px;
+  padding:1.5rem;transition:border-color .3s,box-shadow .3s;
+}
+.feature-card:hover{border-color:var(--neon-cyan);box-shadow:0 0 20px rgba(0,229,255,.08)}
+.feature-icon{
+  width:48px;height:48px;border-radius:10px;display:flex;align-items:center;justify-content:center;
+  font-size:1.4rem;margin-bottom:.8rem;
+}
+.feature-card h3{font-family:'Orbitron',monospace;font-weight:700;font-size:.85rem;margin-bottom:.4rem;color:var(--neon-cyan)}
+.feature-card p{font-size:.82rem;color:var(--text-muted);line-height:1.6}
+
+/* ── How it works ── */
+.steps{display:flex;gap:2rem;max-width:900px;margin:0 auto;flex-wrap:wrap;justify-content:center}
+.step{flex:1;min-width:200px;max-width:280px;text-align:center;padding:1rem}
+.step-num{
+  width:44px;height:44px;border-radius:50%;margin:0 auto .8rem;
+  display:flex;align-items:center;justify-content:center;
+  font-family:'Orbitron',monospace;font-weight:900;font-size:1.1rem;
+  background:linear-gradient(135deg,var(--neon-purple),var(--neon-cyan));color:#fff;
+  box-shadow:0 0 20px rgba(123,46,255,.3);
+}
+.step h3{font-size:.85rem;font-weight:600;margin-bottom:.3rem}
+.step p{font-size:.78rem;color:var(--text-muted)}
+
+/* ── Comparison ── */
+.comparison{
+  max-width:700px;margin:0 auto;background:var(--surface);border:1px solid var(--border);
+  border-radius:12px;overflow:hidden;
+}
+.comp-row{display:grid;grid-template-columns:1fr 1fr 1fr;padding:.6rem 1rem;font-size:.8rem;border-bottom:1px solid var(--border);align-items:center}
+.comp-row:last-child{border-bottom:none}
+.comp-header{background:var(--elevated);font-weight:700;font-size:.72rem;text-transform:uppercase;letter-spacing:.05em}
+.comp-header .comp-rafly{color:var(--neon-cyan);font-family:'Orbitron',monospace}
+.comp-feature{color:var(--text-muted)}
+.comp-yes{color:var(--neon-green);font-weight:600}
+.comp-no{color:var(--text-dim)}
+.comp-free{color:var(--neon-gold);font-weight:600}
+
+/* ── CTA ── */
+.cta-section{
+  text-align:center;padding:5rem 1.5rem;position:relative;z-index:1;
+}
+.cta-section h2{font-family:'Orbitron',monospace;font-weight:900;font-size:clamp(1.5rem,3vw,2.2rem);margin-bottom:.8rem}
+.cta-section p{color:var(--text-muted);margin-bottom:1.5rem;font-size:1rem}
+.cta-glow{
+  position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  width:400px;height:400px;border-radius:50%;
+  background:radial-gradient(circle,rgba(0,229,255,.06),transparent 70%);
+  pointer-events:none;
+}
+
+/* ── Footer ── */
+footer{
+  border-top:1px solid var(--border);padding:1.5rem 2rem;text-align:center;
+  font-size:.75rem;color:var(--text-dim);position:relative;z-index:1;
+}
+
+@media(max-width:768px){
+  .landing-header{padding:.6rem 1rem}
+  .nav-links a:not(.btn-cta){display:none}
+  .features-grid{grid-template-columns:1fr}
+  .steps{flex-direction:column;align-items:center}
+  .comp-row{font-size:.7rem;padding:.5rem .6rem}
+}
+</style>
+</head>
+<body>
+
+<div class="stars" id="starsContainer"></div>
+
+<header class="landing-header">
+  <div class="logo">RAFLY</div>
+  <nav class="nav-links">
+    <a href="#features">Funciones</a>
+    <a href="#how">Pasos</a>
+    <a href="#compare">Comparar</a>
+    <a href="/" class="btn-cta">Empezar gratis</a>
+  </nav>
+</header>
+
+<section class="hero">
+  <div class="glow-orb" style="width:500px;height:500px;background:radial-gradient(circle,rgba(0,229,255,.06),transparent 70%);top:20%;left:10%"></div>
+  <div class="glow-orb" style="width:400px;height:400px;background:radial-gradient(circle,rgba(255,0,170,.05),transparent 70%);bottom:10%;right:5%"></div>
+
+  <div class="hero-badge"><div class="dot"></div> 100% gratis &bull; sin registro</div>
+
+  <h1>Sorteos en vivo para <span class="gradient">Instagram</span></h1>
+
+  <p>Extraer comentarios, filtrar participantes, elegir ganadores con animaciones y generar certificados. Todo desde tu navegador, sin instalar nada.</p>
+
+  <div class="hero-buttons">
+    <a href="/" class="btn-cta">Empezar ahora</a>
+    <a href="#how" class="btn-cta-outline">Ver cómo funciona</a>
+  </div>
+
+  <div class="hero-visual">
+    <div class="hero-mockup">
+      <div class="mockup-bar">
+        <div class="mockup-dot" style="background:#ff5f57"></div>
+        <div class="mockup-dot" style="background:#ffbd2e"></div>
+        <div class="mockup-dot" style="background:#28ca41"></div>
+      </div>
+      <div class="mockup-content">
+        <div class="mockup-slot">
+          <div style="font-size:.7rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:.1em;font-family:Orbitron,monospace">Slot Machine</div>
+          <div class="mockup-slot-names">@valentina_ruiz</div>
+          <div class="mockup-btn">SORTEAR</div>
+        </div>
+        <div style="display:flex;gap:.5rem;justify-content:center;flex-wrap:wrap">
+          <span style="padding:.2rem .5rem;border-radius:12px;background:rgba(0,255,136,.06);border:1px solid rgba(0,255,136,.15);color:var(--neon-green);font-size:.7rem;font-weight:600">247 participantes</span>
+          <span style="padding:.2rem .5rem;border-radius:12px;background:rgba(255,215,0,.06);border:1px solid rgba(255,215,0,.15);color:var(--neon-gold);font-size:.7rem;font-weight:600">3 ganadores</span>
+          <span style="padding:.2rem .5rem;border-radius:12px;background:rgba(255,0,170,.06);border:1px solid rgba(255,0,170,.15);color:var(--neon-magenta);font-size:.7rem;font-weight:600">Certificado</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="features">
+  <div class="section-header">
+    <h2>Todo lo que necesitás</h2>
+    <p>Funciones profesionales para sorteos transparentes y divertidos</p>
+  </div>
+  <div class="features-grid">
+    <div class="feature-card">
+      <div class="feature-icon" style="background:rgba(0,229,255,.08);color:var(--neon-cyan)">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"/></svg>
+      </div>
+      <h3>Pegar URL del post</h3>
+      <p>Sin necesidad de vincular tu cuenta. Pegá la URL de cualquier post o reel y extraemos los comentarios automáticamente.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon" style="background:rgba(255,0,170,.08);color:var(--neon-magenta)">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069z"/></svg>
+      </div>
+      <h3>Conectar Instagram</h3>
+      <p>Vinculá tu cuenta Business para importar publicaciones y comentarios con un clic. Token seguro de larga duración.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon" style="background:rgba(123,46,255,.08);color:var(--neon-purple)">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M10 18h4v-2h-4v2zM3 6v2h18V6H3zm3 7h12v-2H6v2z"/></svg>
+      </div>
+      <h3>Filtros avanzados</h3>
+      <p>Excluir duplicados, requerir menciones o hashtags, bloquear cuentas, filtrar por palabras clave y largo mínimo de comentario.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon" style="background:rgba(255,215,0,.08);color:var(--neon-gold)">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M19 5h-2V3H7v2H5c-1.1 0-2 .9-2 2v1c0 2.55 1.92 4.63 4.39 4.94.63 1.5 1.98 2.63 3.61 2.96V19H7v2h10v-2h-4v-3.1c1.63-.33 2.98-1.46 3.61-2.96C19.08 12.63 21 10.55 21 8V7c0-1.1-.9-2-2-2z"/></svg>
+      </div>
+      <h3>Múltiples ganadores</h3>
+      <p>Elegí hasta 20 ganadores y 10 suplentes en un solo sorteo. Cada uno queda registrado con su número de orden.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon" style="background:rgba(0,255,136,.08);color:var(--neon-green)">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+      </div>
+      <h3>Certificado descargable</h3>
+      <p>Generá un certificado PNG profesional con los datos del sorteo: ganadores, fecha, total de participantes y referencia única.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon" style="background:rgba(0,229,255,.08);color:var(--neon-cyan)">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+      </div>
+      <h3>3 animaciones</h3>
+      <p>Slot Machine, Ruleta y Shuffle. Elegí la que más le guste a tu audiencia para hacer el sorteo en vivo.</p>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="how">
+  <div class="section-header">
+    <h2>3 pasos simples</h2>
+    <p>De los comentarios al ganador en menos de un minuto</p>
+  </div>
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">1</div>
+      <h3>Cargá los participantes</h3>
+      <p>Pegá la URL del post, conectá Instagram, o cargá nombres manualmente.</p>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <h3>Configurá los filtros</h3>
+      <p>Eliminá duplicados, requerí menciones, bloqueá cuentas spam.</p>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <h3>Sorteá en vivo</h3>
+      <p>Elegí la animación, la cantidad de ganadores, y sorteá frente a tu audiencia.</p>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="compare">
+  <div class="section-header">
+    <h2>RAFLY vs la competencia</h2>
+    <p>Todo lo que otros cobran, acá es gratis</p>
+  </div>
+  <div class="comparison">
+    <div class="comp-row comp-header">
+      <div></div>
+      <div class="comp-rafly">RAFLY</div>
+      <div>Otros</div>
+    </div>
+    <div class="comp-row">
+      <div class="comp-feature">Precio</div>
+      <div class="comp-free">Gratis</div>
+      <div class="comp-no">$9-49/mes</div>
+    </div>
+    <div class="comp-row">
+      <div class="comp-feature">Sorteo por URL</div>
+      <div class="comp-yes">Si</div>
+      <div class="comp-yes">Si (pago)</div>
+    </div>
+    <div class="comp-row">
+      <div class="comp-feature">Sin registro</div>
+      <div class="comp-yes">Si</div>
+      <div class="comp-no">No</div>
+    </div>
+    <div class="comp-row">
+      <div class="comp-feature">Animaciones en vivo</div>
+      <div class="comp-yes">3 tipos</div>
+      <div class="comp-no">1 tipo</div>
+    </div>
+    <div class="comp-row">
+      <div class="comp-feature">Múltiples ganadores</div>
+      <div class="comp-yes">Hasta 20</div>
+      <div class="comp-yes">Limitado</div>
+    </div>
+    <div class="comp-row">
+      <div class="comp-feature">Certificado</div>
+      <div class="comp-yes">Si</div>
+      <div class="comp-no">Solo premium</div>
+    </div>
+    <div class="comp-row">
+      <div class="comp-feature">Filtros avanzados</div>
+      <div class="comp-yes">Si</div>
+      <div class="comp-no">Básicos</div>
+    </div>
+  </div>
+</section>
+
+<section class="cta-section">
+  <div class="cta-glow"></div>
+  <h2>Empezá tu sorteo ahora</h2>
+  <p>Sin registro, sin tarjeta de crédito, sin límites.</p>
+  <a href="/" class="btn-cta" style="font-size:1rem;padding:.8rem 2rem">Ir a RAFLY</a>
+</section>
+
+<footer>
+  <div class="logo" style="font-size:1rem;margin-bottom:.5rem">RAFLY</div>
+  Sorteos en vivo para Instagram &bull; Hecho con amor en Argentina
+</footer>
+
+<script>
+// Generate twinkling stars
+const container = document.getElementById('starsContainer');
+for (let i = 0; i < 60; i++) {
+  const star = document.createElement('div');
+  star.className = 'star';
+  const size = 1 + Math.random() * 2;
+  star.style.cssText = `
+    width:${size}px;height:${size}px;
+    top:${Math.random()*100}%;left:${Math.random()*100}%;
+    --o:${0.15+Math.random()*0.4};
+    --dur:${2+Math.random()*4}s;
+    animation-delay:${Math.random()*4}s;
+  `;
+  container.appendChild(star);
+}
+</script>
+</body>
+</html>
