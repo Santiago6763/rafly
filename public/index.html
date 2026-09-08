@@ -532,6 +532,43 @@ main{
   .cursor-dot,.cursor-ring,.scan-lines{display:none!important}
   a,button,input,textarea,select,.btn,.btn-icon,.mode-btn,.toggle,.ig-post,.tab,.ig-connect-btn,.ig-disconnect,.spin-btn{cursor:auto!important}
 }
+
+/* ═══ LEVEL 2: Persistent History ═══ */
+.sorteo-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:.7rem;margin-bottom:.5rem;transition:border-color .2s}
+.sorteo-card:hover{border-color:var(--neon-cyan)}
+.sorteo-card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:.35rem}
+.sorteo-card-num{font-family:'Orbitron',monospace;font-weight:700;font-size:.7rem;color:var(--neon-cyan)}
+.sorteo-card-date{font-size:.65rem;color:var(--text-dim)}
+.sorteo-card-winners{display:flex;flex-wrap:wrap;gap:.25rem;margin-bottom:.35rem}
+.sorteo-card-winner{background:rgba(0,229,255,.08);border:1px solid rgba(0,229,255,.2);border-radius:6px;padding:.15rem .45rem;font-size:.7rem;font-weight:600;color:var(--neon-cyan)}
+.sorteo-card-winner.suplente{background:rgba(123,46,255,.08);border-color:rgba(123,46,255,.2);color:#b388ff}
+.sorteo-card-meta{font-size:.62rem;color:var(--text-dim);display:flex;gap:.6rem;flex-wrap:wrap}
+.sorteo-card-actions{display:flex;gap:.3rem;margin-top:.35rem}
+.sorteo-card-actions button{font-size:.6rem;padding:.2rem .5rem}
+.history-controls{display:flex;gap:.3rem;margin-bottom:.5rem}
+.history-controls button{flex:1;font-size:.65rem;padding:.3rem .4rem}
+
+/* ═══ LEVEL 2: CSV Export ═══ */
+.btn-csv{background:linear-gradient(135deg,#00c853,#00bfa5);color:#fff;border:none;padding:.35rem .7rem;border-radius:8px;font-family:inherit;font-weight:700;font-size:.7rem;cursor:pointer;display:inline-flex;align-items:center;gap:.3rem;transition:opacity .2s}
+.btn-csv:hover{opacity:.85}
+
+/* ═══ LEVEL 2: Fortune Wheel Enhancement ═══ */
+.wheel-pointer-tick{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none;z-index:3}
+
+/* ═══ LEVEL 2: Share Result ═══ */
+.share-actions{display:flex;gap:.3rem;margin-top:.5rem;flex-wrap:wrap;justify-content:center}
+.btn-share{background:var(--surface);color:var(--text-muted);border:1px solid var(--border);padding:.3rem .6rem;border-radius:8px;font-family:inherit;font-weight:600;font-size:.65rem;cursor:pointer;display:inline-flex;align-items:center;gap:.25rem;transition:all .2s}
+.btn-share:hover{border-color:var(--neon-cyan);color:var(--neon-cyan)}
+.btn-share svg{width:14px;height:14px;fill:currentColor}
+.share-toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--neon-cyan);color:#060614;padding:.5rem 1.2rem;border-radius:8px;font-weight:700;font-size:.8rem;z-index:9999;animation:toastIn .3s ease-out}
+@keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(20px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+
+/* ═══ LEVEL 2: Multi-platform badges ═══ */
+.platform-badge{display:inline-flex;align-items:center;gap:.25rem;font-size:.65rem;font-weight:700;padding:.15rem .4rem;border-radius:6px;text-transform:uppercase;letter-spacing:.03em}
+.platform-badge.instagram{background:rgba(225,48,108,.12);color:#e1306c}
+.platform-badge.youtube{background:rgba(255,0,0,.1);color:#ff0000}
+.platform-badge.tiktok{background:rgba(0,242,234,.1);color:#00f2ea}
+.url-platform-icon{width:16px;height:16px;display:inline-block;vertical-align:middle;margin-right:.3rem}
 </style>
 </head>
 <body>
@@ -565,7 +602,7 @@ main{
     <button class="btn-icon" id="panelClose" style="border:none;background:none;color:var(--text-muted);font-size:1.2rem;cursor:pointer">&times;</button>
   </div>
   <div class="tabs">
-    <button class="tab active" data-tab="instagram">Instagram</button>
+    <button class="tab active" data-tab="instagram">Redes</button>
     <button class="tab" data-tab="load">Manual</button>
     <button class="tab" data-tab="filters">Filtros</button>
     <button class="tab" data-tab="history">Historial</button>
@@ -575,11 +612,12 @@ main{
     <div class="tab-pane active" id="pane-instagram">
       <!-- URL Scrape (no account needed) -->
       <div class="url-scrape-box" id="urlScrapeBox">
-        <label>Pegar URL del post / reel</label>
+        <label>Pegar URL del post / reel / video</label>
         <div class="url-input-row">
-          <input type="text" id="urlInput" placeholder="https://instagram.com/p/..." autocomplete="off">
+          <input type="text" id="urlInput" placeholder="URL de Instagram, YouTube o TikTok" autocomplete="off">
           <button id="urlScrapeBtn" onclick="scrapeByUrl()">Buscar</button>
         </div>
+        <div id="platformDetected" hidden style="font-size:.65rem;margin-top:.3rem;color:var(--text-muted)"></div>
         <div id="urlResult" hidden></div>
         <div id="urlStatus" class="url-status" hidden></div>
       </div>
@@ -628,8 +666,10 @@ main{
         <input type="file" id="fileInput" accept=".csv,.txt,.text">
       </div>
       <div class="participant-count" id="loadedCount">Participantes cargados: <b>0</b></div>
-      <div style="margin-top:.6rem">
-        <button class="btn btn-secondary btn-block" id="clearBtn">Limpiar todo</button>
+      <div style="display:flex;gap:.3rem;margin-top:.5rem">
+        <button class="btn-csv" id="csvExportBtn" hidden>Exportar CSV</button>
+        <div style="flex:1"></div>
+        <button class="btn btn-secondary" id="clearBtn" style="font-size:.7rem;padding:.3rem .7rem">Limpiar todo</button>
       </div>
     </div>
     <!-- ── Filters Tab ── -->
@@ -657,6 +697,11 @@ main{
     </div>
     <!-- ── History Tab ── -->
     <div class="tab-pane" id="pane-history">
+      <div class="history-controls">
+        <button class="btn btn-secondary" id="exportHistoryBtn" title="Exportar historial">Exportar CSV</button>
+        <button class="btn btn-secondary" id="clearHistoryBtn" title="Borrar historial" style="color:#ff5252">Borrar todo</button>
+      </div>
+      <div id="persistentHistoryList"></div>
       <ul class="history-list" id="historyList">
         <li class="history-empty">Todavía no hay ganadores</li>
       </ul>
@@ -776,6 +821,20 @@ main{
       <button class="btn btn-gold" id="certBtn">Certificado</button>
       <button class="btn btn-primary" id="spinAgainBtn">Sortear de nuevo</button>
       <button class="btn btn-secondary" id="closeWinnerBtn">Cerrar</button>
+    </div>
+    <div class="share-actions">
+      <button class="btn-share" id="shareImgBtn" title="Descargar imagen">
+        <svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+        Imagen
+      </button>
+      <button class="btn-share" id="shareCopyBtn" title="Copiar resultado">
+        <svg viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
+        Copiar
+      </button>
+      <button class="btn-share" id="shareNativeBtn" title="Compartir">
+        <svg viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z"/></svg>
+        Compartir
+      </button>
     </div>
   </div>
 </div>
@@ -1022,10 +1081,12 @@ function loadIgCommentsToWheel() {
   state.rawCommentTexts = state.igComments.map(c => c.text || '');
   state.igSource = true;
   state.scrapeSource = false;
+  state.currentPlatform = 'instagram';
   loadParticipants(usernames);
   document.getElementById('igSourceBadge').hidden = false;
   document.getElementById('igSourceBadge').textContent = 'Comentarios de Instagram';
   document.getElementById('exampleBadge').hidden = true;
+  document.getElementById('csvExportBtn').hidden = false;
   closePanel();
 }
 
@@ -1047,24 +1108,30 @@ async function scrapeByUrl() {
   statusEl.innerHTML = '<div class="spinner" style="display:inline-block;width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--neon-cyan);border-radius:50%;animation:spin .8s linear infinite;vertical-align:middle"></div> Buscando comentarios...';
   resultEl.hidden = true;
 
+  const platform = detectPlatform(url);
+  state.currentPlatform = platform || 'instagram';
+  state.currentPostUrl = url;
+
   try {
     const res = await fetch('/api/scrape', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url })
+      body: JSON.stringify({ url, platform: platform || 'instagram' })
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Error al procesar');
 
     if (data.comments && data.comments.length > 0) {
+      const platLabel = platform === 'youtube' ? 'YouTube' : platform === 'tiktok' ? 'TikTok' : 'Instagram';
       // Show result
       let html = '';
       if (data.post) {
         html += `<div class="url-result-post">`;
         if (data.post.thumbnail) html += `<img src="${data.post.thumbnail}" alt="">`;
-        html += `<div class="info">${data.post.author ? '@' + data.post.author : 'Post'}<br><b>${data.comments.length}</b> comentarios</div></div>`;
+        html += `<div class="info">${data.post.author ? '@' + data.post.author : platLabel}<br><b>${data.comments.length}</b> comentarios</div></div>`;
+        state.currentPostAuthor = data.post.author || null;
       } else {
-        html += `<div style="font-size:.75rem;color:var(--text-muted);margin-bottom:.4rem"><b style="color:var(--neon-green)">${data.comments.length}</b> comentarios encontrados</div>`;
+        html += `<div style="font-size:.75rem;color:var(--text-muted);margin-bottom:.4rem"><b style="color:var(--neon-green)">${data.comments.length}</b> comentarios de ${platLabel}</div>`;
       }
       html += `<button class="btn btn-accent btn-block" onclick="loadScrapedComments()">Cargar al sorteo</button>`;
       resultEl.innerHTML = html;
@@ -1133,9 +1200,13 @@ function loadScrapedComments() {
   state.igSource = false;
   state.scrapeSource = true;
   loadParticipants(usernames);
-  document.getElementById('igSourceBadge').hidden = false;
-  document.getElementById('igSourceBadge').textContent = 'Comentarios por URL';
+  const badge = document.getElementById('igSourceBadge');
+  badge.hidden = false;
+  const platLabels = { youtube: 'YouTube', tiktok: 'TikTok', instagram: 'Instagram' };
+  badge.textContent = `Comentarios de ${platLabels[state.currentPlatform] || 'URL'}`;
   document.getElementById('exampleBadge').hidden = true;
+  // Show CSV export button
+  document.getElementById('csvExportBtn').hidden = false;
   closePanel();
 }
 
@@ -1237,6 +1308,7 @@ function announceMultiWinner(winners, suplentes) {
   }
 
   updateHistoryUI(); renderWinnersPanel(); renderParticipantList(); fireConfetti(); updateSpinBtn();
+  saveSorteoToHistory(winners, suplentes); playWinSound();
 }
 
 /* ═══════════════════════════════════════════════════
@@ -1810,12 +1882,20 @@ function spinWheel() {
   const duration = 5500 + Math.random() * 2000;
   const t0 = performance.now();
 
+  let lastTickAngle = startRot;
+  const tickInterval = (Math.PI * 2) / Math.max(state.displayNames.length, 1);
   function frame(now) {
     const elapsed = now - t0;
     let t = Math.min(elapsed / duration, 1);
     const eased = 1 - Math.pow(1 - t, 5);
     state.wheelRotation = startRot + delta * eased;
     state.particleSpeed = 1 + (1 - t) * 4;
+    // Tick sound when crossing segment boundary
+    const angleDiff = Math.abs(state.wheelRotation - lastTickAngle);
+    if (angleDiff >= tickInterval) {
+      lastTickAngle = state.wheelRotation;
+      if (t < 0.95) playTickSound();
+    }
     renderWheel();
     if (t < 1) requestAnimationFrame(frame);
     else { state.isSpinning = false; state.particleSpeed = 1; announceWinner(); }
@@ -1868,6 +1948,7 @@ function announceWinner() {
   document.getElementById('winnerOverlay').classList.add('visible');
   if (state.filters.winners) { state.participants = state.participants.filter(p => p !== winner); updateCount(); }
   updateHistoryUI(); renderWinnersPanel(); renderParticipantList(); fireConfetti(); updateSpinBtn();
+  saveSorteoToHistory([winner], []); playWinSound();
 }
 
 function closeWinner() {
@@ -2241,6 +2322,301 @@ function initCircuitNodes() {
 }
 
 /* ═══════════════════════════════════════════════════
+   LEVEL 2: PERSISTENT HISTORY (localStorage)
+   ═══════════════════════════════════════════════════ */
+function saveSorteoToHistory(winners, suplentes) {
+  try {
+    const history = JSON.parse(localStorage.getItem('rafly_history') || '[]');
+    const sorteo = {
+      id: Date.now(),
+      date: new Date().toISOString(),
+      drawNum: state.drawCount,
+      winners: winners,
+      suplentes: suplentes || [],
+      participantCount: state.rawParticipants.length,
+      platform: state.currentPlatform || 'manual',
+      postUrl: state.currentPostUrl || null,
+      postAuthor: state.currentPostAuthor || null,
+      filters: { ...state.filters },
+      mode: state.animMode
+    };
+    history.unshift(sorteo);
+    // Keep last 100 sorteos
+    if (history.length > 100) history.length = 100;
+    localStorage.setItem('rafly_history', JSON.stringify(history));
+    renderPersistentHistory();
+  } catch(e) { /* localStorage not available */ }
+}
+
+function loadPersistentHistory() {
+  try {
+    renderPersistentHistory();
+  } catch(e) { /* localStorage not available */ }
+}
+
+function renderPersistentHistory() {
+  const container = document.getElementById('persistentHistoryList');
+  if (!container) return;
+  let history = [];
+  try { history = JSON.parse(localStorage.getItem('rafly_history') || '[]'); } catch(e) {}
+  if (history.length === 0) {
+    container.innerHTML = '<p style="font-size:.72rem;color:var(--text-dim);text-align:center;padding:.5rem">No hay sorteos guardados</p>';
+    return;
+  }
+  container.innerHTML = history.map(s => {
+    const d = new Date(s.date);
+    const dateStr = d.toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' });
+    const timeStr = d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+    const platformIcon = s.platform === 'youtube' ? '▶' : s.platform === 'tiktok' ? '♪' : s.platform === 'instagram' ? '◎' : '✎';
+    const winnersHtml = (s.winners || []).map(w => `<span class="sorteo-card-winner">${w}</span>`).join('');
+    const suplentesHtml = (s.suplentes || []).map(w => `<span class="sorteo-card-winner suplente">${w}</span>`).join('');
+    return `<div class="sorteo-card" data-sorteo-id="${s.id}">
+      <div class="sorteo-card-header">
+        <span class="sorteo-card-num">${platformIcon} Sorteo #${s.drawNum || '?'}</span>
+        <span class="sorteo-card-date">${dateStr} ${timeStr}</span>
+      </div>
+      <div class="sorteo-card-winners">${winnersHtml}${suplentesHtml}</div>
+      <div class="sorteo-card-meta">
+        <span>${s.participantCount || '?'} participantes</span>
+        <span>Modo: ${s.mode || 'slot'}</span>
+        ${s.postAuthor ? `<span>@${s.postAuthor}</span>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function clearPersistentHistory() {
+  if (!confirm('¿Borrar todo el historial de sorteos guardados?')) return;
+  try { localStorage.removeItem('rafly_history'); } catch(e) {}
+  renderPersistentHistory();
+}
+
+function exportHistoryCSV() {
+  let history = [];
+  try { history = JSON.parse(localStorage.getItem('rafly_history') || '[]'); } catch(e) {}
+  if (history.length === 0) return alert('No hay historial para exportar');
+  let csv = 'Sorteo,Fecha,Hora,Ganadores,Suplentes,Participantes,Plataforma,Modo\n';
+  history.forEach(s => {
+    const d = new Date(s.date);
+    csv += `${s.drawNum || ''},${d.toLocaleDateString('es-AR')},${d.toLocaleTimeString('es-AR')},`;
+    csv += `"${(s.winners||[]).join('; ')}","${(s.suplentes||[]).join('; ')}",`;
+    csv += `${s.participantCount || 0},${s.platform || 'manual'},${s.mode || 'slot'}\n`;
+  });
+  downloadCSV(csv, 'rafly-historial.csv');
+}
+
+/* ═══════════════════════════════════════════════════
+   LEVEL 2: EXPORT COMMENTS TO CSV
+   ═══════════════════════════════════════════════════ */
+function exportCommentsCSV() {
+  if (state.rawParticipants.length === 0) return;
+  let csv = 'Usuario,Comentario,Timestamp\n';
+  state.rawParticipants.forEach((p, i) => {
+    const text = (state.rawCommentTexts[i] || '').replace(/"/g, '""');
+    const ts = state.igComments[i]?.timestamp || '';
+    csv += `"${p}","${text}","${ts}"\n`;
+  });
+  downloadCSV(csv, `rafly-comentarios-${Date.now()}.csv`);
+}
+
+function downloadCSV(content, filename) {
+  const blob = new Blob(['﻿' + content], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/* ═══════════════════════════════════════════════════
+   LEVEL 2: SHARE RESULT (image/link/native)
+   ═══════════════════════════════════════════════════ */
+async function shareResultImage() {
+  // Generate a shareable image using canvas
+  await document.fonts.ready;
+  const c = document.createElement('canvas');
+  const w = 800, h = 500;
+  c.width = w; c.height = h;
+  const ctx = c.getContext('2d');
+
+  // Background
+  const grad = ctx.createLinearGradient(0, 0, w, h);
+  grad.addColorStop(0, '#060614'); grad.addColorStop(1, '#0c0c24');
+  ctx.fillStyle = grad; ctx.fillRect(0, 0, w, h);
+
+  // Border
+  ctx.strokeStyle = '#ffd700'; ctx.lineWidth = 2; roundRect(ctx, 12, 12, w-24, h-24, 8); ctx.stroke();
+
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#ffd700'; ctx.font = '900 28px Orbitron, monospace';
+  ctx.fillText('RESULTADO DEL SORTEO', w/2, 65);
+
+  const allW = state.currentWinners || [state.currentWinner];
+  const allS = state.currentSuplentes || [];
+
+  let y = 130;
+  if (allW.length === 1 && allS.length === 0) {
+    ctx.fillStyle = '#a0a0c0'; ctx.font = '500 18px "Exo 2", sans-serif';
+    ctx.fillText('Ganador/a', w/2, y);
+    y += 55;
+    ctx.fillStyle = '#00e5ff'; ctx.font = '900 36px Orbitron, monospace';
+    ctx.shadowColor = '#00e5ff'; ctx.shadowBlur = 15;
+    ctx.fillText(allW[0], w/2, y); ctx.shadowBlur = 0;
+  } else {
+    for (let i = 0; i < allW.length; i++) {
+      ctx.fillStyle = '#ffd700'; ctx.font = '700 12px Orbitron, monospace';
+      ctx.fillText(`#${i+1}`, w/2 - 180, y);
+      ctx.fillStyle = '#00e5ff'; ctx.font = '900 22px Orbitron, monospace';
+      ctx.shadowColor = '#00e5ff'; ctx.shadowBlur = 10;
+      ctx.fillText(allW[i], w/2, y); ctx.shadowBlur = 0;
+      y += 38;
+    }
+    if (allS.length > 0) {
+      y += 10;
+      ctx.fillStyle = '#6a6a8a'; ctx.font = '600 13px "Exo 2", sans-serif';
+      ctx.fillText('SUPLENTES', w/2, y); y += 28;
+      for (const s of allS) {
+        ctx.fillStyle = '#b388ff'; ctx.font = '700 18px Orbitron, monospace';
+        ctx.fillText(s, w/2, y); y += 32;
+      }
+    }
+  }
+
+  const d = new Date();
+  ctx.fillStyle = '#6a6a8a'; ctx.font = '400 14px "Exo 2", sans-serif';
+  ctx.fillText(`${d.toLocaleDateString('es-AR')} — ${state.rawParticipants.length} participantes`, w/2, h - 80);
+  ctx.fillText(`Ref: RAFLY-${d.getFullYear()}-${String(state.drawCount).padStart(4,'0')}`, w/2, h - 58);
+
+  ctx.fillStyle = 'rgba(0,229,255,.04)'; ctx.font = '900 80px Orbitron, monospace';
+  ctx.fillText('RAFLY', w/2, h - 20);
+
+  try {
+    const a = document.createElement('a');
+    a.href = c.toDataURL('image/png');
+    a.download = `rafly-resultado-${state.drawCount}.png`;
+    a.click();
+  } catch(e) { alert('Hacé una captura de pantalla para guardar el resultado.'); }
+}
+
+function shareResultCopy() {
+  const allW = state.currentWinners || [state.currentWinner];
+  const allS = state.currentSuplentes || [];
+  const d = new Date();
+  let text = `🎰 RESULTADO DEL SORTEO #${state.drawCount}\n`;
+  text += `📅 ${d.toLocaleDateString('es-AR')} ${d.toLocaleTimeString('es-AR', {hour:'2-digit',minute:'2-digit'})}\n`;
+  text += `👥 ${state.rawParticipants.length} participantes\n\n`;
+  if (allW.length === 1 && allS.length === 0) {
+    text += `🏆 Ganador/a: ${allW[0]}\n`;
+  } else {
+    text += `🏆 Ganadores:\n`;
+    allW.forEach((w, i) => { text += `  ${i+1}. ${w}\n`; });
+    if (allS.length > 0) {
+      text += `\n📋 Suplentes:\n`;
+      allS.forEach((s, i) => { text += `  S${i+1}. ${s}\n`; });
+    }
+  }
+  text += `\nRef: RAFLY-${d.getFullYear()}-${String(state.drawCount).padStart(4,'0')}`;
+  text += `\n\n— Generado con RAFLY`;
+
+  navigator.clipboard.writeText(text).then(() => {
+    showToast('Resultado copiado al portapapeles');
+  }).catch(() => {
+    // Fallback
+    const ta = document.createElement('textarea');
+    ta.value = text; document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); document.body.removeChild(ta);
+    showToast('Resultado copiado');
+  });
+}
+
+async function shareResultNative() {
+  if (!navigator.share) {
+    shareResultCopy();
+    return;
+  }
+  const allW = state.currentWinners || [state.currentWinner];
+  const text = allW.length === 1
+    ? `🏆 Ganador del sorteo: ${allW[0]} — Sorteo #${state.drawCount} con ${state.rawParticipants.length} participantes`
+    : `🏆 Ganadores del sorteo #${state.drawCount}: ${allW.join(', ')} — ${state.rawParticipants.length} participantes`;
+  try {
+    await navigator.share({ title: 'Resultado del Sorteo - RAFLY', text });
+  } catch(e) { /* user cancelled */ }
+}
+
+function showToast(msg) {
+  const el = document.createElement('div');
+  el.className = 'share-toast';
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => { el.remove(); }, 2500);
+}
+
+/* ═══════════════════════════════════════════════════
+   LEVEL 2: MULTI-PLATFORM (YouTube / TikTok)
+   ═══════════════════════════════════════════════════ */
+// State additions for multi-platform
+state.currentPlatform = null;
+state.currentPostUrl = null;
+state.currentPostAuthor = null;
+
+function detectPlatform(url) {
+  if (/youtube\.com|youtu\.be/i.test(url)) return 'youtube';
+  if (/tiktok\.com/i.test(url)) return 'tiktok';
+  if (/instagram\.com|instagr\.am/i.test(url)) return 'instagram';
+  return null;
+}
+
+function updatePlatformBadge(url) {
+  const badge = document.getElementById('platformDetected');
+  const platform = detectPlatform(url);
+  if (!platform || !url.trim()) { badge.hidden = true; return; }
+  const icons = {
+    instagram: '<span class="platform-badge instagram">◎ Instagram</span>',
+    youtube: '<span class="platform-badge youtube">▶ YouTube</span>',
+    tiktok: '<span class="platform-badge tiktok">♪ TikTok</span>'
+  };
+  badge.innerHTML = icons[platform] || '';
+  badge.hidden = false;
+}
+
+/* ═══════════════════════════════════════════════════
+   LEVEL 2: WHEEL TICK SOUND (AudioContext)
+   ═══════════════════════════════════════════════════ */
+let audioCtx = null;
+function playTickSound() {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.frequency.value = 800 + Math.random() * 400;
+    osc.type = 'sine';
+    gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.06);
+    osc.start(audioCtx.currentTime);
+    osc.stop(audioCtx.currentTime + 0.06);
+  } catch(e) {}
+}
+
+function playWinSound() {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    [523, 659, 784, 1047].forEach((freq, i) => {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain); gain.connect(audioCtx.destination);
+      osc.frequency.value = freq;
+      osc.type = 'sine';
+      const t = audioCtx.currentTime + i * 0.12;
+      gain.gain.setValueAtTime(0.12, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+      osc.start(t); osc.stop(t + 0.3);
+    });
+  } catch(e) {}
+}
+
+/* ═══════════════════════════════════════════════════
    INIT
    ═══════════════════════════════════════════════════ */
 function init() {
@@ -2337,6 +2713,22 @@ function init() {
   // History bar
   document.getElementById('historyToggle').addEventListener('click', () => document.getElementById('historyBar').classList.toggle('visible'));
   document.getElementById('closeHistory').addEventListener('click', () => document.getElementById('historyBar').classList.remove('visible'));
+
+  // ── Level 2: Persistent history ──
+  loadPersistentHistory();
+  document.getElementById('clearHistoryBtn').addEventListener('click', clearPersistentHistory);
+  document.getElementById('exportHistoryBtn').addEventListener('click', exportHistoryCSV);
+
+  // ── Level 2: CSV export ──
+  document.getElementById('csvExportBtn').addEventListener('click', exportCommentsCSV);
+
+  // ── Level 2: Share result ──
+  document.getElementById('shareImgBtn').addEventListener('click', shareResultImage);
+  document.getElementById('shareCopyBtn').addEventListener('click', shareResultCopy);
+  document.getElementById('shareNativeBtn').addEventListener('click', shareResultNative);
+
+  // ── Level 2: Multi-platform URL detection ──
+  document.getElementById('urlInput').addEventListener('input', (e) => updatePlatformBadge(e.target.value));
 
   // Check Instagram
   checkIgConnection();
