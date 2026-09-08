@@ -432,7 +432,7 @@ main{
 <header>
   <div class="logo">RAFLY</div>
   <div class="header-center">
-    <div class="stat-pill"><div class="dot-live"></div> <b id="countDisplay">16</b> participantes</div>
+    <div class="stat-pill"><div class="dot-live"></div> <b id="countDisplay">0</b> participantes</div>
     <div class="mode-selector">
       <button class="mode-btn active" data-mode="slot">Slot</button>
       <button class="mode-btn" data-mode="wheel">Ruleta</button>
@@ -553,7 +553,7 @@ main{
   <!-- Center: Animation area -->
   <div class="stage">
     <div class="stage-badges">
-      <div class="badge badge-example" id="exampleBadge"><div class="dot-live"></div> Datos de ejemplo</div>
+      <div class="badge badge-example" id="exampleBadge" hidden><div class="dot-live"></div> Datos de ejemplo</div>
       <div class="badge badge-ig" id="igSourceBadge" hidden>Comentarios de Instagram</div>
     </div>
 
@@ -652,14 +652,14 @@ const MAX_SEGMENTS = 16;
 
 const state = {
   rawParticipants: [],
-  participants: [...EXAMPLES],
-  displayNames: [...EXAMPLES],
+  participants: [],
+  displayNames: [],
   displayWinnerIdx: 0,
   winners: [],
   isSpinning: false,
   currentWinner: null,
   drawCount: 0,
-  usingExamples: true,
+  usingExamples: false,
   wheelRotation: 0,
   mouseX: 0, mouseY: 0,
   particleSpeed: 1,
@@ -1249,7 +1249,7 @@ async function drawCertificate() {
   const d = new Date();
   ctx.fillText(`el ${d.toLocaleDateString('es-AR',{day:'numeric',month:'long',year:'numeric'})} a las ${d.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'})}`, w/2, 480);
   ctx.fillStyle = '#6a6a8a'; ctx.font = '400 17px "Exo 2", sans-serif';
-  ctx.fillText(`Total de participantes: ${state.rawParticipants.length || EXAMPLES.length}`, w/2, 555);
+  ctx.fillText(`Total de participantes: ${state.rawParticipants.length}`, w/2, 555);
   ctx.fillText(`Ref: RAFLY-${d.getFullYear()}-${String(state.drawCount).padStart(4,'0')}`, w/2, 585);
   ctx.fillStyle = 'rgba(0,229,255,.06)'; ctx.font = '900 120px Orbitron, monospace'; ctx.fillText('RAFLY', w/2, 710);
   ctx.fillStyle = '#4a4a6a'; ctx.font = '400 14px "Exo 2", sans-serif'; ctx.fillText('Generado por RAFLY — Sorteos en vivo', w/2, 760);
@@ -1382,10 +1382,10 @@ function init() {
 
   document.getElementById('clearBtn').addEventListener('click', () => {
     document.getElementById('inputArea').value = '';
-    state.rawParticipants = []; state.participants = [...EXAMPLES]; state.displayNames = [...EXAMPLES];
-    state.usingExamples = true; state.winners = []; state.drawCount = 0; state.igSource = false;
+    state.rawParticipants = []; state.participants = []; state.displayNames = [];
+    state.usingExamples = false; state.winners = []; state.drawCount = 0; state.igSource = false;
     state.igSelectedPost = null;
-    document.getElementById('exampleBadge').hidden = false;
+    document.getElementById('exampleBadge').hidden = true;
     document.getElementById('igSourceBadge').hidden = true;
     updateCount(); updateHistoryUI(); renderParticipantList(); renderWinnersPanel(); updatePostPreview();
     if (state.animMode === 'wheel') renderWheel();
