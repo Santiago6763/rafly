@@ -941,6 +941,7 @@ const bgCanvas = document.getElementById('bgCanvas');
 const bgCtx = bgCanvas.getContext('2d');
 let particles = [];
 let ships = [];
+let meteors = [];
 
 function resizeBg() {
   const dpr = window.devicePixelRatio || 1;
@@ -953,7 +954,8 @@ function resizeBg() {
 
 function createParticles() {
   particles = [];
-  for (let i = 0; i < 60; i++) {
+  // Moving particles
+  for (let i = 0; i < 50; i++) {
     particles.push({
       x: Math.random() * window.innerWidth,
       y: Math.random() * window.innerHeight,
@@ -961,7 +963,22 @@ function createParticles() {
       vy: (Math.random() - 0.5) * 0.3,
       size: 0.5 + Math.random() * 2,
       color: CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)],
-      opacity: 0.1 + Math.random() * 0.3
+      opacity: 0.1 + Math.random() * 0.3,
+      isStar: false
+    });
+  }
+  // Twinkling stars (fixed position, pulsing opacity)
+  for (let i = 0; i < 40; i++) {
+    particles.push({
+      x: Math.random() * window.innerWidth,
+      y: Math.random() * window.innerHeight,
+      vx: 0, vy: 0,
+      size: 0.5 + Math.random() * 1.5,
+      color: ['#ffffff','#cceeff','#ffeedd','#e0e0ff'][Math.floor(Math.random()*4)],
+      opacity: 0.05 + Math.random() * 0.2,
+      isStar: true,
+      twinkleSpeed: 0.005 + Math.random() * 0.02,
+      twinklePhase: Math.random() * Math.PI * 2
     });
   }
 }
@@ -976,9 +993,32 @@ function drawParticles() {
   for (let x = 0; x < w; x += 60) { bgCtx.beginPath(); bgCtx.moveTo(x, 0); bgCtx.lineTo(x, h); bgCtx.stroke(); }
   for (let y = 0; y < h; y += 60) { bgCtx.beginPath(); bgCtx.moveTo(0, y); bgCtx.lineTo(w, y); bgCtx.stroke(); }
 
-  // Particles (react to mouse)
+  // Particles & stars
   for (const p of particles) {
-    // Subtle mouse repulsion
+    if (p.isStar) {
+      // Twinkling star
+      p.twinklePhase += p.twinkleSpeed;
+      const twinkle = 0.5 + 0.5 * Math.sin(p.twinklePhase);
+      const starOpacity = p.opacity * (0.3 + twinkle * 0.7);
+      bgCtx.beginPath();
+      bgCtx.arc(p.x, p.y, p.size * (0.8 + twinkle * 0.4), 0, Math.PI * 2);
+      bgCtx.fillStyle = p.color;
+      bgCtx.globalAlpha = starOpacity;
+      bgCtx.shadowColor = p.color;
+      bgCtx.shadowBlur = p.size * 4 * twinkle;
+      bgCtx.fill();
+      // Cross flare on bright stars
+      if (p.size > 1 && twinkle > 0.7) {
+        bgCtx.globalAlpha = starOpacity * 0.3;
+        bgCtx.strokeStyle = p.color;
+        bgCtx.lineWidth = 0.5;
+        const fl = p.size * 3 * twinkle;
+        bgCtx.beginPath(); bgCtx.moveTo(p.x - fl, p.y); bgCtx.lineTo(p.x + fl, p.y); bgCtx.stroke();
+        bgCtx.beginPath(); bgCtx.moveTo(p.x, p.y - fl); bgCtx.lineTo(p.x, p.y + fl); bgCtx.stroke();
+      }
+      continue;
+    }
+    // Moving particles with mouse repulsion
     const dx = p.x - state.mouseX;
     const dy = p.y - state.mouseY;
     const dist = Math.sqrt(dx * dx + dy * dy);
@@ -991,7 +1031,6 @@ function drawParticles() {
     p.y += p.vy * state.particleSpeed;
     if (p.x < 0) p.x = w; if (p.x > w) p.x = 0;
     if (p.y < 0) p.y = h; if (p.y > h) p.y = 0;
-    // Glow brighter near mouse
     const glowFactor = dist < 200 ? 1 + (200 - dist) / 200 * 0.5 : 1;
     bgCtx.beginPath();
     bgCtx.arc(p.x, p.y, p.size * glowFactor, 0, Math.PI * 2);
@@ -1004,30 +1043,31 @@ function drawParticles() {
   bgCtx.globalAlpha = 1;
   bgCtx.shadowBlur = 0;
 
-  // ── Flying ships ──
-  // Spawn new ships randomly
-  if (Math.random() < 0.006 && ships.length < 4) {
+  // ── Flying ships (more, bigger) ──
+  if (Math.random() < 0.015 && ships.length < 10) {
     const side = Math.random();
     const ship = {
-      size: 6 + Math.random() * 10,
-      opacity: 0.08 + Math.random() * 0.15,
-      color: ['#00e5ff','#ff00aa','#b388ff','#76ff03'][Math.floor(Math.random()*4)],
+      size: 14 + Math.random() * 18,
+      opacity: 0.12 + Math.random() * 0.2,
+      color: ['#00e5ff','#ff00aa','#b388ff','#76ff03','#ffea00'][Math.floor(Math.random()*5)],
       trail: [],
-      trailLen: 12 + Math.floor(Math.random() * 10)
+      trailLen: 18 + Math.floor(Math.random() * 14),
+      type: Math.random() < 0.4 ? 'fighter' : Math.random() < 0.6 ? 'cruiser' : 'scout'
     };
-    if (side < 0.4) { // from left
-      ship.x = -20; ship.y = 40 + Math.random() * (h - 80);
-      ship.vx = 0.8 + Math.random() * 1.5; ship.vy = (Math.random() - 0.5) * 0.6;
-      ship.angle = Math.atan2(ship.vy, ship.vx);
-    } else if (side < 0.8) { // from right
-      ship.x = w + 20; ship.y = 40 + Math.random() * (h - 80);
-      ship.vx = -(0.8 + Math.random() * 1.5); ship.vy = (Math.random() - 0.5) * 0.6;
-      ship.angle = Math.atan2(ship.vy, ship.vx);
-    } else { // from top
-      ship.x = 60 + Math.random() * (w - 120); ship.y = -20;
-      ship.vx = (Math.random() - 0.5) * 0.8; ship.vy = 0.6 + Math.random() * 1.2;
-      ship.angle = Math.atan2(ship.vy, ship.vx);
+    if (side < 0.35) {
+      ship.x = -30; ship.y = 30 + Math.random() * (h - 60);
+      ship.vx = 1.0 + Math.random() * 2.0; ship.vy = (Math.random() - 0.5) * 0.8;
+    } else if (side < 0.7) {
+      ship.x = w + 30; ship.y = 30 + Math.random() * (h - 60);
+      ship.vx = -(1.0 + Math.random() * 2.0); ship.vy = (Math.random() - 0.5) * 0.8;
+    } else if (side < 0.85) {
+      ship.x = 50 + Math.random() * (w - 100); ship.y = -30;
+      ship.vx = (Math.random() - 0.5) * 1.0; ship.vy = 0.8 + Math.random() * 1.5;
+    } else {
+      ship.x = 50 + Math.random() * (w - 100); ship.y = h + 30;
+      ship.vx = (Math.random() - 0.5) * 1.0; ship.vy = -(0.8 + Math.random() * 1.5);
     }
+    ship.angle = Math.atan2(ship.vy, ship.vx);
     ships.push(ship);
   }
 
@@ -1036,50 +1076,163 @@ function drawParticles() {
     s.x += s.vx; s.y += s.vy;
     s.trail.push({ x: s.x, y: s.y });
     if (s.trail.length > s.trailLen) s.trail.shift();
-
-    // Remove if off-screen
-    if (s.x < -60 || s.x > w + 60 || s.y < -60 || s.y > h + 60) {
+    if (s.x < -80 || s.x > w + 80 || s.y < -80 || s.y > h + 80) {
       ships.splice(i, 1); continue;
     }
 
-    // Draw trail (engine exhaust)
+    // Engine trail
     if (s.trail.length > 2) {
-      bgCtx.beginPath();
-      bgCtx.moveTo(s.trail[0].x, s.trail[0].y);
       for (let t = 1; t < s.trail.length; t++) {
+        const alpha = (t / s.trail.length) * s.opacity * 0.5;
+        const lw = s.size * 0.15 * (t / s.trail.length);
+        bgCtx.beginPath();
+        bgCtx.moveTo(s.trail[t-1].x, s.trail[t-1].y);
         bgCtx.lineTo(s.trail[t].x, s.trail[t].y);
+        bgCtx.strokeStyle = s.color;
+        bgCtx.lineWidth = lw;
+        bgCtx.globalAlpha = alpha;
+        bgCtx.shadowColor = s.color;
+        bgCtx.shadowBlur = 10;
+        bgCtx.stroke();
       }
-      bgCtx.strokeStyle = s.color;
-      bgCtx.lineWidth = s.size * 0.2;
-      bgCtx.globalAlpha = s.opacity * 0.4;
-      bgCtx.shadowColor = s.color;
-      bgCtx.shadowBlur = 8;
-      bgCtx.stroke();
     }
 
-    // Draw ship body (small triangle)
+    // Draw ship
     bgCtx.save();
     bgCtx.translate(s.x, s.y);
     bgCtx.rotate(s.angle);
     bgCtx.globalAlpha = s.opacity;
     bgCtx.shadowColor = s.color;
-    bgCtx.shadowBlur = s.size * 2;
+    bgCtx.shadowBlur = s.size * 2.5;
     bgCtx.fillStyle = s.color;
     bgCtx.beginPath();
-    bgCtx.moveTo(s.size, 0);
-    bgCtx.lineTo(-s.size * 0.6, -s.size * 0.45);
-    bgCtx.lineTo(-s.size * 0.3, 0);
-    bgCtx.lineTo(-s.size * 0.6, s.size * 0.45);
+    if (s.type === 'fighter') {
+      // Sleek fighter
+      bgCtx.moveTo(s.size, 0);
+      bgCtx.lineTo(-s.size * 0.5, -s.size * 0.5);
+      bgCtx.lineTo(-s.size * 0.2, -s.size * 0.1);
+      bgCtx.lineTo(-s.size * 0.2, s.size * 0.1);
+      bgCtx.lineTo(-s.size * 0.5, s.size * 0.5);
+    } else if (s.type === 'cruiser') {
+      // Wider cruiser
+      bgCtx.moveTo(s.size * 0.8, 0);
+      bgCtx.lineTo(s.size * 0.2, -s.size * 0.35);
+      bgCtx.lineTo(-s.size * 0.7, -s.size * 0.55);
+      bgCtx.lineTo(-s.size * 0.5, 0);
+      bgCtx.lineTo(-s.size * 0.7, s.size * 0.55);
+      bgCtx.lineTo(s.size * 0.2, s.size * 0.35);
+    } else {
+      // Small scout
+      bgCtx.moveTo(s.size * 0.7, 0);
+      bgCtx.lineTo(-s.size * 0.4, -s.size * 0.35);
+      bgCtx.lineTo(-s.size * 0.15, 0);
+      bgCtx.lineTo(-s.size * 0.4, s.size * 0.35);
+    }
     bgCtx.closePath();
     bgCtx.fill();
-    // Cockpit highlight
+    // Cockpit
     bgCtx.fillStyle = '#fff';
-    bgCtx.globalAlpha = s.opacity * 0.6;
+    bgCtx.globalAlpha = s.opacity * 0.5;
     bgCtx.beginPath();
-    bgCtx.arc(s.size * 0.3, 0, s.size * 0.12, 0, Math.PI * 2);
+    bgCtx.arc(s.size * 0.25, 0, s.size * 0.1, 0, Math.PI * 2);
+    bgCtx.fill();
+    // Engine glow
+    bgCtx.globalAlpha = s.opacity * 0.8;
+    bgCtx.fillStyle = s.color;
+    bgCtx.shadowBlur = s.size;
+    bgCtx.beginPath();
+    bgCtx.arc(-s.size * 0.35, 0, s.size * 0.08, 0, Math.PI * 2);
     bgCtx.fill();
     bgCtx.restore();
   }
+
+  // ── Meteorites ──
+  if (Math.random() < 0.008 && meteors.length < 6) {
+    const m = {
+      x: Math.random() * w,
+      y: -20,
+      vx: (Math.random() - 0.3) * 2.5,
+      vy: 1.5 + Math.random() * 3,
+      size: 4 + Math.random() * 12,
+      rotation: Math.random() * Math.PI * 2,
+      rotSpeed: (Math.random() - 0.5) * 0.04,
+      opacity: 0.1 + Math.random() * 0.18,
+      color: ['#ff6b35','#ff9500','#ffb347','#cc4400'][Math.floor(Math.random()*4)],
+      trail: [],
+      trailLen: 8 + Math.floor(Math.random() * 8),
+      // Irregular shape (6-8 vertices)
+      vertices: []
+    };
+    const vCount = 6 + Math.floor(Math.random() * 3);
+    for (let v = 0; v < vCount; v++) {
+      const angle = (v / vCount) * Math.PI * 2;
+      const r = m.size * (0.6 + Math.random() * 0.4);
+      m.vertices.push({ angle, r });
+    }
+    meteors.push(m);
+  }
+
+  for (let i = meteors.length - 1; i >= 0; i--) {
+    const m = meteors[i];
+    m.x += m.vx; m.y += m.vy;
+    m.rotation += m.rotSpeed;
+    m.trail.push({ x: m.x, y: m.y });
+    if (m.trail.length > m.trailLen) m.trail.shift();
+    if (m.x < -60 || m.x > w + 60 || m.y > h + 60) {
+      meteors.splice(i, 1); continue;
+    }
+
+    // Fiery trail
+    if (m.trail.length > 2) {
+      for (let t = 1; t < m.trail.length; t++) {
+        const progress = t / m.trail.length;
+        bgCtx.beginPath();
+        bgCtx.moveTo(m.trail[t-1].x, m.trail[t-1].y);
+        bgCtx.lineTo(m.trail[t].x, m.trail[t].y);
+        bgCtx.strokeStyle = m.color;
+        bgCtx.lineWidth = m.size * 0.6 * progress;
+        bgCtx.globalAlpha = m.opacity * progress * 0.6;
+        bgCtx.shadowColor = m.color;
+        bgCtx.shadowBlur = 12;
+        bgCtx.stroke();
+      }
+    }
+
+    // Draw rock (irregular polygon)
+    bgCtx.save();
+    bgCtx.translate(m.x, m.y);
+    bgCtx.rotate(m.rotation);
+    bgCtx.globalAlpha = m.opacity;
+    bgCtx.fillStyle = '#4a3728';
+    bgCtx.shadowColor = m.color;
+    bgCtx.shadowBlur = m.size * 1.5;
+    bgCtx.beginPath();
+    bgCtx.moveTo(
+      Math.cos(m.vertices[0].angle) * m.vertices[0].r,
+      Math.sin(m.vertices[0].angle) * m.vertices[0].r
+    );
+    for (let v = 1; v < m.vertices.length; v++) {
+      bgCtx.lineTo(
+        Math.cos(m.vertices[v].angle) * m.vertices[v].r,
+        Math.sin(m.vertices[v].angle) * m.vertices[v].r
+      );
+    }
+    bgCtx.closePath();
+    bgCtx.fill();
+    // Hot edge glow
+    bgCtx.strokeStyle = m.color;
+    bgCtx.lineWidth = 1.5;
+    bgCtx.globalAlpha = m.opacity * 0.7;
+    bgCtx.stroke();
+    // Surface detail (small crater)
+    bgCtx.fillStyle = '#3a2a1a';
+    bgCtx.globalAlpha = m.opacity * 0.4;
+    bgCtx.beginPath();
+    bgCtx.arc(m.size * 0.15, -m.size * 0.1, m.size * 0.18, 0, Math.PI * 2);
+    bgCtx.fill();
+    bgCtx.restore();
+  }
+
   bgCtx.globalAlpha = 1;
   bgCtx.shadowBlur = 0;
 
