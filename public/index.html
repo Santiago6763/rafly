@@ -196,6 +196,46 @@ textarea{min-height:120px}
 .participant-count{text-align:center;padding:.5rem;border-radius:6px;background:var(--surface);border:1px solid var(--border);font-size:.82rem;color:var(--text-muted);margin-top:.6rem;font-variant-numeric:tabular-nums}
 .participant-count b{color:var(--neon-green);font-weight:600}
 
+/* ── URL Scrape Input ── */
+.url-scrape-box{padding:.8rem;background:rgba(0,229,255,.03);border:1px dashed var(--border-bright);border-radius:8px;margin-bottom:.8rem}
+.url-scrape-box label{display:block;font-size:.72rem;font-weight:600;color:var(--neon-cyan);margin-bottom:.4rem;text-transform:uppercase;letter-spacing:.05em}
+.url-input-row{display:flex;gap:.3rem}
+.url-input-row input{flex:1;padding:.45rem .6rem;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-family:inherit;font-size:.8rem}
+.url-input-row input:focus{outline:none;border-color:var(--neon-cyan);box-shadow:0 0 8px rgba(0,229,255,.15)}
+.url-input-row button{padding:.45rem .7rem;border-radius:6px;border:none;background:var(--neon-cyan);color:#000;font-family:inherit;font-weight:700;font-size:.75rem;cursor:pointer;white-space:nowrap;transition:all .2s}
+.url-input-row button:hover{box-shadow:0 0 12px var(--glow-cyan)}
+.url-input-row button:disabled{opacity:.4;cursor:not-allowed}
+.url-result{margin-top:.6rem;padding:.5rem;border-radius:6px;background:var(--surface);border:1px solid var(--border)}
+.url-result-post{display:flex;gap:.5rem;align-items:center;margin-bottom:.5rem}
+.url-result-post img{width:50px;height:50px;border-radius:4px;object-fit:cover}
+.url-result-post .info{font-size:.75rem;color:var(--text-muted)}
+.url-result-post .info b{color:var(--neon-green)}
+.url-status{font-size:.72rem;color:var(--text-muted);text-align:center;padding:.3rem}
+.url-status.error{color:var(--neon-red)}
+.url-or-divider{text-align:center;color:var(--text-dim);font-size:.68rem;padding:.4rem 0;position:relative}
+.url-or-divider::before,.url-or-divider::after{content:'';position:absolute;top:50%;width:35%;height:1px;background:var(--border)}
+.url-or-divider::before{left:0}
+.url-or-divider::after{right:0}
+
+/* ── Winners Config ── */
+.winners-config{display:flex;align-items:center;gap:.6rem;margin-top:.6rem;justify-content:center;flex-wrap:wrap}
+.winners-config label{font-size:.72rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;font-family:'Orbitron',monospace}
+.winner-count-input{width:52px;text-align:center;padding:.3rem;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--neon-gold);font-family:'Orbitron',monospace;font-size:.9rem;font-weight:700}
+.winner-count-input:focus{outline:none;border-color:var(--neon-gold);box-shadow:0 0 8px rgba(255,215,0,.2)}
+.suplentes-config{display:flex;align-items:center;gap:.4rem}
+.suplentes-config label{font-size:.68rem;color:var(--text-dim)}
+.suplente-count-input{width:40px;text-align:center;padding:.25rem;border-radius:4px;border:1px solid var(--border);background:var(--surface);color:var(--text-muted);font-family:'Orbitron',monospace;font-size:.78rem}
+
+/* ── Multi-Winner Overlay ── */
+.multi-winner-list{display:flex;flex-direction:column;gap:.6rem;margin-bottom:1rem;max-height:40vh;overflow-y:auto;padding:.5rem 0}
+.multi-winner-item{display:flex;align-items:center;gap:.6rem;padding:.5rem .8rem;border-radius:8px;background:rgba(255,215,0,.05);border:1px solid rgba(255,215,0,.15);animation:winnerSlideIn .5s var(--ease-out-expo) both}
+.multi-winner-item .rank{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#ffd700,#ff9500);color:#000;display:flex;align-items:center;justify-content:center;font-family:'Orbitron',monospace;font-weight:900;font-size:.7rem;flex-shrink:0}
+.multi-winner-item .rank.suplente{background:linear-gradient(135deg,#7b2eff,#b388ff);color:#fff}
+.multi-winner-item .mw-name{font-family:'Orbitron',monospace;font-weight:700;font-size:.9rem;color:var(--neon-gold);flex:1}
+.multi-winner-item .mw-name.suplente{color:var(--neon-purple)}
+.multi-winner-item .mw-tag{font-size:.6rem;padding:.15rem .4rem;border-radius:10px;background:rgba(123,46,255,.15);color:var(--neon-purple);font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+@keyframes winnerSlideIn{from{opacity:0;transform:translateX(-20px)}to{opacity:1;transform:translateX(0)}}
+
 /* ── Instagram Tab ── */
 .ig-connect-box{text-align:center;padding:1.2rem .4rem}
 .ig-connect-box p{font-size:.82rem;color:var(--text-muted);margin-bottom:1rem;line-height:1.5}
@@ -533,6 +573,17 @@ main{
   <div class="tab-content">
     <!-- ── Instagram Tab ── -->
     <div class="tab-pane active" id="pane-instagram">
+      <!-- URL Scrape (no account needed) -->
+      <div class="url-scrape-box" id="urlScrapeBox">
+        <label>Pegar URL del post / reel</label>
+        <div class="url-input-row">
+          <input type="text" id="urlInput" placeholder="https://instagram.com/p/..." autocomplete="off">
+          <button id="urlScrapeBtn" onclick="scrapeByUrl()">Buscar</button>
+        </div>
+        <div id="urlResult" hidden></div>
+        <div id="urlStatus" class="url-status" hidden></div>
+      </div>
+      <div class="url-or-divider">o conectá tu cuenta</div>
       <div id="igDisconnected">
         <div class="ig-connect-box">
           <p>Conectá tu cuenta de Instagram Business para importar los comentarios de tus publicaciones directamente.</p>
@@ -591,6 +642,14 @@ main{
         <input type="text" id="filterHashtag" placeholder="#sorteo">
       </div>
       <div class="field">
+        <label>Requiere palabra clave</label>
+        <input type="text" id="filterKeyword" placeholder="participar, sorteo...">
+      </div>
+      <div class="field">
+        <label>Largo min. de comentario</label>
+        <input type="number" id="filterMinLen" value="0" min="0" max="500" style="width:80px">
+      </div>
+      <div class="field">
         <label>Cuentas bloqueadas (una por línea)</label>
         <textarea id="filterBlocked" style="min-height:70px" placeholder="@cuenta_spam&#10;@bot_123"></textarea>
       </div>
@@ -617,17 +676,21 @@ main{
       Post seleccionado
     </div>
     <div id="postPreview">
-      <div class="empty-state" style="aspect-ratio:1" id="postEmptyState">
-        <div class="empty-state-icon">
+      <div class="empty-state" style="aspect-ratio:1;padding:1rem" id="postEmptyState">
+        <div class="empty-state-icon" style="width:50px;height:50px">
           <div class="empty-state-ring"></div>
-          <div class="empty-state-ring"></div>
-          <div class="empty-state-ring"></div>
-          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069z"/></svg>
+          <svg viewBox="0 0 24 24" fill="currentColor" style="width:50px;height:50px"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069z"/></svg>
         </div>
         <h3>Sin post</h3>
-        <p>Conectá tu cuenta para sortear con tus publicaciones</p>
-        <button class="ig-connect-btn" onclick="connectInstagram()" style="margin-top:.5rem;font-size:.8rem;padding:.5rem 1rem">
-          <svg viewBox="0 0 24 24" style="width:16px;height:16px;fill:currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069z"/></svg>
+        <p style="font-size:.72rem;margin-bottom:.4rem">Pegá la URL de un post o reel para extraer los comentarios</p>
+        <div class="url-input-row" style="width:100%;max-width:280px">
+          <input type="text" id="urlInputMain" placeholder="https://instagram.com/p/..." style="font-size:.72rem">
+          <button onclick="scrapeByUrlMain()" style="font-size:.68rem;padding:.35rem .5rem">Buscar</button>
+        </div>
+        <div id="urlStatusMain" class="url-status" hidden></div>
+        <div class="url-or-divider" style="width:100%;max-width:260px;margin:.3rem 0">o</div>
+        <button class="ig-connect-btn" onclick="connectInstagram()" style="font-size:.72rem;padding:.4rem .8rem">
+          <svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069z"/></svg>
           Conectar Instagram
         </button>
       </div>
@@ -667,6 +730,15 @@ main{
 
     <button class="spin-btn" id="spinBtn">SORTEAR</button>
 
+    <div class="winners-config">
+      <label>Ganadores:</label>
+      <input type="number" class="winner-count-input" id="winnerCountInput" value="1" min="1" max="20">
+      <div class="suplentes-config">
+        <label>Suplentes:</label>
+        <input type="number" class="suplente-count-input" id="suplenteCountInput" value="0" min="0" max="10">
+      </div>
+    </div>
+
     <div class="mode-selector" style="margin-top:.8rem" id="mobileModeSel">
       <button class="mode-btn active" data-mode="slot">Slot</button>
       <button class="mode-btn" data-mode="wheel">Ruleta</button>
@@ -694,8 +766,11 @@ main{
 
 <div class="winner-overlay" id="winnerOverlay">
   <div class="winner-card">
-    <div class="winner-label">Ganador/a</div>
+    <div class="winner-label" id="winnerLabel">Ganador/a</div>
     <div class="winner-name" id="winnerName"></div>
+    <div id="multiWinnerContainer" hidden>
+      <div class="multi-winner-list" id="multiWinnerList"></div>
+    </div>
     <div class="winner-meta" id="winnerMeta"></div>
     <div class="winner-actions">
       <button class="btn btn-gold" id="certBtn">Certificado</button>
@@ -743,21 +818,26 @@ const MAX_SEGMENTS = 16;
 
 const state = {
   rawParticipants: [],
+  rawCommentTexts: [], // full comment texts for keyword/length filtering
   participants: [],
   displayNames: [],
   displayWinnerIdx: 0,
   winners: [],
+  suplentes: [],
   isSpinning: false,
   currentWinner: null,
+  currentWinners: [], // for multi-winner
+  currentSuplentes: [],
   drawCount: 0,
   usingExamples: false,
   wheelRotation: 0,
   mouseX: 0, mouseY: 0,
   particleSpeed: 1,
-  filters: { mention: false, dupes: true, winners: true, hashtag: '', blocked: '' },
+  filters: { mention: false, dupes: true, winners: true, hashtag: '', blocked: '', keyword: '', minLen: 0 },
   igComments: [],
   igSelectedPost: null,
   igSource: false,
+  scrapeSource: false,
   animMode: 'slot' // 'slot', 'wheel', 'shuffle'
 };
 
@@ -815,23 +895,35 @@ function updatePostPreview() {
   const info = document.getElementById('postInfo');
   const post = state.igSelectedPost;
   if (!post) {
-    preview.innerHTML = `<div class="empty-state" style="aspect-ratio:1">
-      <div class="empty-state-icon">
+    preview.innerHTML = `<div class="empty-state" style="aspect-ratio:1;padding:1rem" id="postEmptyState">
+      <div class="empty-state-icon" style="width:50px;height:50px">
         <div class="empty-state-ring"></div>
-        <div class="empty-state-ring"></div>
-        <div class="empty-state-ring"></div>
-        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069z"/></svg>
+        <svg viewBox="0 0 24 24" fill="currentColor" style="width:50px;height:50px"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069z"/></svg>
       </div>
       <h3>Sin post</h3>
-      <p>Conectá tu Instagram y elegí una publicación para sortear</p>
+      <p style="font-size:.72rem;margin-bottom:.4rem">Pegá la URL de un post o reel</p>
+      <div class="url-input-row" style="width:100%;max-width:280px">
+        <input type="text" id="urlInputMain" placeholder="https://instagram.com/p/..." style="font-size:.72rem">
+        <button onclick="scrapeByUrlMain()" style="font-size:.68rem;padding:.35rem .5rem">Buscar</button>
+      </div>
+      <div id="urlStatusMain" class="url-status" hidden></div>
+      <div class="url-or-divider" style="width:100%;max-width:260px;margin:.3rem 0">o</div>
+      <button class="ig-connect-btn" onclick="connectInstagram()" style="font-size:.72rem;padding:.4rem .8rem">
+        <svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069z"/></svg>
+        Conectar Instagram
+      </button>
     </div>`;
     info.hidden = true;
     return;
   }
   const img = post.thumbnail_url || post.media_url;
-  preview.innerHTML = `<img class="panel-post-img" src="${img}" alt="Post">`;
+  if (img) {
+    preview.innerHTML = `<img class="panel-post-img" src="${img}" alt="Post">`;
+  } else {
+    preview.innerHTML = `<div style="aspect-ratio:1;display:flex;align-items:center;justify-content:center;background:var(--elevated);color:var(--neon-cyan);font-family:Orbitron,monospace;font-size:.8rem">${post.caption || 'Post cargado'}</div>`;
+  }
   info.hidden = false;
-  document.getElementById('postCommentCount').textContent = state.igComments.length;
+  document.getElementById('postCommentCount').textContent = state.igComments.length || state.participants.length;
 }
 
 /* ═══════════════════════════════════════════════════
@@ -927,11 +1019,224 @@ async function selectIgPost(post, el) {
 function loadIgCommentsToWheel() {
   if (!state.igComments.length) return;
   const usernames = state.igComments.map(c => '@' + c.username);
+  state.rawCommentTexts = state.igComments.map(c => c.text || '');
   state.igSource = true;
+  state.scrapeSource = false;
   loadParticipants(usernames);
   document.getElementById('igSourceBadge').hidden = false;
+  document.getElementById('igSourceBadge').textContent = 'Comentarios de Instagram';
   document.getElementById('exampleBadge').hidden = true;
   closePanel();
+}
+
+/* ═══════════════════════════════════════════════════
+   URL SCRAPING (sin vincular cuenta)
+   ═══════════════════════════════════════════════════ */
+async function scrapeByUrl() {
+  const input = document.getElementById('urlInput');
+  const url = input.value.trim();
+  if (!url) return;
+  const btn = document.getElementById('urlScrapeBtn');
+  const resultEl = document.getElementById('urlResult');
+  const statusEl = document.getElementById('urlStatus');
+
+  btn.disabled = true;
+  btn.textContent = '...';
+  statusEl.hidden = false;
+  statusEl.className = 'url-status';
+  statusEl.innerHTML = '<div class="spinner" style="display:inline-block;width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--neon-cyan);border-radius:50%;animation:spin .8s linear infinite;vertical-align:middle"></div> Buscando comentarios...';
+  resultEl.hidden = true;
+
+  try {
+    const res = await fetch('/api/scrape', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al procesar');
+
+    if (data.comments && data.comments.length > 0) {
+      // Show result
+      let html = '';
+      if (data.post) {
+        html += `<div class="url-result-post">`;
+        if (data.post.thumbnail) html += `<img src="${data.post.thumbnail}" alt="">`;
+        html += `<div class="info">${data.post.author ? '@' + data.post.author : 'Post'}<br><b>${data.comments.length}</b> comentarios</div></div>`;
+      } else {
+        html += `<div style="font-size:.75rem;color:var(--text-muted);margin-bottom:.4rem"><b style="color:var(--neon-green)">${data.comments.length}</b> comentarios encontrados</div>`;
+      }
+      html += `<button class="btn btn-accent btn-block" onclick="loadScrapedComments()">Cargar al sorteo</button>`;
+      resultEl.innerHTML = html;
+      resultEl.hidden = false;
+      statusEl.hidden = true;
+
+      // Store scraped comments
+      state.igComments = data.comments;
+      state.scrapeSource = true;
+
+      // Update post preview if we have thumbnail
+      if (data.post) {
+        state.igSelectedPost = {
+          media_url: data.post.thumbnail,
+          thumbnail_url: data.post.thumbnail,
+          caption: data.post.author ? '@' + data.post.author : ''
+        };
+        updatePostPreview();
+      }
+    } else {
+      statusEl.className = 'url-status';
+      statusEl.textContent = data.note || 'No se encontraron comentarios. Probá pegando los comentarios manualmente.';
+      statusEl.hidden = false;
+      resultEl.hidden = true;
+    }
+  } catch (e) {
+    statusEl.className = 'url-status error';
+    statusEl.textContent = e.message;
+    statusEl.hidden = false;
+    resultEl.hidden = true;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Buscar';
+  }
+}
+
+// Duplicate for the main post panel URL input
+async function scrapeByUrlMain() {
+  // Copy value to the sidebar input and call same function
+  const mainInput = document.getElementById('urlInputMain');
+  const sideInput = document.getElementById('urlInput');
+  sideInput.value = mainInput.value;
+  const statusMain = document.getElementById('urlStatusMain');
+
+  statusMain.hidden = false;
+  statusMain.className = 'url-status';
+  statusMain.innerHTML = '<div class="spinner" style="display:inline-block;width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--neon-cyan);border-radius:50%;animation:spin .8s linear infinite;vertical-align:middle"></div> Buscando...';
+
+  await scrapeByUrl();
+
+  // If comments were loaded, update main status
+  if (state.igComments.length > 0 && state.scrapeSource) {
+    statusMain.className = 'url-status';
+    statusMain.innerHTML = `<b style="color:var(--neon-green)">${state.igComments.length}</b> comentarios. <a href="#" onclick="loadScrapedComments();return false" style="color:var(--neon-cyan)">Cargar al sorteo</a>`;
+  } else {
+    const sideStatus = document.getElementById('urlStatus');
+    statusMain.className = sideStatus.className;
+    statusMain.textContent = sideStatus.textContent;
+  }
+}
+
+function loadScrapedComments() {
+  if (!state.igComments.length) return;
+  const usernames = state.igComments.map(c => '@' + c.username);
+  state.rawCommentTexts = state.igComments.map(c => c.text || '');
+  state.igSource = false;
+  state.scrapeSource = true;
+  loadParticipants(usernames);
+  document.getElementById('igSourceBadge').hidden = false;
+  document.getElementById('igSourceBadge').textContent = 'Comentarios por URL';
+  document.getElementById('exampleBadge').hidden = true;
+  closePanel();
+}
+
+/* ═══════════════════════════════════════════════════
+   MULTI-WINNER SPIN
+   ═══════════════════════════════════════════════════ */
+function getWinnerCount() {
+  return Math.max(1, Math.min(20, parseInt(document.getElementById('winnerCountInput').value) || 1));
+}
+function getSuplenteCount() {
+  return Math.max(0, Math.min(10, parseInt(document.getElementById('suplenteCountInput').value) || 0));
+}
+
+function pickMultipleWinners(count, supCount) {
+  const available = [...state.participants];
+  const winners = [];
+  const suplentes = [];
+
+  const totalNeeded = count + supCount;
+  const totalPick = Math.min(totalNeeded, available.length);
+
+  for (let i = 0; i < totalPick; i++) {
+    const idx = Math.floor(Math.random() * available.length);
+    if (i < count) {
+      winners.push(available[idx]);
+    } else {
+      suplentes.push(available[idx]);
+    }
+    available.splice(idx, 1);
+  }
+  return { winners, suplentes };
+}
+
+function announceMultiWinner(winners, suplentes) {
+  state.drawCount++;
+  const now = new Date();
+
+  state.currentWinners = winners;
+  state.currentSuplentes = suplentes;
+
+  // Store in history
+  for (const w of winners) {
+    state.winners.push({ name: w, time: now, num: state.drawCount, isSuplente: false });
+  }
+  for (const s of suplentes) {
+    state.suplentes.push({ name: s, time: now, num: state.drawCount });
+    state.winners.push({ name: s, time: now, num: state.drawCount, isSuplente: true });
+  }
+
+  // Show overlay
+  const overlay = document.getElementById('winnerOverlay');
+  const nameEl = document.getElementById('winnerName');
+  const multiContainer = document.getElementById('multiWinnerContainer');
+  const multiList = document.getElementById('multiWinnerList');
+  const label = document.getElementById('winnerLabel');
+  const meta = document.getElementById('winnerMeta');
+
+  if (winners.length === 1 && suplentes.length === 0) {
+    // Single winner
+    label.textContent = 'Ganador/a';
+    nameEl.textContent = winners[0];
+    nameEl.hidden = false;
+    multiContainer.hidden = true;
+    state.currentWinner = winners[0];
+  } else {
+    // Multiple winners
+    label.textContent = `${winners.length} Ganador${winners.length > 1 ? 'es' : ''}`;
+    nameEl.hidden = true;
+    multiContainer.hidden = false;
+    let listHtml = '';
+    winners.forEach((w, i) => {
+      listHtml += `<div class="multi-winner-item" style="animation-delay:${i * 0.1}s">
+        <div class="rank">${i + 1}</div>
+        <div class="mw-name">${w}</div>
+      </div>`;
+    });
+    if (suplentes.length > 0) {
+      listHtml += `<div style="font-size:.65rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:.08em;padding:.3rem 0;margin-top:.3rem;border-top:1px solid var(--border)">Suplentes</div>`;
+      suplentes.forEach((s, i) => {
+        listHtml += `<div class="multi-winner-item" style="animation-delay:${(winners.length + i) * 0.1}s">
+          <div class="rank suplente">S${i + 1}</div>
+          <div class="mw-name suplente">${s}</div>
+          <span class="mw-tag">Suplente</span>
+        </div>`;
+      });
+    }
+    multiList.innerHTML = listHtml;
+    state.currentWinner = winners[0]; // for certificate
+  }
+
+  meta.textContent = `Sorteo #${state.drawCount} — ${now.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })} — ${state.rawParticipants.length} participantes`;
+  overlay.classList.add('visible');
+
+  // Remove winners from pool
+  if (state.filters.winners) {
+    const allPicked = [...winners, ...suplentes];
+    state.participants = state.participants.filter(p => !allPicked.includes(p));
+    updateCount();
+  }
+
+  updateHistoryUI(); renderWinnersPanel(); renderParticipantList(); fireConfetti(); updateSpinBtn();
 }
 
 /* ═══════════════════════════════════════════════════
@@ -1538,11 +1843,27 @@ function spin() {
 }
 
 function announceWinner() {
+  const winnerCount = getWinnerCount();
+  const supCount = getSuplenteCount();
+
+  if (winnerCount > 1 || supCount > 0) {
+    // Multi-winner: pick all at once
+    const { winners, suplentes } = pickMultipleWinners(winnerCount, supCount);
+    announceMultiWinner(winners, suplentes);
+    return;
+  }
+
+  // Single winner (original flow)
   state.drawCount++;
   const winner = state.currentWinner;
   const now = new Date();
-  state.winners.push({ name: winner, time: now, num: state.drawCount });
+  state.winners.push({ name: winner, time: now, num: state.drawCount, isSuplente: false });
+  state.currentWinners = [winner];
+  state.currentSuplentes = [];
+  document.getElementById('winnerLabel').textContent = 'Ganador/a';
   document.getElementById('winnerName').textContent = winner;
+  document.getElementById('winnerName').hidden = false;
+  document.getElementById('multiWinnerContainer').hidden = true;
   document.getElementById('winnerMeta').textContent = `Sorteo #${state.drawCount} — ${now.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}`;
   document.getElementById('winnerOverlay').classList.add('visible');
   if (state.filters.winners) { state.participants = state.participants.filter(p => p !== winner); updateCount(); }
@@ -1607,10 +1928,25 @@ async function drawCertificate() {
   await document.fonts.ready;
   const c = document.getElementById('certCanvas');
   const ctx = c.getContext('2d');
-  const w = 1200, h = 800;
+  const allWinners = state.currentWinners || [state.currentWinner];
+  const allSuplentes = state.currentSuplentes || [];
+  const isMulti = allWinners.length > 1 || allSuplentes.length > 0;
+  const h = isMulti ? 800 + (allWinners.length + allSuplentes.length - 1) * 45 : 800;
+  const w = 1200;
+  c.width = w; c.height = h;
+
   const grad = ctx.createLinearGradient(0, 0, w, h);
   grad.addColorStop(0, '#060614'); grad.addColorStop(1, '#0c0c24');
   ctx.fillStyle = grad; ctx.fillRect(0, 0, w, h);
+
+  // Decorative star pattern
+  for (let i = 0; i < 30; i++) {
+    ctx.fillStyle = 'rgba(255,215,0,.03)';
+    ctx.beginPath();
+    ctx.arc(Math.random() * w, Math.random() * h, 1 + Math.random() * 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
   ctx.strokeStyle = '#ffd700'; ctx.lineWidth = 3; roundRect(ctx, 28, 28, w - 56, h - 56, 6); ctx.stroke();
   ctx.strokeStyle = 'rgba(255,215,0,.2)'; ctx.lineWidth = 1; roundRect(ctx, 42, 42, w - 84, h - 84, 4); ctx.stroke();
   const corners = [[50,50],[w-50,50],[50,h-50],[w-50,h-50]];
@@ -1622,17 +1958,60 @@ async function drawCertificate() {
   ctx.textAlign = 'center';
   ctx.fillStyle = '#ffd700'; ctx.font = '900 38px Orbitron, monospace'; ctx.fillText('CERTIFICADO DE SORTEO', w/2, 155);
   ctx.strokeStyle = 'rgba(255,215,0,.3)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(320, 175); ctx.lineTo(880, 175); ctx.stroke();
-  ctx.fillStyle = '#a0a0c0'; ctx.font = '500 22px "Exo 2", sans-serif'; ctx.fillText('Se certifica que el participante:', w/2, 270);
-  ctx.fillStyle = '#00e5ff'; ctx.font = '900 44px Orbitron, monospace';
-  ctx.shadowColor = '#00e5ff'; ctx.shadowBlur = 20; ctx.fillText(state.currentWinner || '', w/2, 360); ctx.shadowBlur = 0;
-  ctx.fillStyle = '#a0a0c0'; ctx.font = '500 22px "Exo 2", sans-serif'; ctx.fillText('ha resultado ganador/a del sorteo realizado', w/2, 440);
+
+  let yPos = 270;
+  if (isMulti) {
+    ctx.fillStyle = '#a0a0c0'; ctx.font = '500 22px "Exo 2", sans-serif';
+    ctx.fillText(`Se certifican los ${allWinners.length} ganadores del sorteo:`, w/2, yPos);
+    yPos += 50;
+    for (let i = 0; i < allWinners.length; i++) {
+      ctx.fillStyle = '#ffd700'; ctx.font = '700 14px Orbitron, monospace';
+      ctx.fillText(`#${i + 1}`, w/2 - 200, yPos);
+      ctx.fillStyle = '#00e5ff'; ctx.font = '900 28px Orbitron, monospace';
+      ctx.shadowColor = '#00e5ff'; ctx.shadowBlur = 15;
+      ctx.fillText(allWinners[i], w/2, yPos);
+      ctx.shadowBlur = 0;
+      yPos += 45;
+    }
+    if (allSuplentes.length > 0) {
+      yPos += 15;
+      ctx.fillStyle = '#6a6a8a'; ctx.font = '600 16px "Exo 2", sans-serif';
+      ctx.fillText('SUPLENTES', w/2, yPos);
+      yPos += 35;
+      for (let i = 0; i < allSuplentes.length; i++) {
+        ctx.fillStyle = '#7b2eff'; ctx.font = '700 12px Orbitron, monospace';
+        ctx.fillText(`S${i + 1}`, w/2 - 200, yPos);
+        ctx.fillStyle = '#b388ff'; ctx.font = '700 22px Orbitron, monospace';
+        ctx.shadowColor = '#7b2eff'; ctx.shadowBlur = 10;
+        ctx.fillText(allSuplentes[i], w/2, yPos);
+        ctx.shadowBlur = 0;
+        yPos += 40;
+      }
+    }
+  } else {
+    ctx.fillStyle = '#a0a0c0'; ctx.font = '500 22px "Exo 2", sans-serif'; ctx.fillText('Se certifica que el participante:', w/2, yPos);
+    yPos += 90;
+    ctx.fillStyle = '#00e5ff'; ctx.font = '900 44px Orbitron, monospace';
+    ctx.shadowColor = '#00e5ff'; ctx.shadowBlur = 20; ctx.fillText(allWinners[0] || '', w/2, yPos); ctx.shadowBlur = 0;
+    yPos += 80;
+    ctx.fillStyle = '#a0a0c0'; ctx.font = '500 22px "Exo 2", sans-serif'; ctx.fillText('ha resultado ganador/a del sorteo realizado', w/2, yPos);
+  }
+
+  yPos += 50;
   const d = new Date();
-  ctx.fillText(`el ${d.toLocaleDateString('es-AR',{day:'numeric',month:'long',year:'numeric'})} a las ${d.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'})}`, w/2, 480);
+  ctx.fillStyle = '#a0a0c0'; ctx.font = '500 20px "Exo 2", sans-serif';
+  ctx.fillText(`el ${d.toLocaleDateString('es-AR',{day:'numeric',month:'long',year:'numeric'})} a las ${d.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'})}`, w/2, yPos);
+  yPos += 55;
   ctx.fillStyle = '#6a6a8a'; ctx.font = '400 17px "Exo 2", sans-serif';
-  ctx.fillText(`Total de participantes: ${state.rawParticipants.length}`, w/2, 555);
-  ctx.fillText(`Ref: RAFLY-${d.getFullYear()}-${String(state.drawCount).padStart(4,'0')}`, w/2, 585);
-  ctx.fillStyle = 'rgba(0,229,255,.06)'; ctx.font = '900 120px Orbitron, monospace'; ctx.fillText('RAFLY', w/2, 710);
-  ctx.fillStyle = '#4a4a6a'; ctx.font = '400 14px "Exo 2", sans-serif'; ctx.fillText('Generado por RAFLY — Sorteos en vivo', w/2, 760);
+  ctx.fillText(`Total de participantes: ${state.rawParticipants.length}`, w/2, yPos);
+  yPos += 30;
+  ctx.fillText(`Ref: RAFLY-${d.getFullYear()}-${String(state.drawCount).padStart(4,'0')}`, w/2, yPos);
+
+  // Background branding
+  ctx.fillStyle = 'rgba(0,229,255,.04)'; ctx.font = '900 120px Orbitron, monospace';
+  ctx.fillText('RAFLY', w/2, h - 90);
+  ctx.fillStyle = '#4a4a6a'; ctx.font = '400 14px "Exo 2", sans-serif';
+  ctx.fillText('Generado por RAFLY — Sorteos en vivo', w/2, h - 40);
 }
 
 function roundRect(ctx, x, y, w, h, r) {
@@ -1658,11 +2037,38 @@ function parseInput(text) {
 function applyFilters(raw) {
   let list = [...raw];
   const f = state.filters;
+
+  // Keyword filter (check against raw comment texts if available)
+  if (f.keyword && state.rawCommentTexts.length === raw.length) {
+    const keywords = f.keyword.toLowerCase().split(',').map(k => k.trim()).filter(Boolean);
+    list = list.filter((p, i) => {
+      const text = (state.rawCommentTexts[i] || '').toLowerCase();
+      return keywords.some(kw => text.includes(kw));
+    });
+  }
+
+  // Min comment length filter
+  if (f.minLen > 0 && state.rawCommentTexts.length === raw.length) {
+    list = list.filter((p, i) => {
+      const text = state.rawCommentTexts[i] || '';
+      return text.length >= f.minLen;
+    });
+  }
+
   if (f.mention) list = list.filter(p => p.startsWith('@'));
   if (f.dupes) list = [...new Set(list)];
   if (f.blocked) {
     const bl = f.blocked.split('\n').map(b => b.trim().toLowerCase()).filter(Boolean);
     list = list.filter(p => !bl.includes(p.toLowerCase()));
+  }
+  if (f.hashtag) {
+    const tag = f.hashtag.toLowerCase().replace(/^#/, '');
+    if (tag && state.rawCommentTexts.length === raw.length) {
+      list = list.filter((p, i) => {
+        const text = (state.rawCommentTexts[i] || '').toLowerCase();
+        return text.includes('#' + tag);
+      });
+    }
   }
   if (f.winners && state.winners.length > 0) {
     const won = new Set(state.winners.map(w => w.name));
@@ -1907,6 +2313,8 @@ function init() {
 
   document.getElementById('applyFilters').addEventListener('click', () => {
     state.filters.hashtag = document.getElementById('filterHashtag').value.trim();
+    state.filters.keyword = document.getElementById('filterKeyword').value.trim();
+    state.filters.minLen = parseInt(document.getElementById('filterMinLen').value) || 0;
     state.filters.blocked = document.getElementById('filterBlocked').value;
     if (state.rawParticipants.length > 0) {
       state.participants = applyFilters(state.rawParticipants);
