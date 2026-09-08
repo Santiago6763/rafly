@@ -209,6 +209,160 @@ app.post('/api/disconnect', (req, res) => {
   res.json({ ok: true });
 });
 
+// ── API: Scrape comentarios por URL (sin vincular cuenta) ─────
+// Extrae shortcode de la URL y usa endpoints públicos de Instagram
+function extractShortcode(url) {
+  // Soporta: /p/XXXXX, /reel/XXXXX, /tv/XXXXX
+  const patterns = [
+    /instagram\.com\/(?:p|reel|tv)\/([A-Za-z0-9_-]+)/,
+    /instagr\.am\/p\/([A-Za-z0-9_-]+)/
+  ];
+  for (const p of patterns) {
+    const m = url.match(p);
+    if (m) return m[1];
+  }
+  return null;
+}
+
+app.post('/api/scrape', async (req, res) => {
+  const { url } = req.body;
+  if (!url) return res.status(400).json({ error: 'URL requerida' });
+
+  const shortcode = extractShortcode(url);
+  if (!shortcode) return res.status(400).json({ error: 'URL de Instagram no válida. Usá un link de post, reel o carrusel.' });
+
+  try {
+    // 1. Obtener info del post via oEmbed (confiable, usa app credentials)
+    let postInfo = null;
+    try {
+      const oembedUrl = `https://graph.facebook.com/v20.0/instagram_oembed`
+        + `?url=${encodeURIComponent(url)}`
+        + `&access_token=${FB_APP_ID}|${FB_APP_SECRET}`
+        + `&fields=thumbnail_url,author_name,media_id`;
+      const oRes = await fetch(oembedUrl);
+      if (oRes.ok) {
+        postInfo = await oRes.json();
+      }
+    } catch (e) { /* oEmbed failed, continue */ }
+
+    // 2. Intentar obtener comentarios via la API pública de Instagram
+    let comments = [];
+    let method = 'none';
+
+    // Método A: Instagram GraphQL endpoint (público, sin auth)
+    try {
+      const graphqlUrl = `https://www.instagram.com/graphql/query/`
+        + `?query_hash=bc3296d1ce80a24b1b6e40b1e72903f5`
+        + `&variables=${encodeURIComponent(JSON.stringify({ shortcode, first: 100 }))}`;
+      const gRes = await fetch(graphqlUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': '*/*',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'X-IG-App-ID': '936619743392459',
+          'X-Requested-With': 'XMLHttpRequest'
+        }
+      });
+      if (gRes.ok) {
+        const gData = await gRes.json();
+        const edges = gData?.data?.shortcode_media?.edge_media_to_parent_comment?.edges || [];
+        comments = edges.map(e => ({
+          username: e.node?.owner?.username || 'unknown',
+          text: e.node?.text || '',
+          timestamp: e.node?.created_at ? new Date(e.node.created_at * 1000).toISOString() : null
+        }));
+        if (comments.length > 0) method = 'graphql';
+
+        // Obtener thumbnail del post si oEmbed falló
+        if (!postInfo) {
+          const media = gData?.data?.shortcode_media;
+          if (media) {
+            postInfo = {
+              thumbnail_url: media.display_url,
+              author_name: media.owner?.username
+            };
+          }
+        }
+      }
+    } catch (e) { /* GraphQL failed */ }
+
+    // Método B: Fetch de la página del post y parsear JSON embebido
+    if (comments.length === 0) {
+      try {
+        const pageRes = await fetch(`https://www.instagram.com/p/${shortcode}/`, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1',
+            'Accept': 'text/html,application/xhtml+xml',
+            'Accept-Language': 'en-US,en;q=0.9'
+          }
+        });
+        if (pageRes.ok) {
+          const html = await pageRes.text();
+          // Buscar JSON embebido en el HTML
+          const jsonMatch = html.match(/window\._sharedData\s*=\s*({.*?});\s*<\/script>/s)
+            || html.match(/"edge_media_to_parent_comment":\s*(\{.*?\})\s*,\s*"edge_media_to_hoisted_comment"/s);
+          if (jsonMatch) {
+            try {
+              const parsed = JSON.parse(jsonMatch[1]);
+              const media = parsed?.entry_data?.PostPage?.[0]?.graphql?.shortcode_media;
+              if (media) {
+                const edges = media.edge_media_to_parent_comment?.edges || [];
+                comments = edges.map(e => ({
+                  username: e.node?.owner?.username || 'unknown',
+                  text: e.node?.text || '',
+                  timestamp: e.node?.created_at ? new Date(e.node.created_at * 1000).toISOString() : null
+                }));
+                if (comments.length > 0) method = 'html_parse';
+                if (!postInfo) {
+                  postInfo = {
+                    thumbnail_url: media.display_url,
+                    author_name: media.owner?.username
+                  };
+                }
+              }
+            } catch (pe) { /* parse error */ }
+          }
+        }
+      } catch (e) { /* page fetch failed */ }
+    }
+
+    // Método C: Si tenemos sesión activa de Instagram, usar la API oficial
+    if (comments.length === 0 && session.accessToken && postInfo?.media_id) {
+      try {
+        const data = await graphGet(`/${postInfo.media_id}/comments`, {
+          fields: 'id,text,username,timestamp',
+          limit: 100
+        });
+        comments = (data.data || []).map(c => ({
+          username: c.username || 'unknown',
+          text: c.text || '',
+          timestamp: c.timestamp
+        }));
+        if (comments.length > 0) method = 'api_fallback';
+      } catch (e) { /* API fallback failed */ }
+    }
+
+    res.json({
+      success: true,
+      shortcode,
+      post: postInfo ? {
+        thumbnail: postInfo.thumbnail_url,
+        author: postInfo.author_name
+      } : null,
+      comments,
+      total: comments.length,
+      method,
+      note: comments.length === 0
+        ? 'No se pudieron extraer comentarios automáticamente. Instagram bloquea el acceso público a comentarios. Podés conectar tu cuenta de Instagram o pegar los comentarios manualmente.'
+        : null
+    });
+
+  } catch (err) {
+    console.error('Scrape error:', err.message);
+    res.status(500).json({ error: 'Error al procesar la URL: ' + err.message });
+  }
+});
+
 // ── Iniciar servidor ───────────────────────────────────────────
 app.listen(PORT, () => {
   console.log(`\n  ✦ RAFLY corriendo en ${BASE_URL}\n`);
