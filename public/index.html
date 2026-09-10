@@ -600,6 +600,59 @@ body.light-theme .p-item:hover{background:rgba(0,229,255,.08)!important}
 /* ═══ LEVEL 3: PWA Install ═══ */
 .pwa-install-btn{display:none;align-items:center;gap:.3rem;background:var(--neon-green);color:#060614;border:none;padding:.3rem .7rem;border-radius:20px;font-family:inherit;font-size:.7rem;font-weight:700;cursor:pointer;transition:all .2s}
 .pwa-install-btn:hover{opacity:.85}
+
+/* ═══ LEVEL 4: Fullscreen / Presentation Mode ═══ */
+.fullscreen-mode{position:fixed;inset:0;z-index:500;background:var(--bg);display:none;flex-direction:column;align-items:center;justify-content:center}
+.fullscreen-mode.active{display:flex}
+.fullscreen-mode .fs-header{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:1rem 1.5rem}
+.fullscreen-mode .fs-logo{font-family:'Orbitron',monospace;font-weight:900;font-size:1.2rem;background:linear-gradient(135deg,var(--neon-cyan),var(--neon-magenta));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.fullscreen-mode .fs-close{background:none;border:1px solid var(--border);color:var(--text-muted);padding:.4rem .8rem;border-radius:8px;font-family:inherit;font-size:.75rem;cursor:pointer;transition:all .2s}
+.fullscreen-mode .fs-close:hover{border-color:var(--neon-cyan);color:var(--neon-cyan)}
+.fullscreen-mode .fs-stage{text-align:center;transform:scale(1.3)}
+.fullscreen-mode .fs-winner{font-family:'Orbitron',monospace;font-size:3rem;font-weight:900;color:var(--neon-cyan);text-shadow:0 0 40px var(--glow-cyan);margin:.5rem 0;animation:fs-glow 2s ease-in-out infinite alternate}
+@keyframes fs-glow{from{text-shadow:0 0 20px var(--glow-cyan)}to{text-shadow:0 0 60px var(--glow-cyan),0 0 100px rgba(0,229,255,.2)}}
+.fullscreen-mode .fs-label{font-size:1rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.15em;margin-bottom:.3rem}
+.fullscreen-mode .fs-meta{font-size:.8rem;color:var(--text-dim);margin-top:.5rem}
+.fullscreen-mode .fs-count{position:absolute;bottom:1.5rem;left:50%;transform:translateX(-50%);font-family:'Orbitron',monospace;font-size:.8rem;color:var(--text-dim)}
+.fs-obs-mode{background:transparent!important}
+.fs-obs-mode .fs-header,.fs-obs-mode .fs-close,.fs-obs-mode .fs-count{display:none}
+
+/* ═══ LEVEL 4: Countdown Timer ═══ */
+.countdown-overlay{position:fixed;inset:0;z-index:600;background:rgba(6,6,20,.95);display:none;align-items:center;justify-content:center;flex-direction:column}
+.countdown-overlay.active{display:flex}
+.countdown-number{font-family:'Orbitron',monospace;font-size:12rem;font-weight:900;color:var(--neon-cyan);text-shadow:0 0 80px var(--glow-cyan);animation:countdown-pulse .8s ease-in-out;line-height:1}
+@keyframes countdown-pulse{0%{transform:scale(1.5);opacity:0}50%{transform:scale(1);opacity:1}100%{transform:scale(.95);opacity:.8}}
+.countdown-label{font-family:'Orbitron',monospace;font-size:1rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.2em;margin-top:1rem}
+.countdown-go{font-family:'Orbitron',monospace;font-size:8rem;font-weight:900;background:linear-gradient(135deg,var(--neon-green),var(--neon-cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;animation:countdown-pulse .5s ease-out}
+
+/* ═══ LEVEL 4: Chained Draws ═══ */
+.chain-progress{display:none;align-items:center;gap:.5rem;margin-top:.5rem;justify-content:center;flex-wrap:wrap}
+.chain-progress.active{display:flex}
+.chain-dot{width:28px;height:28px;border-radius:50%;border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-family:'Orbitron',monospace;font-size:.6rem;font-weight:700;color:var(--text-dim);transition:all .3s}
+.chain-dot.current{border-color:var(--neon-cyan);color:var(--neon-cyan);box-shadow:0 0 12px var(--glow-cyan);animation:chain-pulse 1.5s infinite}
+.chain-dot.done{border-color:var(--neon-green);background:var(--neon-green);color:#060614}
+@keyframes chain-pulse{0%,100%{box-shadow:0 0 8px var(--glow-cyan)}50%{box-shadow:0 0 20px var(--glow-cyan)}}
+.chain-arrow{color:var(--text-dim);font-size:.7rem}
+
+/* ═══ LEVEL 4: Sound Selector ═══ */
+.sound-selector{display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.5rem}
+.sound-chip{padding:.25rem .5rem;border-radius:12px;border:1px solid var(--border);background:var(--surface);color:var(--text-muted);font-size:.65rem;cursor:pointer;transition:all .2s;font-family:inherit}
+.sound-chip.active{border-color:var(--neon-cyan);color:var(--neon-cyan);background:rgba(0,229,255,.08)}
+.sound-chip:hover{border-color:var(--neon-cyan)}
+
+/* ═══ LEVEL 4: Enhanced Winner Particles ═══ */
+.winner-particle{position:fixed;pointer-events:none;z-index:510;border-radius:50%;animation:particle-float linear forwards}
+@keyframes particle-float{0%{transform:translate(0,0) scale(1);opacity:1}100%{transform:translate(var(--dx),var(--dy)) scale(0);opacity:0}}
+.winner-spotlight{position:fixed;inset:0;z-index:499;background:radial-gradient(circle at 50% 40%,transparent 0%,rgba(6,6,20,.7) 50%,rgba(6,6,20,.95) 100%);pointer-events:none;opacity:0;transition:opacity .5s}
+.winner-spotlight.active{opacity:1}
+
+/* ═══ LEVEL 4: Templates ═══ */
+.template-grid{display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-top:.5rem}
+.template-card{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:.6rem;cursor:pointer;transition:all .2s;text-align:center}
+.template-card:hover{border-color:var(--neon-cyan);background:rgba(0,229,255,.03)}
+.template-card .tc-icon{font-size:1.5rem;margin-bottom:.2rem}
+.template-card .tc-name{font-size:.7rem;font-weight:600;color:var(--text)}
+.template-card .tc-desc{font-size:.6rem;color:var(--text-dim);margin-top:.15rem}
 </style>
 </head>
 <body>
@@ -621,6 +674,7 @@ body.light-theme .p-item:hover{background:rgba(0,229,255,.08)!important}
     </div>
   </div>
   <div class="header-actions">
+    <button class="btn-icon" id="fullscreenToggle" title="Modo presentación">📺</button>
     <button class="btn-icon" id="themeToggle" title="Cambiar tema">🌙</button>
     <button class="btn-icon" id="toolsToggle" title="Herramientas">🧰</button>
     <button class="btn-icon" id="historyToggle" title="Historial">&#9776;</button>
@@ -634,6 +688,8 @@ body.light-theme .p-item:hover{background:rgba(0,229,255,.08)!important}
   <a href="/raspadita.html" class="tool-link"><span class="tl-icon">🎟️</span><span class="tl-name">Raspadita</span><span class="tl-badge">Nuevo</span></a>
   <a href="/legal.html" class="tool-link"><span class="tl-icon">📋</span><span class="tl-name">Bases Legales</span><span class="tl-badge">Nuevo</span></a>
   <a href="/engagement.html" class="tool-link"><span class="tl-icon">📊</span><span class="tl-name">Engagement Calculator</span><span class="tl-badge">Nuevo</span></a>
+  <a href="/qr.html" class="tool-link"><span class="tl-icon">📱</span><span class="tl-name">QR Generator</span><span class="tl-badge">Nuevo</span></a>
+  <a href="/dashboard.html" class="tool-link"><span class="tl-icon">📈</span><span class="tl-name">Dashboard</span><span class="tl-badge">Nuevo</span></a>
   <div class="tools-sep"></div>
   <a href="/landing.html" class="tool-link"><span class="tl-icon">🌐</span><span class="tl-name">Landing Page</span></a>
 </div>
@@ -737,6 +793,34 @@ body.light-theme .p-item:hover{background:rgba(0,229,255,.08)!important}
         <textarea id="filterBlocked" style="min-height:70px" placeholder="@cuenta_spam&#10;@bot_123"></textarea>
       </div>
       <button class="btn btn-primary btn-block" id="applyFilters">Aplicar filtros</button>
+
+      <!-- Level 4: Sound & Animation -->
+      <div style="margin-top:1.2rem;padding-top:.8rem;border-top:1px solid var(--border)">
+        <label style="display:block;font-size:.72rem;font-weight:600;color:var(--text-muted);margin-bottom:.4rem;text-transform:uppercase;letter-spacing:.05em">🔊 Sonido del sorteo</label>
+        <div class="sound-selector" id="soundSelector">
+          <button class="sound-chip active" data-sound="default">🎰 Clásico</button>
+          <button class="sound-chip" data-sound="arcade">👾 Arcade</button>
+          <button class="sound-chip" data-sound="drum">🥁 Redoble</button>
+          <button class="sound-chip" data-sound="epic">🎬 Épico</button>
+          <button class="sound-chip" data-sound="none">🔇 Sin sonido</button>
+        </div>
+      </div>
+
+      <div style="margin-top:.8rem">
+        <div class="toggle-row"><span>⏱️ Countdown antes de sortear</span><button class="toggle on" id="toggleCountdown" role="switch" aria-checked="true"></button></div>
+        <div class="toggle-row"><span>📺 Modo presentación al sortear</span><button class="toggle" id="togglePresentation" role="switch" aria-checked="false"></button></div>
+      </div>
+
+      <!-- Level 4: Templates -->
+      <div style="margin-top:1.2rem;padding-top:.8rem;border-top:1px solid var(--border)">
+        <label style="display:block;font-size:.72rem;font-weight:600;color:var(--text-muted);margin-bottom:.4rem;text-transform:uppercase;letter-spacing:.05em">📋 Plantillas rápidas</label>
+        <div class="template-grid">
+          <div class="template-card" onclick="applyTemplate('instagram')"><div class="tc-icon">📸</div><div class="tc-name">Sorteo IG</div><div class="tc-desc">Follow + Like + Comment</div></div>
+          <div class="template-card" onclick="applyTemplate('youtube')"><div class="tc-icon">▶️</div><div class="tc-name">Sorteo YouTube</div><div class="tc-desc">Suscribirte + comentar</div></div>
+          <div class="template-card" onclick="applyTemplate('giveaway')"><div class="tc-icon">🎁</div><div class="tc-name">Giveaway</div><div class="tc-desc">Multi-premio con suplentes</div></div>
+          <div class="template-card" onclick="applyTemplate('rifa')"><div class="tc-icon">🎟️</div><div class="tc-name">Rifa</div><div class="tc-desc">Números + sorteo rápido</div></div>
+        </div>
+      </div>
     </div>
     <!-- ── History Tab ── -->
     <div class="tab-pane" id="pane-history">
@@ -817,6 +901,7 @@ body.light-theme .p-item:hover{background:rgba(0,229,255,.08)!important}
     </div>
 
     <button class="spin-btn" id="spinBtn">SORTEAR</button>
+    <div class="chain-progress" id="chainProgress"></div>
 
     <div class="winners-config">
       <label>Ganadores:</label>
@@ -851,6 +936,27 @@ body.light-theme .p-item:hover{background:rgba(0,229,255,.08)!important}
     </div>
   </div>
 </main>
+
+<!-- Level 4: Fullscreen Presentation -->
+<div class="fullscreen-mode" id="fullscreenMode">
+  <div class="fs-header">
+    <div class="fs-logo">RAFLY</div>
+    <button class="fs-close" id="fsClose">✕ Salir</button>
+  </div>
+  <div class="fs-stage" id="fsStage">
+    <div class="fs-label" id="fsLabel">Próximo sorteo</div>
+    <div class="fs-winner" id="fsWinner">—</div>
+    <div class="fs-meta" id="fsMeta"></div>
+  </div>
+  <div class="fs-count" id="fsCount"></div>
+</div>
+<div class="winner-spotlight" id="winnerSpotlight"></div>
+
+<!-- Level 4: Countdown -->
+<div class="countdown-overlay" id="countdownOverlay">
+  <div class="countdown-number" id="countdownNum">3</div>
+  <div class="countdown-label">Sorteando...</div>
+</div>
 
 <div class="winner-overlay" id="winnerOverlay">
   <div class="winner-card">
@@ -2625,39 +2731,438 @@ function updatePlatformBadge(url) {
 
 /* ═══════════════════════════════════════════════════
    LEVEL 2: WHEEL TICK SOUND (AudioContext)
+   — overridden by Level 4 sound system below —
    ═══════════════════════════════════════════════════ */
 let audioCtx = null;
+
+/* ═══════════════════════════════════════════════════
+   LEVEL 4: SOUND SYSTEM (Multiple Sound Packs)
+   ═══════════════════════════════════════════════════ */
+state.soundPack = 'default';
+state.countdownEnabled = true;
+state.presentationMode = false;
+state.chainMode = false;
+state.chainTotal = 0;
+state.chainCurrent = 0;
+state.chainWinners = [];
+
+const soundPacks = {
+  default: {
+    tick: (ctx) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.frequency.value = 800 + Math.random() * 400;
+      osc.type = 'sine';
+      gain.gain.setValueAtTime(0.08, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.06);
+      osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.06);
+    },
+    win: (ctx) => {
+      [523, 659, 784, 1047].forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.frequency.value = freq; osc.type = 'sine';
+        const t = ctx.currentTime + i * 0.12;
+        gain.gain.setValueAtTime(0.12, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+        osc.start(t); osc.stop(t + 0.3);
+      });
+    }
+  },
+  arcade: {
+    tick: (ctx) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.frequency.value = 200 + Math.random() * 600;
+      osc.type = 'square';
+      gain.gain.setValueAtTime(0.05, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.04);
+      osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.04);
+    },
+    win: (ctx) => {
+      const notes = [262, 330, 392, 523, 659, 784, 1047, 1319];
+      notes.forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.frequency.value = freq; osc.type = 'square';
+        const t = ctx.currentTime + i * 0.08;
+        gain.gain.setValueAtTime(0.08, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+        osc.start(t); osc.stop(t + 0.2);
+      });
+    }
+  },
+  drum: {
+    tick: (ctx) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.frequency.value = 150;
+      osc.type = 'triangle';
+      gain.gain.setValueAtTime(0.15, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08);
+      osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.08);
+      // Noise burst (snare-like)
+      const buf = ctx.createBuffer(1, ctx.sampleRate * 0.03, ctx.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * 0.3;
+      const noise = ctx.createBufferSource();
+      const ng = ctx.createGain();
+      noise.buffer = buf; noise.connect(ng); ng.connect(ctx.destination);
+      ng.gain.setValueAtTime(0.06, ctx.currentTime);
+      ng.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.03);
+      noise.start(ctx.currentTime);
+    },
+    win: (ctx) => {
+      // Drum roll crescendo
+      for (let i = 0; i < 16; i++) {
+        const buf = ctx.createBuffer(1, ctx.sampleRate * 0.05, ctx.sampleRate);
+        const data = buf.getChannelData(0);
+        for (let j = 0; j < data.length; j++) data[j] = (Math.random() * 2 - 1);
+        const noise = ctx.createBufferSource();
+        const ng = ctx.createGain();
+        noise.buffer = buf; noise.connect(ng); ng.connect(ctx.destination);
+        const t = ctx.currentTime + i * 0.06;
+        ng.gain.setValueAtTime(0.03 + i * 0.01, t);
+        ng.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+        noise.start(t);
+      }
+      // Final cymbal crash
+      const crash = ctx.createBuffer(1, ctx.sampleRate * 0.5, ctx.sampleRate);
+      const cd = crash.getChannelData(0);
+      for (let i = 0; i < cd.length; i++) cd[i] = (Math.random() * 2 - 1) * Math.exp(-i / (ctx.sampleRate * 0.2));
+      const cn = ctx.createBufferSource();
+      const cg = ctx.createGain();
+      cn.buffer = crash; cn.connect(cg); cg.connect(ctx.destination);
+      cg.gain.setValueAtTime(0.15, ctx.currentTime + 0.96);
+      cg.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.5);
+      cn.start(ctx.currentTime + 0.96);
+    }
+  },
+  epic: {
+    tick: (ctx) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.frequency.value = 100 + Math.random() * 200;
+      osc.type = 'sawtooth';
+      gain.gain.setValueAtTime(0.04, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
+      osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.1);
+    },
+    win: (ctx) => {
+      // Epic brass-like fanfare
+      const chords = [[261, 329, 392], [349, 440, 523], [392, 494, 587], [523, 659, 784]];
+      chords.forEach((chord, ci) => {
+        chord.forEach(freq => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.connect(gain); gain.connect(ctx.destination);
+          osc.frequency.value = freq; osc.type = 'sawtooth';
+          const t = ctx.currentTime + ci * 0.3;
+          gain.gain.setValueAtTime(0.06, t);
+          gain.gain.linearRampToValueAtTime(0.08, t + 0.1);
+          gain.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+          osc.start(t); osc.stop(t + 0.5);
+        });
+      });
+    }
+  },
+  none: { tick: () => {}, win: () => {} }
+};
+
+// Override tick/win sounds with pack
 function playTickSound() {
   try {
     if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    osc.connect(gain); gain.connect(audioCtx.destination);
-    osc.frequency.value = 800 + Math.random() * 400;
-    osc.type = 'sine';
-    gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.06);
-    osc.start(audioCtx.currentTime);
-    osc.stop(audioCtx.currentTime + 0.06);
+    soundPacks[state.soundPack].tick(audioCtx);
   } catch(e) {}
 }
-
 function playWinSound() {
   try {
     if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    [523, 659, 784, 1047].forEach((freq, i) => {
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-      osc.connect(gain); gain.connect(audioCtx.destination);
-      osc.frequency.value = freq;
-      osc.type = 'sine';
-      const t = audioCtx.currentTime + i * 0.12;
-      gain.gain.setValueAtTime(0.12, t);
-      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
-      osc.start(t); osc.stop(t + 0.3);
-    });
+    soundPacks[state.soundPack].win(audioCtx);
   } catch(e) {}
 }
+
+/* ═══════════════════════════════════════════════════
+   LEVEL 4: COUNTDOWN TIMER
+   ═══════════════════════════════════════════════════ */
+function runCountdown() {
+  return new Promise(resolve => {
+    const overlay = document.getElementById('countdownOverlay');
+    const numEl = document.getElementById('countdownNum');
+    overlay.classList.add('active');
+    let count = 3;
+    numEl.textContent = count;
+    numEl.className = 'countdown-number';
+
+    // Play countdown sound
+    function playCountSound(n) {
+      try {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.frequency.value = n > 0 ? 440 : 880;
+        osc.type = 'sine';
+        gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
+        osc.start(audioCtx.currentTime); osc.stop(audioCtx.currentTime + 0.3);
+      } catch(e) {}
+    }
+
+    playCountSound(count);
+    const interval = setInterval(() => {
+      count--;
+      if (count > 0) {
+        numEl.textContent = count;
+        numEl.className = 'countdown-number';
+        void numEl.offsetWidth; // force reflow for animation restart
+        numEl.className = 'countdown-number';
+        playCountSound(count);
+      } else if (count === 0) {
+        numEl.textContent = '¡GO!';
+        numEl.className = 'countdown-go';
+        playCountSound(0);
+      } else {
+        clearInterval(interval);
+        overlay.classList.remove('active');
+        resolve();
+      }
+    }, 800);
+  });
+}
+
+/* ═══════════════════════════════════════════════════
+   LEVEL 4: FULLSCREEN / PRESENTATION MODE
+   ═══════════════════════════════════════════════════ */
+function enterFullscreen() {
+  const fs = document.getElementById('fullscreenMode');
+  fs.classList.add('active');
+  document.getElementById('fsLabel').textContent = 'Sorteando...';
+  document.getElementById('fsWinner').textContent = '—';
+  document.getElementById('fsMeta').textContent = state.participants.length + ' participantes';
+  document.getElementById('fsCount').textContent = 'Sorteo #' + (state.drawCount + 1);
+  if (document.documentElement.requestFullscreen) {
+    document.documentElement.requestFullscreen().catch(() => {});
+  }
+}
+
+function exitFullscreen() {
+  const fs = document.getElementById('fullscreenMode');
+  fs.classList.remove('active');
+  if (document.fullscreenElement) {
+    document.exitFullscreen().catch(() => {});
+  }
+}
+
+function showWinnerFullscreen(winner, drawNum) {
+  const fs = document.getElementById('fullscreenMode');
+  if (!fs.classList.contains('active')) return;
+  document.getElementById('fsLabel').textContent = '🏆 ¡Ganador/a!';
+  document.getElementById('fsWinner').textContent = winner;
+  document.getElementById('fsMeta').textContent = new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+  document.getElementById('fsCount').textContent = 'Sorteo #' + drawNum;
+}
+
+/* ═══════════════════════════════════════════════════
+   LEVEL 4: ENHANCED WINNER PARTICLES
+   ═══════════════════════════════════════════════════ */
+function spawnWinnerParticles() {
+  const colors = ['#00e5ff', '#ff2d55', '#39ff14', '#ffea00', '#bf5af2', '#ff9500'];
+  for (let i = 0; i < 30; i++) {
+    const p = document.createElement('div');
+    p.className = 'winner-particle';
+    const size = 4 + Math.random() * 8;
+    const angle = Math.random() * Math.PI * 2;
+    const dist = 100 + Math.random() * 300;
+    const dx = Math.cos(angle) * dist;
+    const dy = Math.sin(angle) * dist - 100;
+    p.style.cssText = `
+      width:${size}px;height:${size}px;
+      left:50%;top:40%;
+      background:${colors[Math.floor(Math.random() * colors.length)]};
+      --dx:${dx}px;--dy:${dy}px;
+      animation-duration:${1 + Math.random() * 1.5}s;
+    `;
+    document.body.appendChild(p);
+    setTimeout(() => p.remove(), 2500);
+  }
+  // Spotlight effect
+  const spot = document.getElementById('winnerSpotlight');
+  spot.classList.add('active');
+  setTimeout(() => spot.classList.remove('active'), 3000);
+}
+
+/* ═══════════════════════════════════════════════════
+   LEVEL 4: CHAINED DRAWS
+   ═══════════════════════════════════════════════════ */
+function setupChainProgress(total) {
+  const container = document.getElementById('chainProgress');
+  container.innerHTML = '';
+  for (let i = 0; i < total; i++) {
+    if (i > 0) {
+      const arrow = document.createElement('span');
+      arrow.className = 'chain-arrow';
+      arrow.textContent = '→';
+      container.appendChild(arrow);
+    }
+    const dot = document.createElement('div');
+    dot.className = 'chain-dot' + (i === 0 ? ' current' : '');
+    dot.textContent = i + 1;
+    dot.id = 'chainDot' + i;
+    container.appendChild(dot);
+  }
+  container.classList.add('active');
+}
+
+function updateChainProgress(current) {
+  for (let i = 0; i < state.chainTotal; i++) {
+    const dot = document.getElementById('chainDot' + i);
+    if (!dot) continue;
+    dot.classList.remove('current', 'done');
+    if (i < current) dot.classList.add('done');
+    else if (i === current) dot.classList.add('current');
+  }
+}
+
+function clearChainProgress() {
+  const container = document.getElementById('chainProgress');
+  container.classList.remove('active');
+  container.innerHTML = '';
+  state.chainMode = false;
+  state.chainTotal = 0;
+  state.chainCurrent = 0;
+  state.chainWinners = [];
+}
+
+/* ═══════════════════════════════════════════════════
+   LEVEL 4: TEMPLATES
+   ═══════════════════════════════════════════════════ */
+function applyTemplate(type) {
+  const templates = {
+    instagram: {
+      mention: true, dupes: true, winners: false,
+      hashtag: '', keyword: '', minLen: 0, blocked: '',
+      winnerCount: 1, suplenteCount: 1,
+      toast: 'Plantilla "Sorteo IG" aplicada'
+    },
+    youtube: {
+      mention: false, dupes: true, winners: false,
+      hashtag: '', keyword: '', minLen: 3, blocked: '',
+      winnerCount: 1, suplenteCount: 0,
+      toast: 'Plantilla "Sorteo YouTube" aplicada'
+    },
+    giveaway: {
+      mention: true, dupes: true, winners: true,
+      hashtag: '', keyword: '', minLen: 0, blocked: '',
+      winnerCount: 3, suplenteCount: 2,
+      toast: 'Plantilla "Giveaway" aplicada — 3 ganadores + 2 suplentes'
+    },
+    rifa: {
+      mention: false, dupes: false, winners: false,
+      hashtag: '', keyword: '', minLen: 0, blocked: '',
+      winnerCount: 1, suplenteCount: 0,
+      toast: 'Plantilla "Rifa" aplicada'
+    }
+  };
+
+  const tpl = templates[type];
+  if (!tpl) return;
+
+  // Apply filter settings
+  state.filters.mention = tpl.mention;
+  state.filters.dupes = tpl.dupes;
+  state.filters.winners = tpl.winners;
+  state.filters.hashtag = tpl.hashtag;
+  state.filters.keyword = tpl.keyword;
+  state.filters.minLen = tpl.minLen;
+  state.filters.blocked = tpl.blocked;
+
+  // Update UI toggles
+  const mentionBtn = document.getElementById('filterMention');
+  const dupesBtn = document.getElementById('filterDupes');
+  const winnersBtn = document.getElementById('filterWinners');
+  mentionBtn.classList.toggle('on', tpl.mention);
+  mentionBtn.setAttribute('aria-checked', tpl.mention);
+  dupesBtn.classList.toggle('on', tpl.dupes);
+  dupesBtn.setAttribute('aria-checked', tpl.dupes);
+  winnersBtn.classList.toggle('on', tpl.winners);
+  winnersBtn.setAttribute('aria-checked', tpl.winners);
+  document.getElementById('filterHashtag').value = tpl.hashtag;
+  document.getElementById('filterKeyword').value = tpl.keyword;
+  document.getElementById('filterMinLen').value = tpl.minLen || '';
+  document.getElementById('filterBlocked').value = tpl.blocked;
+
+  // Winner count
+  document.getElementById('winnerCountInput').value = tpl.winnerCount;
+  document.getElementById('suplenteCountInput').value = tpl.suplenteCount;
+
+  // Re-apply filters if we have data
+  if (state.rawParticipants.length > 0) {
+    state.participants = applyFilters(state.rawParticipants);
+    state.displayNames = state.participants.length <= MAX_SEGMENTS ? [...state.participants] : state.participants.sort(() => Math.random() - 0.5).slice(0, MAX_SEGMENTS);
+    updateCount(); renderParticipantList();
+    if (state.animMode === 'wheel') renderWheel();
+    if (state.animMode === 'slot') populateSlot();
+    if (state.animMode === 'shuffle') resetShuffle();
+    updateSpinBtn();
+  }
+
+  showToast(tpl.toast);
+}
+
+/* ═══════════════════════════════════════════════════
+   LEVEL 4: OVERRIDE SPIN WITH COUNTDOWN + PRESENTATION
+   ═══════════════════════════════════════════════════ */
+// Store original spin
+const _originalSpin = spin;
+spin = async function() {
+  if (state.isSpinning) return;
+  if (state.participants.length < 2) return;
+
+  // Enter presentation mode if enabled
+  if (state.presentationMode) {
+    enterFullscreen();
+    await new Promise(r => setTimeout(r, 400));
+  }
+
+  // Run countdown if enabled
+  if (state.countdownEnabled) {
+    await runCountdown();
+  }
+
+  // Execute original spin
+  _originalSpin();
+};
+
+// Override announceWinner to add fullscreen + particles
+const _originalAnnounceWinner = announceWinner;
+announceWinner = function() {
+  _originalAnnounceWinner();
+  spawnWinnerParticles();
+
+  // Show in fullscreen if active
+  const fs = document.getElementById('fullscreenMode');
+  if (fs.classList.contains('active')) {
+    showWinnerFullscreen(state.currentWinner, state.drawCount);
+  }
+
+  // Handle chained draws
+  if (state.chainMode && state.chainCurrent < state.chainTotal - 1) {
+    state.chainWinners.push(state.currentWinner);
+    state.chainCurrent++;
+    updateChainProgress(state.chainCurrent);
+  } else if (state.chainMode) {
+    state.chainWinners.push(state.currentWinner);
+    setTimeout(() => clearChainProgress(), 2000);
+  }
+};
 
 /* ═══════════════════════════════════════════════════
    INIT
@@ -2817,6 +3322,53 @@ function init() {
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js').catch(() => {});
   }
+
+  // ── Level 4: Fullscreen Toggle ──
+  document.getElementById('fullscreenToggle').addEventListener('click', () => {
+    const fs = document.getElementById('fullscreenMode');
+    if (fs.classList.contains('active')) {
+      exitFullscreen();
+    } else {
+      enterFullscreen();
+    }
+  });
+  document.getElementById('fsClose').addEventListener('click', exitFullscreen);
+  document.addEventListener('fullscreenchange', () => {
+    if (!document.fullscreenElement) {
+      document.getElementById('fullscreenMode').classList.remove('active');
+    }
+  });
+
+  // ── Level 4: Sound Selector ──
+  document.querySelectorAll('.sound-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      document.querySelectorAll('.sound-chip').forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+      state.soundPack = chip.dataset.sound;
+      // Play preview
+      if (state.soundPack !== 'none') {
+        try {
+          if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          soundPacks[state.soundPack].tick(audioCtx);
+        } catch(e) {}
+      }
+    });
+  });
+
+  // ── Level 4: Countdown & Presentation Toggles ──
+  const toggleCountdown = document.getElementById('toggleCountdown');
+  toggleCountdown.addEventListener('click', () => {
+    state.countdownEnabled = !state.countdownEnabled;
+    toggleCountdown.classList.toggle('on', state.countdownEnabled);
+    toggleCountdown.setAttribute('aria-checked', state.countdownEnabled);
+  });
+
+  const togglePresentation = document.getElementById('togglePresentation');
+  togglePresentation.addEventListener('click', () => {
+    state.presentationMode = !state.presentationMode;
+    togglePresentation.classList.toggle('on', state.presentationMode);
+    togglePresentation.setAttribute('aria-checked', state.presentationMode);
+  });
 
   // Check Instagram
   checkIgConnection();
