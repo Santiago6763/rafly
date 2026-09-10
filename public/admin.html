@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RAFLY Admin</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Exo+2:wght@300;400;500;600;700&display=swap">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#060614;--surface:#0c0c24;--elevated:#12123a;
+  --neon-cyan:#00e5ff;--neon-magenta:#ff00aa;--neon-green:#00ff88;--neon-gold:#ffd700;--neon-red:#ff3355;
+  --glow-cyan:rgba(0,229,255,.4);
+  --text:#e0e0f8;--text-muted:#6a6a8a;--text-dim:#3a3a55;
+  --border:rgba(0,229,255,.12);
+}
+body{font-family:'Exo 2',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:0}
+a{color:var(--neon-cyan);text-decoration:none}
+
+.admin-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:1rem 2rem;background:var(--surface);border-bottom:1px solid var(--border);
+  position:sticky;top:0;z-index:10;
+}
+.admin-logo{font-family:'Orbitron',monospace;font-weight:900;font-size:1.2rem;color:var(--neon-cyan)}
+.admin-logo span{color:var(--neon-magenta);font-size:.7rem;font-weight:500;margin-left:.5rem;vertical-align:middle}
+.admin-nav{display:flex;gap:1rem;align-items:center}
+.admin-nav a{color:var(--text-muted);font-size:.8rem;font-weight:500;padding:.3rem .6rem;border-radius:6px;transition:all .2s}
+.admin-nav a:hover{color:var(--neon-cyan);background:rgba(0,229,255,.05)}
+
+.admin-content{max-width:1200px;margin:0 auto;padding:2rem 1.5rem}
+
+/* Stats cards */
+.stats-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;margin-bottom:2rem}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:1.5rem;transition:border-color .3s}
+.stat-card:hover{border-color:rgba(0,229,255,.3)}
+.stat-card .sc-label{font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:var(--text-dim);margin-bottom:.4rem}
+.stat-card .sc-value{font-family:'Orbitron',monospace;font-size:2rem;font-weight:900}
+.stat-card .sc-value.cyan{color:var(--neon-cyan)}
+.stat-card .sc-value.green{color:var(--neon-green)}
+.stat-card .sc-value.gold{color:var(--neon-gold)}
+.stat-card .sc-value.magenta{color:var(--neon-magenta)}
+.stat-card .sc-sub{font-size:.7rem;color:var(--text-dim);margin-top:.2rem}
+
+/* Sections */
+.admin-section{margin-bottom:2rem}
+.admin-section h2{font-family:'Orbitron',monospace;font-size:.9rem;font-weight:700;margin-bottom:1rem;display:flex;align-items:center;gap:.5rem}
+
+/* Tables */
+.admin-table-wrap{overflow-x:auto;border-radius:12px;border:1px solid var(--border)}
+.admin-table{width:100%;border-collapse:collapse;background:var(--surface)}
+.admin-table th{font-family:'Orbitron',monospace;font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-dim);background:var(--elevated);padding:.7rem .8rem;text-align:left;border-bottom:1px solid var(--border)}
+.admin-table td{padding:.6rem .8rem;font-size:.8rem;border-bottom:1px solid rgba(255,255,255,.03)}
+.admin-table tr:hover td{background:rgba(0,229,255,.02)}
+.plan-badge{display:inline-block;padding:.1rem .5rem;border-radius:5px;font-family:'Orbitron',monospace;font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+.plan-badge.free{background:rgba(0,255,136,.1);color:var(--neon-green);border:1px solid rgba(0,255,136,.2)}
+.plan-badge.pro{background:rgba(0,229,255,.1);color:var(--neon-cyan);border:1px solid rgba(0,229,255,.2)}
+.plan-badge.enterprise{background:rgba(255,234,0,.1);color:var(--neon-gold);border:1px solid rgba(255,234,0,.2)}
+
+/* Plan selector */
+select.plan-select{background:var(--bg);border:1px solid var(--border);color:var(--text);padding:.2rem .4rem;border-radius:5px;font-family:inherit;font-size:.7rem;cursor:pointer}
+
+/* Plan distribution */
+.plan-bars{display:flex;gap:1rem;align-items:flex-end;height:120px;padding:0 1rem}
+.plan-bar{flex:1;display:flex;flex-direction:column;align-items:center;gap:.3rem}
+.plan-bar-fill{width:100%;max-width:60px;border-radius:6px 6px 0 0;transition:height .5s var(--ease-out-expo,ease);min-height:4px}
+.plan-bar-fill.free{background:var(--neon-green)}
+.plan-bar-fill.pro{background:var(--neon-cyan)}
+.plan-bar-fill.enterprise{background:var(--neon-gold)}
+.plan-bar-label{font-size:.65rem;font-weight:700;color:var(--text-dim);text-transform:uppercase}
+.plan-bar-count{font-family:'Orbitron',monospace;font-size:.75rem;font-weight:700}
+
+/* Auth gate */
+.auth-gate{text-align:center;padding:4rem 2rem}
+.auth-gate h2{font-family:'Orbitron',monospace;font-size:1.2rem;color:var(--neon-red);margin-bottom:1rem}
+.auth-gate p{color:var(--text-muted);margin-bottom:1.5rem}
+.auth-gate a{display:inline-block;padding:.6rem 1.5rem;background:linear-gradient(135deg,var(--neon-cyan),#7b2eff);color:#060614;font-weight:700;border-radius:10px;font-size:.9rem}
+
+.loading{text-align:center;padding:3rem;color:var(--text-dim);font-size:.85rem}
+
+@media(max-width:768px){
+  .admin-header{padding:.7rem 1rem}
+  .admin-content{padding:1rem}
+  .stats-row{grid-template-columns:1fr 1fr}
+  .admin-table th,.admin-table td{padding:.4rem .5rem;font-size:.7rem}
+}
+</style>
+</head>
+<body>
+
+<header class="admin-header">
+  <div class="admin-logo">RAFLY <span>ADMIN</span></div>
+  <nav class="admin-nav">
+    <a href="index.html">← App</a>
+    <a href="dashboard.html">Dashboard</a>
+    <a href="#" id="logoutBtn">Salir</a>
+  </nav>
+</header>
+
+<div class="admin-content" id="adminContent">
+  <div class="loading" id="adminLoading">Cargando panel de administración...</div>
+</div>
+
+<script>
+const token = (() => { try { return localStorage.getItem('rafly-token'); } catch(e) { return null; } })();
+
+async function loadAdmin() {
+  if (!token) {
+    document.getElementById('adminContent').innerHTML = `
+      <div class="auth-gate">
+        <h2>Acceso restringido</h2>
+        <p>Necesitás iniciar sesión con una cuenta de administrador para acceder a este panel.</p>
+        <a href="index.html">Ir a la app</a>
+      </div>`;
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/admin/stats', { headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) {
+      const err = await res.json();
+      document.getElementById('adminContent').innerHTML = `
+        <div class="auth-gate">
+          <h2>${res.status === 403 ? 'Sin permisos' : 'Error'}</h2>
+          <p>${res.status === 403 ? 'Tu cuenta no tiene permisos de administrador. Solo el primer usuario registrado puede acceder.' : (err.error || 'Error desconocido')}</p>
+          <a href="index.html">Ir a la app</a>
+        </div>`;
+      return;
+    }
+
+    const stats = await res.json();
+
+    // Load users
+    const usersRes = await fetch('/api/admin/users', { headers: { Authorization: `Bearer ${token}` } });
+    const usersData = await usersRes.json();
+
+    renderAdmin(stats, usersData.users);
+  } catch(e) {
+    document.getElementById('adminContent').innerHTML = `
+      <div class="auth-gate"><h2>Error de conexión</h2><p>${e.message}</p><a href="index.html">Ir a la app</a></div>`;
+  }
+}
+
+function renderAdmin(stats, users) {
+  const planMap = {};
+  (stats.planDist || []).forEach(p => planMap[p.plan] = p.c);
+  const maxPlan = Math.max(planMap.free || 0, planMap.pro || 0, planMap.enterprise || 0, 1);
+
+  document.getElementById('adminContent').innerHTML = `
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="sc-label">Usuarios totales</div>
+        <div class="sc-value cyan">${stats.totalUsers}</div>
+      </div>
+      <div class="stat-card">
+        <div class="sc-label">Sorteos totales</div>
+        <div class="sc-value green">${stats.totalSorteos}</div>
+      </div>
+      <div class="stat-card">
+        <div class="sc-label">Sorteos hoy</div>
+        <div class="sc-value gold">${stats.todaySorteos}</div>
+      </div>
+      <div class="stat-card">
+        <div class="sc-label">Distribución de planes</div>
+        <div class="plan-bars">
+          <div class="plan-bar">
+            <div class="plan-bar-fill free" style="height:${((planMap.free || 0) / maxPlan) * 80}px"></div>
+            <div class="plan-bar-count">${planMap.free || 0}</div>
+            <div class="plan-bar-label">Free</div>
+          </div>
+          <div class="plan-bar">
+            <div class="plan-bar-fill pro" style="height:${((planMap.pro || 0) / maxPlan) * 80}px"></div>
+            <div class="plan-bar-count">${planMap.pro || 0}</div>
+            <div class="plan-bar-label">Pro</div>
+          </div>
+          <div class="plan-bar">
+            <div class="plan-bar-fill enterprise" style="height:${((planMap.enterprise || 0) / maxPlan) * 80}px"></div>
+            <div class="plan-bar-count">${planMap.enterprise || 0}</div>
+            <div class="plan-bar-label">Enterprise</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="admin-section">
+      <h2>👥 Usuarios registrados (${users.length})</h2>
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead>
+            <tr><th>#</th><th>Email</th><th>Nombre</th><th>Plan</th><th>Sorteos</th><th>Último sorteo</th><th>Registrado</th></tr>
+          </thead>
+          <tbody>
+            ${users.map(u => `
+              <tr>
+                <td>${u.id}</td>
+                <td>${u.email}</td>
+                <td>${u.name || '—'}</td>
+                <td>
+                  <select class="plan-select" data-uid="${u.id}" onchange="changePlan(${u.id}, this.value)">
+                    <option value="free" ${u.plan === 'free' ? 'selected' : ''}>Free</option>
+                    <option value="pro" ${u.plan === 'pro' ? 'selected' : ''}>Pro</option>
+                    <option value="enterprise" ${u.plan === 'enterprise' ? 'selected' : ''}>Enterprise</option>
+                  </select>
+                </td>
+                <td>${u.total_sorteos}</td>
+                <td>${u.last_sorteo ? new Date(u.last_sorteo).toLocaleDateString('es-AR') : '—'}</td>
+                <td>${new Date(u.created_at).toLocaleDateString('es-AR')}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="admin-section">
+      <h2>🎰 Últimos sorteos</h2>
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead>
+            <tr><th>Fecha</th><th>Usuario</th><th>Ganador</th><th>Participantes</th><th>Plataforma</th><th>Modo</th></tr>
+          </thead>
+          <tbody>
+            ${(stats.recentSorteos || []).map(s => `
+              <tr>
+                <td>${new Date(s.created_at).toLocaleString('es-AR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })}</td>
+                <td>${s.email || '—'}</td>
+                <td style="font-weight:700;color:var(--neon-green)">${s.winner}</td>
+                <td>${s.participants_count}</td>
+                <td>${s.platform}</td>
+                <td>${s.mode}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+async function changePlan(userId, plan) {
+  try {
+    const res = await fetch(`/api/admin/users/${userId}/plan`, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ plan })
+    });
+    if (!res.ok) alert('Error al cambiar plan');
+  } catch(e) {
+    alert('Error de conexión');
+  }
+}
+
+document.getElementById('logoutBtn').addEventListener('click', (e) => {
+  e.preventDefault();
+  try { localStorage.removeItem('rafly-token'); } catch(e) {}
+  location.href = 'index.html';
+});
+
+loadAdmin();
+</script>
+</body>
+</html>
