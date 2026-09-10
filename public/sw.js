@@ -1,4 +1,4 @@
-const CACHE_NAME = 'rafly-v5';
+const CACHE_NAME = 'rafly-v6';
 const ASSETS = [
   '/',
   '/index.html',
@@ -10,6 +10,7 @@ const ASSETS = [
   '/pricing.html',
   '/qr.html',
   '/dashboard.html',
+  '/admin.html',
   '/manifest.json'
 ];
 
