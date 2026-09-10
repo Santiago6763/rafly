@@ -653,6 +653,20 @@ body.light-theme .p-item:hover{background:rgba(0,229,255,.08)!important}
 .template-card .tc-icon{font-size:1.5rem;margin-bottom:.2rem}
 .template-card .tc-name{font-size:.7rem;font-weight:600;color:var(--text)}
 .template-card .tc-desc{font-size:.6rem;color:var(--text-dim);margin-top:.15rem}
+
+/* ═══ LEVEL 5: Upgrade Modal ═══ */
+.upgrade-modal{position:fixed;inset:0;z-index:700;background:rgba(6,6,20,.9);display:none;align-items:center;justify-content:center;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.upgrade-modal.active{display:flex}
+.upgrade-box{background:var(--surface);border:1px solid var(--neon-cyan);border-radius:16px;padding:2rem;max-width:380px;width:90%;text-align:center;box-shadow:0 0 60px rgba(0,229,255,.15);animation:upgrade-pop .3s ease}
+@keyframes upgrade-pop{from{transform:scale(.9);opacity:0}to{transform:scale(1);opacity:1}}
+.upgrade-box h3{font-family:'Orbitron',monospace;font-size:1rem;font-weight:900;margin-bottom:.3rem;background:linear-gradient(135deg,var(--neon-cyan),var(--neon-magenta));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.upgrade-box p{font-size:.78rem;color:var(--text-muted);line-height:1.5;margin-bottom:1.2rem}
+.upgrade-box .limit-info{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:.6rem;margin-bottom:1rem;font-size:.72rem;color:var(--text-dim)}
+.upgrade-box .limit-info b{color:var(--neon-cyan)}
+.upgrade-btn{display:block;width:100%;padding:.6rem;border:none;border-radius:10px;font-family:'Orbitron',monospace;font-weight:700;font-size:.8rem;cursor:pointer;background:linear-gradient(135deg,var(--neon-cyan),#00b8d4);color:#060614;margin-bottom:.5rem;transition:all .2s}
+.upgrade-btn:hover{box-shadow:0 0 20px var(--glow-cyan)}
+.upgrade-dismiss{background:none;border:none;color:var(--text-dim);font-size:.72rem;cursor:pointer;font-family:inherit;padding:.3rem}
+.upgrade-dismiss:hover{color:var(--text-muted)}
 </style>
 </head>
 <body>
@@ -674,6 +688,7 @@ body.light-theme .p-item:hover{background:rgba(0,229,255,.08)!important}
     </div>
   </div>
   <div class="header-actions">
+    <button class="btn-icon" id="planBadge" title="Tu plan" style="font-size:.55rem;font-family:'Orbitron',monospace;font-weight:900;padding:.2rem .5rem;border:1px solid var(--neon-green);color:var(--neon-green);border-radius:6px;cursor:pointer">FREE</button>
     <button class="btn-icon" id="fullscreenToggle" title="Modo presentación">📺</button>
     <button class="btn-icon" id="themeToggle" title="Cambiar tema">🌙</button>
     <button class="btn-icon" id="toolsToggle" title="Herramientas">🧰</button>
@@ -705,6 +720,7 @@ body.light-theme .p-item:hover{background:rgba(0,229,255,.08)!important}
     <button class="tab" data-tab="load">Manual</button>
     <button class="tab" data-tab="filters">Filtros</button>
     <button class="tab" data-tab="history">Historial</button>
+    <button class="tab" data-tab="brand">Marca</button>
   </div>
   <div class="tab-content">
     <!-- ── Instagram Tab ── -->
@@ -833,6 +849,53 @@ body.light-theme .p-item:hover{background:rgba(0,229,255,.08)!important}
         <li class="history-empty">Todavía no hay ganadores</li>
       </ul>
     </div>
+    <!-- ── Brand Tab ── -->
+    <div class="tab-pane" id="pane-brand">
+      <div style="margin-bottom:1rem">
+        <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.8rem">
+          <span style="font-size:1.2rem">🎨</span>
+          <span style="font-size:.8rem;font-weight:700;color:var(--text)">Marca Blanca</span>
+          <span style="font-size:.55rem;background:linear-gradient(135deg,var(--neon-gold),#ffb800);color:#060614;padding:.1rem .4rem;border-radius:6px;font-weight:700">ENTERPRISE</span>
+        </div>
+        <p style="font-size:.7rem;color:var(--text-muted);margin-bottom:1rem;line-height:1.5">Personalizá tu sorteo con tu propia marca. Los cambios se guardan automáticamente.</p>
+      </div>
+
+      <label style="display:block;font-size:.72rem;font-weight:600;color:var(--text-muted);margin-bottom:.3rem;text-transform:uppercase;letter-spacing:.05em">Nombre / Marca</label>
+      <input type="text" id="brandName" placeholder="Tu marca o canal" style="width:100%;background:var(--surface);border:1px solid var(--border);color:var(--text);padding:.5rem .7rem;border-radius:8px;font-family:inherit;font-size:.8rem;margin-bottom:.8rem">
+
+      <label style="display:block;font-size:.72rem;font-weight:600;color:var(--text-muted);margin-bottom:.3rem;text-transform:uppercase;letter-spacing:.05em">Logo (URL de imagen)</label>
+      <input type="text" id="brandLogo" placeholder="https://tu-sitio.com/logo.png" style="width:100%;background:var(--surface);border:1px solid var(--border);color:var(--text);padding:.5rem .7rem;border-radius:8px;font-family:inherit;font-size:.8rem;margin-bottom:.5rem">
+      <div id="brandLogoPreview" style="margin-bottom:.8rem;text-align:center" hidden>
+        <img id="brandLogoImg" style="max-width:120px;max-height:60px;border-radius:8px;border:1px solid var(--border)">
+      </div>
+
+      <label style="display:block;font-size:.72rem;font-weight:600;color:var(--text-muted);margin-bottom:.3rem;text-transform:uppercase;letter-spacing:.05em">Color principal</label>
+      <div style="display:flex;gap:.5rem;align-items:center;margin-bottom:.8rem">
+        <input type="color" id="brandColor" value="#00e5ff" style="width:40px;height:40px;border:2px solid var(--border);border-radius:8px;background:none;cursor:pointer;padding:2px">
+        <input type="text" id="brandColorHex" value="#00e5ff" style="width:90px;background:var(--surface);border:1px solid var(--border);color:var(--text);padding:.4rem .5rem;border-radius:8px;font-family:'Orbitron',monospace;font-size:.7rem">
+        <div style="flex:1;display:flex;gap:.3rem">
+          <button class="brand-preset-color" data-color="#00e5ff" style="width:24px;height:24px;border-radius:50%;border:2px solid var(--border);background:#00e5ff;cursor:pointer" title="Cyan"></button>
+          <button class="brand-preset-color" data-color="#ff2d55" style="width:24px;height:24px;border-radius:50%;border:2px solid var(--border);background:#ff2d55;cursor:pointer" title="Magenta"></button>
+          <button class="brand-preset-color" data-color="#39ff14" style="width:24px;height:24px;border-radius:50%;border:2px solid var(--border);background:#39ff14;cursor:pointer" title="Verde"></button>
+          <button class="brand-preset-color" data-color="#bf5af2" style="width:24px;height:24px;border-radius:50%;border:2px solid var(--border);background:#bf5af2;cursor:pointer" title="Violeta"></button>
+          <button class="brand-preset-color" data-color="#ff9500" style="width:24px;height:24px;border-radius:50%;border:2px solid var(--border);background:#ff9500;cursor:pointer" title="Naranja"></button>
+        </div>
+      </div>
+
+      <label style="display:block;font-size:.72rem;font-weight:600;color:var(--text-muted);margin-bottom:.3rem;text-transform:uppercase;letter-spacing:.05em">Color secundario</label>
+      <div style="display:flex;gap:.5rem;align-items:center;margin-bottom:1.2rem">
+        <input type="color" id="brandColor2" value="#ff2d55" style="width:40px;height:40px;border:2px solid var(--border);border-radius:8px;background:none;cursor:pointer;padding:2px">
+        <input type="text" id="brandColor2Hex" value="#ff2d55" style="width:90px;background:var(--surface);border:1px solid var(--border);color:var(--text);padding:.4rem .5rem;border-radius:8px;font-family:'Orbitron',monospace;font-size:.7rem">
+      </div>
+
+      <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:1rem">
+        <button class="toggle" id="toggleHideBrand" role="switch" aria-checked="false"></button>
+        <span style="font-size:.72rem;color:var(--text-muted)">Ocultar logo "RAFLY"</span>
+      </div>
+
+      <button class="btn btn-primary btn-block" id="applyBrand" style="margin-bottom:.5rem">Aplicar marca</button>
+      <button class="btn btn-secondary btn-block" id="resetBrand" style="font-size:.7rem">Resetear a RAFLY</button>
+    </div>
   </div>
 </aside>
 
@@ -956,6 +1019,17 @@ body.light-theme .p-item:hover{background:rgba(0,229,255,.08)!important}
 <div class="countdown-overlay" id="countdownOverlay">
   <div class="countdown-number" id="countdownNum">3</div>
   <div class="countdown-label">Sorteando...</div>
+</div>
+
+<!-- Level 5: Upgrade Modal -->
+<div class="upgrade-modal" id="upgradeModal">
+  <div class="upgrade-box">
+    <h3>🚀 Upgrade a Pro</h3>
+    <p id="upgradeMsg">Alcanzaste el límite de tu plan Free.</p>
+    <div class="limit-info" id="upgradeLimit"></div>
+    <a href="/pricing.html" class="upgrade-btn">Ver planes →</a>
+    <button class="upgrade-dismiss" id="upgradeDismiss">Seguir con Free</button>
+  </div>
 </div>
 
 <div class="winner-overlay" id="winnerOverlay">
@@ -2320,6 +2394,12 @@ function loadParticipants(raw) {
   if (state.animMode === 'slot') populateSlot();
   if (state.animMode === 'shuffle') resetShuffle();
   updateSpinBtn();
+
+  // Warn if participants exceed plan limit
+  const _plan = PLANS[getCurrentPlan()];
+  if (_plan.maxParticipants !== Infinity && state.participants.length > _plan.maxParticipants) {
+    showToast(`⚠️ Tu plan ${_plan.name} permite hasta ${_plan.maxParticipants} participantes`, 'warn');
+  }
 }
 
 function updateCount() {
@@ -3126,6 +3206,9 @@ spin = async function() {
   if (state.isSpinning) return;
   if (state.participants.length < 2) return;
 
+  // Check plan limits before spinning
+  if (!checkPlanLimits()) return;
+
   // Enter presentation mode if enabled
   if (state.presentationMode) {
     enterFullscreen();
@@ -3146,6 +3229,7 @@ const _originalAnnounceWinner = announceWinner;
 announceWinner = function() {
   _originalAnnounceWinner();
   spawnWinnerParticles();
+  incrementTodaySorteoCount();
 
   // Show in fullscreen if active
   const fs = document.getElementById('fullscreenMode');
@@ -3370,8 +3454,259 @@ function init() {
     togglePresentation.setAttribute('aria-checked', state.presentationMode);
   });
 
+  // ── Level 5: Brand / Marca Blanca ──
+  const brandNameInput = document.getElementById('brandName');
+  const brandLogoInput = document.getElementById('brandLogo');
+  const brandColor = document.getElementById('brandColor');
+  const brandColorHex = document.getElementById('brandColorHex');
+  const brandColor2 = document.getElementById('brandColor2');
+  const brandColor2Hex = document.getElementById('brandColor2Hex');
+  const toggleHideBrand = document.getElementById('toggleHideBrand');
+
+  // Sync color pickers with hex inputs
+  brandColor.addEventListener('input', () => { brandColorHex.value = brandColor.value; });
+  brandColorHex.addEventListener('input', () => { if (/^#[0-9a-f]{6}$/i.test(brandColorHex.value)) brandColor.value = brandColorHex.value; });
+  brandColor2.addEventListener('input', () => { brandColor2Hex.value = brandColor2.value; });
+  brandColor2Hex.addEventListener('input', () => { if (/^#[0-9a-f]{6}$/i.test(brandColor2Hex.value)) brandColor2.value = brandColor2Hex.value; });
+
+  // Preset color buttons
+  document.querySelectorAll('.brand-preset-color').forEach(btn => {
+    btn.addEventListener('click', () => {
+      brandColor.value = btn.dataset.color;
+      brandColorHex.value = btn.dataset.color;
+    });
+  });
+
+  // Logo preview
+  brandLogoInput.addEventListener('input', () => {
+    const url = brandLogoInput.value.trim();
+    const preview = document.getElementById('brandLogoPreview');
+    const img = document.getElementById('brandLogoImg');
+    if (url) {
+      img.src = url;
+      img.onload = () => { preview.hidden = false; };
+      img.onerror = () => { preview.hidden = true; };
+    } else { preview.hidden = true; }
+  });
+
+  // Hide brand toggle
+  toggleHideBrand.addEventListener('click', () => {
+    const on = toggleHideBrand.classList.toggle('on');
+    toggleHideBrand.setAttribute('aria-checked', on);
+  });
+
+  // Apply brand
+  document.getElementById('applyBrand').addEventListener('click', applyBrandSettings);
+  document.getElementById('resetBrand').addEventListener('click', resetBrandSettings);
+
+  // Load saved brand on init
+  loadBrandSettings();
+
+  // Plan limits init
+  updatePlanBadge();
+  document.getElementById('upgradeDismiss').addEventListener('click', () => {
+    document.getElementById('upgradeModal').classList.remove('active');
+  });
+  document.getElementById('planBadge').addEventListener('click', () => {
+    window.open('pricing.html', '_blank');
+  });
+
   // Check Instagram
   checkIgConnection();
+}
+
+/* ═══════════════════════════════════════════════════
+   LEVEL 5: BRAND SYSTEM
+   ═══════════════════════════════════════════════════ */
+function applyBrandSettings() {
+  const name = document.getElementById('brandName').value.trim();
+  const logo = document.getElementById('brandLogo').value.trim();
+  const color1 = document.getElementById('brandColor').value;
+  const color2 = document.getElementById('brandColor2').value;
+  const hideBrand = document.getElementById('toggleHideBrand').classList.contains('on');
+
+  // Save to localStorage
+  const brand = { name, logo, color1, color2, hideBrand };
+  localStorage.setItem('rafly-brand', JSON.stringify(brand));
+
+  applyBrandToUI(brand);
+  showToast('✨ Marca aplicada');
+}
+
+function applyBrandToUI(brand) {
+  if (!brand) return;
+
+  // Apply color
+  if (brand.color1) {
+    document.documentElement.style.setProperty('--neon-cyan', brand.color1);
+    document.documentElement.style.setProperty('--glow-cyan', brand.color1 + '59');
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', brand.color1);
+  }
+  if (brand.color2) {
+    document.documentElement.style.setProperty('--neon-magenta', brand.color2);
+    document.documentElement.style.setProperty('--glow-magenta', brand.color2 + '59');
+  }
+
+  // Apply name
+  const logoEls = document.querySelectorAll('.logo, .fs-logo');
+  if (brand.name) {
+    logoEls.forEach(el => el.textContent = brand.name);
+  }
+  if (brand.hideBrand) {
+    logoEls.forEach(el => el.textContent = brand.name || '');
+  }
+
+  // Apply logo image
+  if (brand.logo) {
+    const header = document.querySelector('header .logo');
+    if (header) {
+      header.innerHTML = `<img src="${brand.logo}" alt="${brand.name || 'Logo'}" style="max-height:28px;vertical-align:middle;margin-right:.3rem"> ${brand.hideBrand ? '' : (brand.name || '')}`;
+    }
+    const fsLogo = document.querySelector('.fs-logo');
+    if (fsLogo) {
+      fsLogo.innerHTML = `<img src="${brand.logo}" alt="${brand.name || 'Logo'}" style="max-height:24px;vertical-align:middle;margin-right:.3rem"> ${brand.name || ''}`;
+    }
+  }
+
+  // Update plan badge if exists
+  const planBadge = document.getElementById('planBadge');
+  if (planBadge && brand.name) {
+    planBadge.title = brand.name;
+  }
+}
+
+function resetBrandSettings() {
+  localStorage.removeItem('rafly-brand');
+  document.getElementById('brandName').value = '';
+  document.getElementById('brandLogo').value = '';
+  document.getElementById('brandColor').value = '#00e5ff';
+  document.getElementById('brandColorHex').value = '#00e5ff';
+  document.getElementById('brandColor2').value = '#ff2d55';
+  document.getElementById('brandColor2Hex').value = '#ff2d55';
+  document.getElementById('toggleHideBrand').classList.remove('on');
+  document.getElementById('toggleHideBrand').setAttribute('aria-checked', 'false');
+  document.getElementById('brandLogoPreview').hidden = true;
+
+  // Reset CSS vars
+  document.documentElement.style.removeProperty('--neon-cyan');
+  document.documentElement.style.removeProperty('--glow-cyan');
+  document.documentElement.style.removeProperty('--neon-magenta');
+  document.documentElement.style.removeProperty('--glow-magenta');
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', '#00e5ff');
+
+  // Reset logos
+  document.querySelectorAll('.logo').forEach(el => el.textContent = 'RAFLY');
+  document.querySelectorAll('.fs-logo').forEach(el => el.textContent = 'RAFLY');
+
+  showToast('Marca reseteada a RAFLY');
+}
+
+/* ═══════════════════════════════════════════════════
+   LEVEL 5: PLAN LIMITS SYSTEM
+   ═══════════════════════════════════════════════════ */
+const PLANS = {
+  free: { name: 'FREE', maxSorteosDay: 3, maxParticipants: 100, color: '#39ff14', historyLimit: 10 },
+  pro:  { name: 'PRO', maxSorteosDay: Infinity, maxParticipants: 5000, color: '#00e5ff', historyLimit: Infinity },
+  enterprise: { name: 'ENTERPRISE', maxSorteosDay: Infinity, maxParticipants: Infinity, color: '#ffea00', historyLimit: Infinity }
+};
+
+function getCurrentPlan() {
+  try { return localStorage.getItem('rafly-plan') || 'free'; } catch(e) { return 'free'; }
+}
+
+function setCurrentPlan(plan) {
+  try { localStorage.setItem('rafly-plan', plan); } catch(e) {}
+  updatePlanBadge();
+}
+
+function updatePlanBadge() {
+  const plan = PLANS[getCurrentPlan()];
+  const badge = document.getElementById('planBadge');
+  if (!badge) return;
+  badge.textContent = plan.name;
+  badge.style.borderColor = plan.color;
+  badge.style.color = plan.color;
+}
+
+function getTodaySorteoCount() {
+  try {
+    const today = new Date().toDateString();
+    const data = JSON.parse(localStorage.getItem('rafly-daily-count') || '{}');
+    if (data.date !== today) return 0;
+    return data.count || 0;
+  } catch(e) { return 0; }
+}
+
+function incrementTodaySorteoCount() {
+  try {
+    const today = new Date().toDateString();
+    const data = JSON.parse(localStorage.getItem('rafly-daily-count') || '{}');
+    if (data.date !== today) {
+      localStorage.setItem('rafly-daily-count', JSON.stringify({ date: today, count: 1 }));
+    } else {
+      data.count = (data.count || 0) + 1;
+      localStorage.setItem('rafly-daily-count', JSON.stringify(data));
+    }
+  } catch(e) {}
+}
+
+function checkPlanLimits() {
+  const planKey = getCurrentPlan();
+  const plan = PLANS[planKey];
+
+  // Check daily sorteo limit
+  if (plan.maxSorteosDay !== Infinity) {
+    const todayCount = getTodaySorteoCount();
+    if (todayCount >= plan.maxSorteosDay) {
+      showUpgradeModal(
+        'Llegaste al límite diario',
+        `Tu plan <b>${plan.name}</b> permite <b>${plan.maxSorteosDay} sorteos por día</b>. Ya usaste ${todayCount} hoy.`
+      );
+      return false;
+    }
+  }
+
+  // Check participant limit
+  if (plan.maxParticipants !== Infinity && state.participants.length > plan.maxParticipants) {
+    showUpgradeModal(
+      'Demasiados participantes',
+      `Tu plan <b>${plan.name}</b> permite hasta <b>${plan.maxParticipants} participantes</b>. Tenés ${state.participants.length}.`
+    );
+    return false;
+  }
+
+  return true;
+}
+
+function showUpgradeModal(msg, limitInfo) {
+  document.getElementById('upgradeMsg').textContent = msg;
+  document.getElementById('upgradeLimit').innerHTML = limitInfo;
+  document.getElementById('upgradeModal').classList.add('active');
+}
+
+function loadBrandSettings() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('rafly-brand'));
+    if (!saved) return;
+    // Populate form
+    document.getElementById('brandName').value = saved.name || '';
+    document.getElementById('brandLogo').value = saved.logo || '';
+    document.getElementById('brandColor').value = saved.color1 || '#00e5ff';
+    document.getElementById('brandColorHex').value = saved.color1 || '#00e5ff';
+    document.getElementById('brandColor2').value = saved.color2 || '#ff2d55';
+    document.getElementById('brandColor2Hex').value = saved.color2 || '#ff2d55';
+    if (saved.hideBrand) {
+      document.getElementById('toggleHideBrand').classList.add('on');
+      document.getElementById('toggleHideBrand').setAttribute('aria-checked', 'true');
+    }
+    if (saved.logo) {
+      const img = document.getElementById('brandLogoImg');
+      img.src = saved.logo;
+      img.onload = () => { document.getElementById('brandLogoPreview').hidden = false; };
+    }
+    // Apply to UI
+    applyBrandToUI(saved);
+  } catch(e) {}
 }
 
 init();
