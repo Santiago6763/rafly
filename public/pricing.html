@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RAFLY — Planes y Precios</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#00e5ff">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#060614;--surface:#0d0d2b;--surface2:#12123a;--border:rgba(0,229,255,.12);--neon-cyan:#00e5ff;--neon-magenta:#ff2d55;--neon-green:#39ff14;--neon-gold:#ffea00;--glow-cyan:rgba(0,229,255,.35);--glow-magenta:rgba(255,45,85,.35);--text:#e8eaed;--text-muted:#8b8fa3;--text-dim:#565a6e;--radius:12px}
+body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,-apple-system,sans-serif;min-height:100vh;overflow-x:hidden}
+
+/* ── NAV ── */
+nav{position:sticky;top:0;z-index:100;background:rgba(6,6,20,.85);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid var(--border);padding:.8rem 1.5rem;display:flex;align-items:center;justify-content:space-between}
+.logo{font-family:'Orbitron',monospace;font-weight:900;font-size:1.2rem;background:linear-gradient(135deg,var(--neon-cyan),var(--neon-magenta));-webkit-background-clip:text;-webkit-text-fill-color:transparent;text-decoration:none}
+.nav-links{display:flex;gap:1rem;align-items:center}
+.nav-links a{color:var(--text-muted);text-decoration:none;font-size:.78rem;font-weight:500;transition:color .2s}
+.nav-links a:hover{color:var(--neon-cyan)}
+.nav-cta{background:linear-gradient(135deg,var(--neon-cyan),#00b8d4);color:#060614!important;padding:.4rem 1rem;border-radius:8px;font-weight:700;font-size:.75rem!important}
+.nav-cta:hover{box-shadow:0 0 20px var(--glow-cyan)}
+
+/* ── HERO ── */
+.hero{text-align:center;padding:4rem 1.5rem 3rem;position:relative}
+.hero::before{content:'';position:absolute;top:0;left:50%;transform:translateX(-50%);width:600px;height:400px;background:radial-gradient(ellipse,rgba(0,229,255,.08) 0%,transparent 70%);pointer-events:none}
+.hero h1{font-family:'Orbitron',monospace;font-size:clamp(1.8rem,5vw,3rem);font-weight:900;line-height:1.15;margin-bottom:.8rem}
+.hero h1 span{background:linear-gradient(135deg,var(--neon-cyan),var(--neon-magenta));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hero p{color:var(--text-muted);font-size:1rem;max-width:500px;margin:0 auto 2rem}
+
+/* ── TOGGLE ── */
+.billing-toggle{display:flex;align-items:center;justify-content:center;gap:.8rem;margin-bottom:3rem}
+.billing-toggle span{font-size:.8rem;color:var(--text-muted);font-weight:500;transition:color .2s}
+.billing-toggle span.active{color:var(--text)}
+.toggle-track{width:50px;height:26px;background:var(--surface);border:1px solid var(--border);border-radius:13px;position:relative;cursor:pointer;transition:all .3s}
+.toggle-track.annual{background:rgba(0,229,255,.15);border-color:var(--neon-cyan)}
+.toggle-thumb{position:absolute;top:2px;left:2px;width:20px;height:20px;background:var(--neon-cyan);border-radius:50%;transition:transform .3s;box-shadow:0 0 8px var(--glow-cyan)}
+.toggle-track.annual .toggle-thumb{transform:translateX(24px)}
+.save-badge{background:var(--neon-green);color:#060614;font-size:.6rem;font-weight:800;padding:.15rem .5rem;border-radius:8px;text-transform:uppercase;letter-spacing:.03em}
+
+/* ── PLANS GRID ── */
+.plans{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1.2rem;max-width:960px;margin:0 auto;padding:0 1.5rem 4rem}
+.plan{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:2rem 1.5rem;position:relative;transition:all .3s;display:flex;flex-direction:column}
+.plan:hover{border-color:rgba(0,229,255,.3);transform:translateY(-4px)}
+.plan.popular{border-color:var(--neon-cyan);box-shadow:0 0 40px rgba(0,229,255,.1)}
+.plan.popular::before{content:'MÁS POPULAR';position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,var(--neon-cyan),#00b8d4);color:#060614;font-family:'Orbitron',monospace;font-size:.6rem;font-weight:900;padding:.3rem .8rem;border-radius:8px;letter-spacing:.08em}
+.plan-name{font-family:'Orbitron',monospace;font-size:.9rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.5rem}
+.plan.popular .plan-name{color:var(--neon-cyan)}
+.plan-price{font-family:'Orbitron',monospace;font-size:2.8rem;font-weight:900;line-height:1;margin-bottom:.2rem}
+.plan-price .currency{font-size:1.2rem;vertical-align:super;margin-right:.1rem;color:var(--text-muted)}
+.plan-price .period{font-size:.75rem;font-weight:400;color:var(--text-dim)}
+.plan-price-free{color:var(--neon-green)}
+.plan-price-pro{color:var(--neon-cyan)}
+.plan-price-enterprise{color:var(--neon-gold)}
+.plan-desc{color:var(--text-muted);font-size:.78rem;margin:.8rem 0 1.5rem;line-height:1.5}
+.plan-features{list-style:none;flex:1;margin-bottom:1.5rem}
+.plan-features li{display:flex;align-items:flex-start;gap:.5rem;font-size:.78rem;color:var(--text);padding:.35rem 0;line-height:1.4}
+.plan-features li .icon{flex-shrink:0;width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:.7rem}
+.check{color:var(--neon-green)}
+.cross{color:var(--text-dim)}
+.plan-cta{display:block;width:100%;padding:.7rem;border:none;border-radius:10px;font-family:'Orbitron',monospace;font-weight:700;font-size:.8rem;cursor:pointer;transition:all .2s;text-transform:uppercase;letter-spacing:.05em;text-align:center;text-decoration:none}
+.cta-free{background:var(--surface2);border:1px solid var(--border);color:var(--text-muted)}
+.cta-free:hover{border-color:var(--neon-cyan);color:var(--neon-cyan)}
+.cta-pro{background:linear-gradient(135deg,var(--neon-cyan),#00b8d4);color:#060614;box-shadow:0 4px 20px var(--glow-cyan)}
+.cta-pro:hover{box-shadow:0 4px 30px var(--glow-cyan);transform:scale(1.02)}
+.cta-enterprise{background:linear-gradient(135deg,var(--neon-gold),#ffb800);color:#060614}
+.cta-enterprise:hover{box-shadow:0 4px 20px rgba(255,234,0,.3)}
+
+/* ── COMPARISON TABLE ── */
+.comparison{max-width:960px;margin:0 auto;padding:0 1.5rem 4rem}
+.comparison h2{font-family:'Orbitron',monospace;font-size:1.2rem;font-weight:700;text-align:center;margin-bottom:2rem}
+.comparison h2 span{background:linear-gradient(135deg,var(--neon-cyan),var(--neon-magenta));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.comp-table{width:100%;border-collapse:collapse;font-size:.75rem;overflow-x:auto;display:block}
+.comp-table thead{position:sticky;top:0}
+.comp-table th{padding:.7rem .6rem;text-align:center;font-family:'Orbitron',monospace;font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--border);background:var(--bg)}
+.comp-table th:first-child{text-align:left;min-width:200px}
+.comp-table th.col-free{color:var(--neon-green)}
+.comp-table th.col-pro{color:var(--neon-cyan)}
+.comp-table th.col-ent{color:var(--neon-gold)}
+.comp-table td{padding:.55rem .6rem;text-align:center;border-bottom:1px solid rgba(255,255,255,.04);color:var(--text-muted)}
+.comp-table td:first-child{text-align:left;color:var(--text);font-weight:500}
+.comp-table tr:hover td{background:rgba(0,229,255,.02)}
+.comp-table .cat{background:var(--surface);color:var(--text-muted);font-weight:700;font-size:.68rem;text-transform:uppercase;letter-spacing:.05em;padding:.5rem .6rem}
+.comp-table .cat td{text-align:left;border:none}
+.t-check{color:var(--neon-green);font-size:.85rem}
+.t-cross{color:var(--text-dim);font-size:.8rem}
+.t-val{color:var(--text);font-weight:600}
+
+/* ── FAQ ── */
+.faq{max-width:700px;margin:0 auto;padding:0 1.5rem 4rem}
+.faq h2{font-family:'Orbitron',monospace;font-size:1.2rem;font-weight:700;text-align:center;margin-bottom:2rem}
+.faq h2 span{background:linear-gradient(135deg,var(--neon-cyan),var(--neon-magenta));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.faq-item{border:1px solid var(--border);border-radius:12px;margin-bottom:.6rem;overflow:hidden;transition:border-color .2s}
+.faq-item:hover{border-color:rgba(0,229,255,.25)}
+.faq-q{padding:.8rem 1rem;cursor:pointer;display:flex;justify-content:space-between;align-items:center;font-size:.82rem;font-weight:600;color:var(--text);background:var(--surface);transition:background .2s}
+.faq-q:hover{background:var(--surface2)}
+.faq-q .arrow{font-size:.7rem;color:var(--text-dim);transition:transform .3s}
+.faq-item.open .faq-q .arrow{transform:rotate(180deg);color:var(--neon-cyan)}
+.faq-a{max-height:0;overflow:hidden;transition:max-height .3s ease,padding .3s;padding:0 1rem;font-size:.78rem;color:var(--text-muted);line-height:1.6}
+.faq-item.open .faq-a{max-height:300px;padding:.8rem 1rem}
+
+/* ── FOOTER ── */
+footer{border-top:1px solid var(--border);padding:2rem 1.5rem;text-align:center}
+.footer-logo{font-family:'Orbitron',monospace;font-weight:900;font-size:1rem;background:linear-gradient(135deg,var(--neon-cyan),var(--neon-magenta));-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:.5rem}
+footer p{color:var(--text-dim);font-size:.7rem}
+footer a{color:var(--text-muted);text-decoration:none}
+footer a:hover{color:var(--neon-cyan)}
+
+@media(max-width:700px){
+  .plans{grid-template-columns:1fr;max-width:400px}
+  .comp-table{font-size:.68rem}
+  .comp-table th:first-child,.comp-table td:first-child{min-width:140px}
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="/" class="logo">RAFLY</a>
+  <div class="nav-links">
+    <a href="/landing.html">Features</a>
+    <a href="/pricing.html" style="color:var(--neon-cyan)">Precios</a>
+    <a href="/" class="nav-cta">Empezar gratis →</a>
+  </div>
+</nav>
+
+<section class="hero">
+  <h1>Elegí el plan<br><span>perfecto para vos</span></h1>
+  <p>Desde streamers independientes hasta agencias con cientos de clientes. RAFLY escala con tu audiencia.</p>
+
+  <div class="billing-toggle">
+    <span class="active" id="lblMonthly">Mensual</span>
+    <div class="toggle-track" id="billingToggle">
+      <div class="toggle-thumb"></div>
+    </div>
+    <span id="lblAnnual">Anual</span>
+    <span class="save-badge">Ahorrá 25%</span>
+  </div>
+</section>
+
+<div class="plans" id="plansGrid">
+  <!-- Free -->
+  <div class="plan">
+    <div class="plan-name">Free</div>
+    <div class="plan-price plan-price-free">
+      <span class="currency">$</span>0
+      <span class="period">/siempre</span>
+    </div>
+    <p class="plan-desc">Para probar RAFLY y hacer sorteos casuales sin compromiso.</p>
+    <ul class="plan-features">
+      <li><span class="icon check">✓</span>3 sorteos por día</li>
+      <li><span class="icon check">✓</span>Hasta 100 participantes</li>
+      <li><span class="icon check">✓</span>Slot, Ruleta y Shuffle</li>
+      <li><span class="icon check">✓</span>Certificado de ganador</li>
+      <li><span class="icon check">✓</span>Historial (últimos 10)</li>
+      <li><span class="icon cross">✕</span>Sin marca blanca</li>
+      <li><span class="icon cross">✕</span>Sin modo presentación</li>
+      <li><span class="icon cross">✕</span>Sin exportar PDF</li>
+    </ul>
+    <a href="/" class="plan-cta cta-free">Empezar gratis</a>
+  </div>
+
+  <!-- Pro -->
+  <div class="plan popular">
+    <div class="plan-name">Pro</div>
+    <div class="plan-price plan-price-pro">
+      <span class="currency">$</span><span id="proPriceVal">9</span>
+      <span class="period" id="proPeriod">/mes</span>
+    </div>
+    <p class="plan-desc">Para streamers y creadores que hacen sorteos frecuentes y quieren verse profesionales.</p>
+    <ul class="plan-features">
+      <li><span class="icon check">✓</span>Sorteos ilimitados</li>
+      <li><span class="icon check">✓</span>Hasta 5.000 participantes</li>
+      <li><span class="icon check">✓</span>Modo presentación fullscreen</li>
+      <li><span class="icon check">✓</span>5 packs de sonido</li>
+      <li><span class="icon check">✓</span>QR Generator</li>
+      <li><span class="icon check">✓</span>Dashboard completo</li>
+      <li><span class="icon check">✓</span>Exportar PDF y CSV</li>
+      <li><span class="icon check">✓</span>Plantillas de sorteo</li>
+      <li><span class="icon check">✓</span>Historial ilimitado</li>
+      <li><span class="icon cross">✕</span>Sin marca blanca</li>
+    </ul>
+    <a href="/" class="plan-cta cta-pro">Empezar prueba Pro →</a>
+  </div>
+
+  <!-- Enterprise -->
+  <div class="plan">
+    <div class="plan-name">Enterprise</div>
+    <div class="plan-price plan-price-enterprise">
+      <span class="currency">$</span><span id="entPriceVal">29</span>
+      <span class="period" id="entPeriod">/mes</span>
+    </div>
+    <p class="plan-desc">Para agencias, marcas y equipos que manejan múltiples sorteos con branding propio.</p>
+    <ul class="plan-features">
+      <li><span class="icon check">✓</span>Todo lo de Pro</li>
+      <li><span class="icon check">✓</span>Participantes ilimitados</li>
+      <li><span class="icon check">✓</span>Marca blanca completa</li>
+      <li><span class="icon check">✓</span>Logo y colores custom</li>
+      <li><span class="icon check">✓</span>OBS overlay dedicado</li>
+      <li><span class="icon check">✓</span>Sorteos encadenados</li>
+      <li><span class="icon check">✓</span>API access</li>
+      <li><span class="icon check">✓</span>Soporte prioritario</li>
+      <li><span class="icon check">✓</span>Multi-usuario (5 seats)</li>
+    </ul>
+    <a href="/" class="plan-cta cta-enterprise">Contactar ventas</a>
+  </div>
+</div>
+
+<!-- Comparison Table -->
+<section class="comparison">
+  <h2>Comparación <span>detallada</span></h2>
+  <table class="comp-table">
+    <thead>
+      <tr><th></th><th class="col-free">Free</th><th class="col-pro">Pro</th><th class="col-ent">Enterprise</th></tr>
+    </thead>
+    <tbody>
+      <tr class="cat"><td colspan="4">Sorteos</td></tr>
+      <tr><td>Sorteos por día</td><td class="t-val">3</td><td class="t-val">∞</td><td class="t-val">∞</td></tr>
+      <tr><td>Participantes máx.</td><td class="t-val">100</td><td class="t-val">5.000</td><td class="t-val">∞</td></tr>
+      <tr><td>Modos (Slot/Ruleta/Shuffle)</td><td class="t-check">✓</td><td class="t-check">✓</td><td class="t-check">✓</td></tr>
+      <tr><td>Ganadores múltiples</td><td class="t-check">✓</td><td class="t-check">✓</td><td class="t-check">✓</td></tr>
+      <tr><td>Suplentes</td><td class="t-check">✓</td><td class="t-check">✓</td><td class="t-check">✓</td></tr>
+      <tr><td>Sorteos encadenados</td><td class="t-cross">✕</td><td class="t-check">✓</td><td class="t-check">✓</td></tr>
+      <tr class="cat"><td colspan="4">Presentación</td></tr>
+      <tr><td>Countdown animado</td><td class="t-cross">✕</td><td class="t-check">✓</td><td class="t-check">✓</td></tr>
+      <tr><td>Modo fullscreen</td><td class="t-cross">✕</td><td class="t-check">✓</td><td class="t-check">✓</td></tr>
+      <tr><td>Packs de sonido</td><td class="t-val">1</td><td class="t-val">5</td><td class="t-val">5+custom</td></tr>
+      <tr><td>Plantillas rápidas</td><td class="t-cross">✕</td><td class="t-check">✓</td><td class="t-check">✓</td></tr>
+      <tr class="cat"><td colspan="4">Herramientas</td></tr>
+      <tr><td>Trivia Quiz</td><td class="t-check">✓</td><td class="t-check">✓</td><td class="t-check">✓</td></tr>
+      <tr><td>Raspadita</td><td class="t-check">✓</td><td class="t-check">✓</td><td class="t-check">✓</td></tr>
+      <tr><td>Engagement Calculator</td><td class="t-check">✓</td><td class="t-check">✓</td><td class="t-check">✓</td></tr>
+      <tr><td>QR Generator</td><td class="t-cross">✕</td><td class="t-check">✓</td><td class="t-check">✓</td></tr>
+      <tr><td>Bases legales</td><td class="t-check">✓</td><td class="t-check">✓</td><td class="t-check">✓</td></tr>
+      <tr class="cat"><td colspan="4">Analytics & Export</td></tr>
+      <tr><td>Historial de sorteos</td><td class="t-val">10</td><td class="t-val">∞</td><td class="t-val">∞</td></tr>
+      <tr><td>Dashboard estadísticas</td><td class="t-cross">✕</td><td class="t-check">✓</td><td class="t-check">✓</td></tr>
+      <tr><td>Exportar CSV</td><td class="t-check">✓</td><td class="t-check">✓</td><td class="t-check">✓</td></tr>
+      <tr><td>Exportar PDF</td><td class="t-cross">✕</td><td class="t-check">✓</td><td class="t-check">✓</td></tr>
+      <tr><td>Certificado de ganador</td><td class="t-check">✓</td><td class="t-check">✓</td><td class="t-check">✓ + branded</td></tr>
+      <tr class="cat"><td colspan="4">Branding</td></tr>
+      <tr><td>Logo custom</td><td class="t-cross">✕</td><td class="t-cross">✕</td><td class="t-check">✓</td></tr>
+      <tr><td>Colores personalizados</td><td class="t-cross">✕</td><td class="t-cross">✕</td><td class="t-check">✓</td></tr>
+      <tr><td>Quitar marca RAFLY</td><td class="t-cross">✕</td><td class="t-cross">✕</td><td class="t-check">✓</td></tr>
+      <tr><td>OBS overlay</td><td class="t-cross">✕</td><td class="t-cross">✕</td><td class="t-check">✓</td></tr>
+      <tr class="cat"><td colspan="4">Soporte</td></tr>
+      <tr><td>Comunidad</td><td class="t-check">✓</td><td class="t-check">✓</td><td class="t-check">✓</td></tr>
+      <tr><td>Email</td><td class="t-cross">✕</td><td class="t-check">✓</td><td class="t-check">✓</td></tr>
+      <tr><td>Prioritario + WhatsApp</td><td class="t-cross">✕</td><td class="t-cross">✕</td><td class="t-check">✓</td></tr>
+      <tr><td>Multi-usuario (seats)</td><td class="t-val">1</td><td class="t-val">1</td><td class="t-val">5</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- FAQ -->
+<section class="faq">
+  <h2>Preguntas <span>frecuentes</span></h2>
+
+  <div class="faq-item">
+    <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">¿Puedo usar RAFLY gratis para siempre?<span class="arrow">▼</span></div>
+    <div class="faq-a">Sí. El plan Free no tiene límite de tiempo. Podés hacer hasta 3 sorteos por día con hasta 100 participantes, con todas las animaciones y el certificado de ganador incluidos.</div>
+  </div>
+  <div class="faq-item">
+    <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">¿Qué métodos de pago aceptan?<span class="arrow">▼</span></div>
+    <div class="faq-a">Aceptamos tarjetas de crédito y débito (Visa, Mastercard, AMEX), MercadoPago, y transferencia bancaria para planes Enterprise. Todos los pagos son procesados de forma segura.</div>
+  </div>
+  <div class="faq-item">
+    <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">¿Puedo cambiar de plan en cualquier momento?<span class="arrow">▼</span></div>
+    <div class="faq-a">Sí. Podés subir o bajar de plan cuando quieras. Si subís, se prorratea el monto. Si bajás, el cambio aplica al final de tu período de facturación actual.</div>
+  </div>
+  <div class="faq-item">
+    <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">¿Qué es la marca blanca?<span class="arrow">▼</span></div>
+    <div class="faq-a">Con el plan Enterprise, podés personalizar RAFLY con tu propio logo, colores y nombre. Tus sorteos se ven como si fueran tu propia plataforma, sin mención a RAFLY. Ideal para agencias y marcas.</div>
+  </div>
+  <div class="faq-item">
+    <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">¿Los sorteos son realmente aleatorios?<span class="arrow">▼</span></div>
+    <div class="faq-a">Sí. Usamos la API de generación de números aleatorios del navegador (crypto.getRandomValues) para garantizar que cada sorteo sea justo e imparcial. Además, cada sorteo genera un certificado con timestamp verificable.</div>
+  </div>
+  <div class="faq-item">
+    <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">¿Necesito instalar algo?<span class="arrow">▼</span></div>
+    <div class="faq-a">No. RAFLY funciona directamente en tu navegador. También podés instalarla como aplicación (PWA) en tu celular o computadora para acceso rápido sin descargar nada.</div>
+  </div>
+</section>
+
+<footer>
+  <div class="footer-logo">RAFLY</div>
+  <p>Sorteos en vivo para Instagram, YouTube y TikTok</p>
+  <p style="margin-top:.5rem">
+    <a href="/">App</a> · <a href="/landing.html">Features</a> · <a href="/pricing.html">Precios</a> · <a href="/legal.html">Legal</a>
+  </p>
+  <p style="margin-top:.8rem">© 2026 RAFLY. Todos los derechos reservados.</p>
+</footer>
+
+<script>
+// Billing toggle
+let isAnnual = false;
+const toggle = document.getElementById('billingToggle');
+const lblM = document.getElementById('lblMonthly');
+const lblA = document.getElementById('lblAnnual');
+
+toggle.addEventListener('click', () => {
+  isAnnual = !isAnnual;
+  toggle.classList.toggle('annual', isAnnual);
+  lblM.classList.toggle('active', !isAnnual);
+  lblA.classList.toggle('active', isAnnual);
+  updatePrices();
+});
+
+function updatePrices() {
+  const proPrice = isAnnual ? 7 : 9;
+  const entPrice = isAnnual ? 22 : 29;
+  const period = isAnnual ? '/mes (anual)' : '/mes';
+  document.getElementById('proPriceVal').textContent = proPrice;
+  document.getElementById('entPriceVal').textContent = entPrice;
+  document.getElementById('proPeriod').textContent = period;
+  document.getElementById('entPeriod').textContent = period;
+}
+
+// Smooth scroll for anchor links
+document.querySelectorAll('a[href^="#"]').forEach(a => {
+  a.addEventListener('click', e => {
+    e.preventDefault();
+    document.querySelector(a.getAttribute('href'))?.scrollIntoView({ behavior: 'smooth' });
+  });
+});
+</script>
+</body>
+</html>
