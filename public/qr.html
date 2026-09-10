@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RAFLY — Generador de QR</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#00e5ff">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#060614;--surface:#0d0d2b;--border:rgba(0,229,255,.12);--neon-cyan:#00e5ff;--neon-magenta:#ff2d55;--neon-green:#39ff14;--glow-cyan:rgba(0,229,255,.35);--text:#e8eaed;--text-muted:#8b8fa3;--text-dim:#565a6e}
+body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,-apple-system,sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center}
+header{width:100%;padding:1rem 1.5rem;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)}
+.logo{font-family:'Orbitron',monospace;font-weight:900;font-size:1.1rem;background:linear-gradient(135deg,var(--neon-cyan),var(--neon-magenta));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.back-link{color:var(--text-muted);text-decoration:none;font-size:.75rem;border:1px solid var(--border);padding:.3rem .7rem;border-radius:8px;transition:all .2s}
+.back-link:hover{border-color:var(--neon-cyan);color:var(--neon-cyan)}
+.container{max-width:520px;width:100%;padding:1.5rem;flex:1}
+h1{font-family:'Orbitron',monospace;font-size:1.3rem;font-weight:700;margin-bottom:.3rem;background:linear-gradient(135deg,var(--neon-cyan),var(--neon-magenta));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.subtitle{color:var(--text-muted);font-size:.75rem;margin-bottom:1.5rem}
+label{display:block;font-size:.72rem;font-weight:600;color:var(--text-muted);margin-bottom:.3rem;text-transform:uppercase;letter-spacing:.05em}
+input,textarea,select{width:100%;background:var(--surface);border:1px solid var(--border);color:var(--text);padding:.55rem .7rem;border-radius:8px;font-family:inherit;font-size:.8rem;margin-bottom:.8rem;transition:border-color .2s}
+input:focus,textarea:focus,select:focus{outline:none;border-color:var(--neon-cyan)}
+textarea{min-height:60px;resize:vertical}
+.color-row{display:flex;gap:.5rem;margin-bottom:.8rem}
+.color-opt{flex:1;display:flex;flex-direction:column;align-items:center;gap:.3rem}
+.color-opt input[type="color"]{width:40px;height:40px;border:2px solid var(--border);border-radius:8px;background:none;cursor:pointer;padding:2px}
+.size-row{display:flex;gap:.5rem;margin-bottom:1rem}
+.size-btn{flex:1;padding:.4rem;border:1px solid var(--border);background:var(--surface);color:var(--text-muted);border-radius:8px;cursor:pointer;font-family:inherit;font-size:.7rem;transition:all .2s}
+.size-btn.active{border-color:var(--neon-cyan);color:var(--neon-cyan);background:rgba(0,229,255,.08)}
+.btn{display:block;width:100%;padding:.65rem;border:none;border-radius:8px;font-family:'Orbitron',monospace;font-weight:700;font-size:.85rem;cursor:pointer;transition:all .2s;text-transform:uppercase;letter-spacing:.05em}
+.btn-primary{background:linear-gradient(135deg,var(--neon-cyan),#00b8d4);color:#060614}
+.btn-primary:hover{box-shadow:0 0 20px var(--glow-cyan)}
+.btn-secondary{background:var(--surface);border:1px solid var(--border);color:var(--text-muted);margin-top:.5rem}
+.btn-secondary:hover{border-color:var(--neon-cyan);color:var(--neon-cyan)}
+#qrResult{margin-top:1.5rem;text-align:center;display:none}
+#qrResult canvas{border-radius:12px;max-width:100%;box-shadow:0 0 40px rgba(0,229,255,.15)}
+.qr-actions{display:flex;gap:.5rem;margin-top:1rem}
+.qr-actions .btn{flex:1}
+.presets{display:flex;gap:.3rem;flex-wrap:wrap;margin-bottom:1rem}
+.preset{padding:.25rem .5rem;border-radius:12px;border:1px solid var(--border);background:var(--surface);color:var(--text-muted);font-size:.65rem;cursor:pointer;transition:all .2s;font-family:inherit}
+.preset:hover,.preset.active{border-color:var(--neon-cyan);color:var(--neon-cyan);background:rgba(0,229,255,.08)}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">RAFLY</div>
+  <a href="/" class="back-link">← Volver al sorteo</a>
+</header>
+
+<div class="container">
+  <h1>📱 Generador de QR</h1>
+  <p class="subtitle">Creá un código QR para compartir tu sorteo, perfil o cualquier enlace</p>
+
+  <label>Presets rápidos</label>
+  <div class="presets">
+    <button class="preset" data-url="https://instagram.com/">📸 Instagram</button>
+    <button class="preset" data-url="https://youtube.com/">▶️ YouTube</button>
+    <button class="preset" data-url="https://tiktok.com/">♪ TikTok</button>
+    <button class="preset" data-url="https://wa.me/">💬 WhatsApp</button>
+    <button class="preset" data-url="">🔗 Custom</button>
+  </div>
+
+  <label>URL o texto</label>
+  <input type="text" id="qrInput" placeholder="https://instagram.com/tu_cuenta">
+
+  <label>Título (opcional — se muestra debajo del QR)</label>
+  <input type="text" id="qrTitle" placeholder="¡Participá del sorteo!">
+
+  <div class="color-row">
+    <div class="color-opt">
+      <label style="margin-bottom:0">Código</label>
+      <input type="color" id="qrFg" value="#00e5ff">
+    </div>
+    <div class="color-opt">
+      <label style="margin-bottom:0">Fondo</label>
+      <input type="color" id="qrBg" value="#060614">
+    </div>
+  </div>
+
+  <label>Tamaño</label>
+  <div class="size-row">
+    <button class="size-btn" data-size="200">Chico</button>
+    <button class="size-btn active" data-size="400">Mediano</button>
+    <button class="size-btn" data-size="600">Grande</button>
+    <button class="size-btn" data-size="800">XL</button>
+  </div>
+
+  <button class="btn btn-primary" id="generateBtn">Generar QR</button>
+
+  <div id="qrResult">
+    <canvas id="qrCanvas"></canvas>
+    <div class="qr-actions">
+      <button class="btn btn-secondary" id="downloadQr">⬇ Descargar PNG</button>
+      <button class="btn btn-secondary" id="copyQr">📋 Copiar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// Minimal QR Code generator (handles up to ~250 chars, sufficient for URLs)
+// Based on QR code spec — generates Version 1-6 QR codes
+const QR = (() => {
+  // QR encoding tables
+  const EC_CODEWORDS = {L:[7,10,15,20,26,36],M:[10,16,26,36,48,64],Q:[13,22,36,52,72,96],H:[17,28,44,64,88,112]};
+  const TOTAL_CODEWORDS = [26,44,70,100,134,172];
+  const ALIGNMENT = [null,null,[6,18],[6,22],[6,26],[6,30],[6,34]];
+  const FORMAT_BITS = {L:1,M:0,Q:3,H:2};
+
+  function create(text, ecl='M') {
+    const data = encodeText(text);
+    let version = 1;
+    for (let v = 1; v <= 6; v++) {
+      if (data.length <= TOTAL_CODEWORDS[v-1] - EC_CODEWORDS[ecl][v-1]) {
+        version = v; break;
+      }
+      if (v === 6) version = 6;
+    }
+    const size = version * 4 + 17;
+    const totalCW = TOTAL_CODEWORDS[version-1];
+    const ecCW = EC_CODEWORDS[ecl][version-1];
+    const dataCW = totalCW - ecCW;
+
+    // Pad data
+    const padded = new Uint8Array(dataCW);
+    padded.set(data.slice(0, dataCW));
+    if (data.length < dataCW) {
+      let pi = data.length;
+      const pads = [0xEC, 0x11];
+      let pp = 0;
+      while (pi < dataCW) { padded[pi++] = pads[pp]; pp = (pp+1)%2; }
+    }
+
+    // Generate EC codewords using GF(256)
+    const ecBytes = reedSolomon(padded, ecCW);
+    const allBytes = new Uint8Array(totalCW);
+    allBytes.set(padded);
+    allBytes.set(ecBytes, dataCW);
+
+    // Build matrix
+    const matrix = Array.from({length:size}, () => new Uint8Array(size));
+    const reserved = Array.from({length:size}, () => new Uint8Array(size));
+
+    // Finder patterns
+    placeFinderPattern(matrix, reserved, 0, 0, size);
+    placeFinderPattern(matrix, reserved, size-7, 0, size);
+    placeFinderPattern(matrix, reserved, 0, size-7, size);
+
+    // Timing patterns
+    for (let i = 8; i < size-8; i++) {
+      if (!reserved[6][i]) { matrix[6][i] = (i%2===0)?1:0; reserved[6][i]=1; }
+      if (!reserved[i][6]) { matrix[i][6] = (i%2===0)?1:0; reserved[i][6]=1; }
+    }
+
+    // Alignment patterns
+    if (ALIGNMENT[version]) {
+      const pos = ALIGNMENT[version];
+      for (const r of pos) for (const c of pos) {
+        if (reserved[r] && !reserved[r][c]) placeAlignPattern(matrix, reserved, r, c, size);
+      }
+    }
+
+    // Dark module
+    matrix[version*4+9][8] = 1;
+    reserved[version*4+9][8] = 1;
+
+    // Reserve format info
+    for (let i = 0; i < 8; i++) {
+      if (i < size) { reserved[8][i]=1; reserved[i][8]=1; }
+      if (size-1-i >= 0 && size-1-i < size) { reserved[8][size-1-i]=1; reserved[size-1-i][8]=1; }
+    }
+    reserved[8][8]=1;
+
+    // Place data
+    placeData(matrix, reserved, allBytes, size);
+
+    // Apply mask 0 (checkerboard)
+    for (let r = 0; r < size; r++)
+      for (let c = 0; c < size; c++)
+        if (!reserved[r][c] && (r+c)%2===0) matrix[r][c] ^= 1;
+
+    // Format info for mask 0
+    const formatInfo = getFormatBits(FORMAT_BITS[ecl], 0);
+    placeFormatBits(matrix, formatInfo, size);
+
+    return { matrix, size };
+  }
+
+  function encodeText(text) {
+    // Byte mode encoding
+    const bytes = new TextEncoder().encode(text);
+    const bits = [];
+    // Mode indicator: 0100 (byte)
+    bits.push(0,1,0,0);
+    // Char count (8 bits for version 1-9)
+    for (let i = 7; i >= 0; i--) bits.push((bytes.length >> i) & 1);
+    // Data
+    for (const b of bytes) for (let i = 7; i >= 0; i--) bits.push((b >> i) & 1);
+    // Terminator
+    bits.push(0,0,0,0);
+    // Pad to byte boundary
+    while (bits.length % 8) bits.push(0);
+    // Convert to bytes
+    const result = [];
+    for (let i = 0; i < bits.length; i += 8) {
+      let byte = 0;
+      for (let j = 0; j < 8; j++) byte = (byte << 1) | (bits[i+j] || 0);
+      result.push(byte);
+    }
+    return new Uint8Array(result);
+  }
+
+  function placeFinderPattern(m, r, row, col, size) {
+    for (let dr = -1; dr <= 7; dr++)
+      for (let dc = -1; dc <= 7; dc++) {
+        const rr = row+dr, cc = col+dc;
+        if (rr < 0 || rr >= size || cc < 0 || cc >= size) continue;
+        const isBlack = (dr>=0&&dr<=6&&(dc===0||dc===6)) || (dc>=0&&dc<=6&&(dr===0||dr===6)) || (dr>=2&&dr<=4&&dc>=2&&dc<=4);
+        m[rr][cc] = isBlack?1:0; r[rr][cc]=1;
+      }
+  }
+
+  function placeAlignPattern(m, r, row, col, size) {
+    for (let dr = -2; dr <= 2; dr++)
+      for (let dc = -2; dc <= 2; dc++) {
+        const rr=row+dr, cc=col+dc;
+        if (rr<0||rr>=size||cc<0||cc>=size) continue;
+        const isBlack = Math.abs(dr)===2||Math.abs(dc)===2||(dr===0&&dc===0);
+        m[rr][cc] = isBlack?1:0; r[rr][cc]=1;
+      }
+  }
+
+  function placeData(m, r, bytes, size) {
+    let bitIdx = 0;
+    const totalBits = bytes.length * 8;
+    let dir = -1, col = size - 1;
+    while (col > 0) {
+      if (col === 6) col--;
+      for (let row = (dir===-1?size-1:0); row >= 0 && row < size; row += dir) {
+        for (let c = 0; c < 2; c++) {
+          const cc = col - c;
+          if (r[row][cc]) continue;
+          if (bitIdx < totalBits) {
+            const byteI = Math.floor(bitIdx/8);
+            const bitI = 7 - (bitIdx%8);
+            m[row][cc] = (bytes[byteI] >> bitI) & 1;
+            bitIdx++;
+          }
+        }
+      }
+      dir = -dir;
+      col -= 2;
+    }
+  }
+
+  // Reed-Solomon
+  const GF_EXP = new Uint8Array(512);
+  const GF_LOG = new Uint8Array(256);
+  (() => {
+    let x = 1;
+    for (let i = 0; i < 255; i++) {
+      GF_EXP[i] = x; GF_LOG[x] = i;
+      x = (x << 1) ^ (x >= 128 ? 0x11d : 0);
+    }
+    for (let i = 255; i < 512; i++) GF_EXP[i] = GF_EXP[i-255];
+  })();
+
+  function gfMul(a, b) { return (a===0||b===0)?0:GF_EXP[GF_LOG[a]+GF_LOG[b]]; }
+
+  function reedSolomon(data, ecLen) {
+    const gen = [1];
+    for (let i = 0; i < ecLen; i++) {
+      const newGen = new Array(gen.length + 1).fill(0);
+      for (let j = 0; j < gen.length; j++) {
+        newGen[j] ^= gen[j];
+        newGen[j+1] ^= gfMul(gen[j], GF_EXP[i]);
+      }
+      gen.length = newGen.length;
+      for (let j = 0; j < newGen.length; j++) gen[j] = newGen[j];
+    }
+    const result = new Uint8Array(ecLen);
+    const work = new Uint8Array(ecLen);
+    for (let i = 0; i < data.length; i++) {
+      const lead = data[i] ^ work[0];
+      for (let j = 0; j < ecLen - 1; j++) work[j] = work[j+1] ^ gfMul(lead, gen[j+1]);
+      work[ecLen-1] = gfMul(lead, gen[ecLen]);
+    }
+    result.set(work);
+    return result;
+  }
+
+  function getFormatBits(ecl, mask) {
+    let data = (ecl << 3) | mask;
+    let bits = data << 10;
+    // Polynomial: x^10 + x^8 + x^5 + x^4 + x^2 + x + 1 = 0x537
+    let gen = 0x537;
+    for (let i = 4; i >= 0; i--) {
+      if (bits & (1 << (i + 10))) bits ^= gen << i;
+    }
+    let result = (data << 10) | bits;
+    result ^= 0x5412; // XOR mask
+    return result;
+  }
+
+  function placeFormatBits(m, bits, size) {
+    const positions = [
+      // Around top-left
+      [8,0],[8,1],[8,2],[8,3],[8,4],[8,5],[8,7],[8,8],
+      [7,8],[5,8],[4,8],[3,8],[2,8],[1,8],[0,8]
+    ];
+    const positions2 = [];
+    for (let i = 0; i < 7; i++) positions2.push([size-1-i, 8]);
+    for (let i = 0; i < 8; i++) positions2.push([8, size-8+i]);
+
+    for (let i = 0; i < 15; i++) {
+      const bit = (bits >> (14-i)) & 1;
+      if (positions[i]) {
+        const [r,c] = positions[i];
+        if (r < size && c < size) m[r][c] = bit;
+      }
+      if (positions2[i]) {
+        const [r,c] = positions2[i];
+        if (r < size && c < size) m[r][c] = bit;
+      }
+    }
+  }
+
+  return { create };
+})();
+
+// UI Logic
+let currentSize = 400;
+
+document.querySelectorAll('.preset').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.preset').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const url = btn.dataset.url;
+    if (url) document.getElementById('qrInput').value = url;
+    else document.getElementById('qrInput').value = '';
+    document.getElementById('qrInput').focus();
+  });
+});
+
+document.querySelectorAll('.size-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.size-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentSize = parseInt(btn.dataset.size);
+  });
+});
+
+document.getElementById('generateBtn').addEventListener('click', generate);
+document.getElementById('downloadQr').addEventListener('click', downloadQR);
+document.getElementById('copyQr').addEventListener('click', copyQR);
+
+function generate() {
+  const text = document.getElementById('qrInput').value.trim();
+  if (!text) { document.getElementById('qrInput').style.borderColor = '#ff2d55'; return; }
+  document.getElementById('qrInput').style.borderColor = '';
+
+  const fg = document.getElementById('qrFg').value;
+  const bg = document.getElementById('qrBg').value;
+  const title = document.getElementById('qrTitle').value.trim();
+
+  try {
+    const { matrix, size: qrSize } = QR.create(text);
+    const canvas = document.getElementById('qrCanvas');
+    const cellSize = Math.floor(currentSize / (qrSize + 8)); // 4 cells quiet zone each side
+    const totalPx = cellSize * (qrSize + 8);
+    const titleH = title ? 50 : 0;
+    canvas.width = totalPx;
+    canvas.height = totalPx + titleH;
+    const ctx = canvas.getContext('2d');
+
+    // Background
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Draw QR modules with rounded corners
+    const offset = cellSize * 4;
+    ctx.fillStyle = fg;
+    for (let r = 0; r < qrSize; r++) {
+      for (let c = 0; c < qrSize; c++) {
+        if (matrix[r][c]) {
+          const x = offset + c * cellSize;
+          const y = offset + r * cellSize;
+          const radius = cellSize * 0.15;
+          ctx.beginPath();
+          ctx.moveTo(x + radius, y);
+          ctx.lineTo(x + cellSize - radius, y);
+          ctx.quadraticCurveTo(x + cellSize, y, x + cellSize, y + radius);
+          ctx.lineTo(x + cellSize, y + cellSize - radius);
+          ctx.quadraticCurveTo(x + cellSize, y + cellSize, x + cellSize - radius, y + cellSize);
+          ctx.lineTo(x + radius, y + cellSize);
+          ctx.quadraticCurveTo(x, y + cellSize, x, y + cellSize - radius);
+          ctx.lineTo(x, y + radius);
+          ctx.quadraticCurveTo(x, y, x + radius, y);
+          ctx.fill();
+        }
+      }
+    }
+
+    // RAFLY watermark in center
+    const centerX = totalPx / 2;
+    const centerY = totalPx / 2;
+    const logoSize = Math.max(cellSize * 5, 30);
+    ctx.fillStyle = bg;
+    ctx.fillRect(centerX - logoSize/2 - 4, centerY - logoSize/2 - 4, logoSize + 8, logoSize + 8);
+    ctx.fillStyle = fg;
+    ctx.font = `bold ${Math.floor(logoSize * 0.35)}px 'Orbitron', monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('R', centerX, centerY);
+
+    // Title below QR
+    if (title) {
+      ctx.fillStyle = fg;
+      ctx.font = `600 ${Math.floor(titleH * 0.4)}px 'Inter', sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(title, totalPx / 2, totalPx + titleH / 2);
+    }
+
+    document.getElementById('qrResult').style.display = 'block';
+  } catch(e) {
+    alert('Error: el texto es demasiado largo para un QR. Usá una URL corta.');
+  }
+}
+
+function downloadQR() {
+  const canvas = document.getElementById('qrCanvas');
+  const link = document.createElement('a');
+  link.download = 'rafly-qr.png';
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+}
+
+async function copyQR() {
+  try {
+    const canvas = document.getElementById('qrCanvas');
+    const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+    await navigator.clipboard.write([new ClipboardItem({'image/png': blob})]);
+    const btn = document.getElementById('copyQr');
+    btn.textContent = '✓ Copiado';
+    setTimeout(() => btn.textContent = '📋 Copiar', 2000);
+  } catch(e) {
+    // Fallback: copy data URL
+    const canvas = document.getElementById('qrCanvas');
+    try {
+      await navigator.clipboard.writeText(canvas.toDataURL());
+      const btn = document.getElementById('copyQr');
+      btn.textContent = '✓ URL copiada';
+      setTimeout(() => btn.textContent = '📋 Copiar', 2000);
+    } catch(e2) {}
+  }
+}
+</script>
+</body>
+</html>
