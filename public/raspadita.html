@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RAFLY — Raspadita</title>
+<link rel="manifest" href="/manifest.json">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Exo+2:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#060614;--surface:#0d0d2b;--border:rgba(255,255,255,.06);--text:#e0e0e8;--text-muted:#8888a8;--text-dim:#5a5a7a;--neon-cyan:#00e5ff;--neon-pink:#ff00aa;--neon-green:#39ff14;--gold:#ffd700;--neon-purple:#b24bff}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:'Exo 2',sans-serif;min-height:100vh;overflow-x:hidden}
+.back-link{position:fixed;top:1rem;left:1rem;color:var(--text-muted);text-decoration:none;font-size:.8rem;z-index:100;display:flex;align-items:center;gap:.3rem;transition:color .2s}
+.back-link:hover{color:var(--neon-cyan)}
+.container{max-width:750px;margin:0 auto;padding:2rem 1rem}
+h1{font-family:'Orbitron',monospace;font-size:1.8rem;text-align:center;color:var(--gold);margin-bottom:.3rem}
+.subtitle{text-align:center;color:var(--text-muted);font-size:.85rem;margin-bottom:2rem}
+
+.setup-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.5rem;margin-bottom:1rem}
+.setup-card h2{font-family:'Orbitron',monospace;font-size:1rem;color:var(--neon-cyan);margin-bottom:1rem}
+.field{margin-bottom:.8rem}
+.field label{display:block;font-size:.75rem;color:var(--text-muted);margin-bottom:.3rem;font-weight:600}
+.field input,.field select{width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:.5rem .7rem;border-radius:8px;font-family:inherit;font-size:.85rem;outline:none;transition:border-color .2s}
+.field input:focus,.field select:focus{border-color:var(--neon-cyan)}
+
+.prize-row{display:flex;gap:.5rem;align-items:center;margin-bottom:.5rem}
+.prize-row input{flex:1}
+.prize-row .prize-chance{width:70px;text-align:center}
+.prize-row button{background:none;border:none;color:#ff5252;cursor:pointer;font-size:1.2rem;padding:0 .3rem}
+
+.btn{padding:.5rem 1.2rem;border:none;border-radius:8px;font-family:inherit;font-weight:700;font-size:.8rem;cursor:pointer;transition:all .2s}
+.btn-primary{background:var(--neon-cyan);color:#060614}
+.btn-primary:hover{opacity:.85}
+.btn-secondary{background:var(--surface);color:var(--text-muted);border:1px solid var(--border)}
+.btn-secondary:hover{border-color:var(--neon-cyan)}
+.btn-gold{background:linear-gradient(135deg,#ffd700,#ffaa00);color:#1a1a2e}
+.btn-block{width:100%;padding:.7rem;font-size:.95rem}
+.btn-row{display:flex;gap:.5rem;margin-top:1rem;flex-wrap:wrap}
+
+/* Scratch card */
+.scratch-area{display:none;flex-direction:column;align-items:center;gap:1.5rem;margin-top:1rem}
+.card-wrapper{position:relative;border-radius:16px;overflow:hidden;box-shadow:0 0 30px rgba(0,229,255,.15),0 0 60px rgba(255,0,170,.08);touch-action:none}
+canvas{display:block;border-radius:16px;cursor:crosshair}
+.prize-layer{position:absolute;top:0;left:0;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:16px;pointer-events:none}
+.prize-emoji{font-size:3.5rem;margin-bottom:.5rem}
+.prize-text{font-family:'Orbitron',monospace;font-size:1.3rem;font-weight:900;text-align:center;padding:0 1rem;line-height:1.4}
+.prize-sub{font-size:.75rem;color:var(--text-muted);margin-top:.3rem}
+
+.scratch-instructions{font-size:.8rem;color:var(--text-muted);text-align:center;animation:float 2s ease-in-out infinite}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+
+/* Reveal animation */
+.revealed .card-wrapper{animation:revealPulse .6s ease}
+@keyframes revealPulse{0%{transform:scale(1)}50%{transform:scale(1.05)}100%{transform:scale(1)}}
+
+/* Stats bar */
+.stats-bar{display:flex;gap:1rem;justify-content:center;margin-top:1rem;flex-wrap:wrap}
+.stat-chip{background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:.3rem .8rem;font-size:.75rem;color:var(--text-muted)}
+.stat-chip span{color:var(--neon-cyan);font-weight:700}
+
+/* Confetti */
+.confetti-piece{position:fixed;width:8px;height:8px;top:-10px;z-index:200;pointer-events:none;animation:confettiFall linear forwards}
+@keyframes confettiFall{0%{transform:translateY(0) rotate(0deg);opacity:1}100%{transform:translateY(110vh) rotate(720deg);opacity:0}}
+</style>
+</head>
+<body>
+<a href="/" class="back-link">← Volver a RAFLY</a>
+<div class="container">
+  <h1>🎟️ RASPADITA</h1>
+  <p class="subtitle">Creá tarjetas raspaditas con premios personalizados</p>
+
+  <!-- SETUP -->
+  <div id="setupPanel">
+    <div class="setup-card">
+      <h2>Configuración de premios</h2>
+      <div id="prizesContainer"></div>
+      <button class="btn btn-secondary" id="addPrizeBtn" style="margin-top:.5rem;font-size:.75rem">+ Agregar premio</button>
+      <div style="margin-top:.8rem;padding:.6rem;background:rgba(255,215,0,.05);border:1px solid rgba(255,215,0,.15);border-radius:8px;font-size:.7rem;color:var(--gold)">
+        💡 El porcentaje indica la probabilidad de que salga ese premio. Los que no ganan reciben "¡Seguí intentando!"
+      </div>
+    </div>
+
+    <div class="setup-card">
+      <h2>Apariencia</h2>
+      <div class="field">
+        <label>Color de la tarjeta</label>
+        <select id="cardColor">
+          <option value="gold">🟡 Dorado clásico</option>
+          <option value="silver">⚪ Plateado</option>
+          <option value="neon">🟢 Neón</option>
+          <option value="pink">🩷 Rosa</option>
+          <option value="custom">🎨 Personalizado</option>
+        </select>
+      </div>
+      <div class="field" id="customColorField" style="display:none">
+        <label>Color personalizado</label>
+        <input type="color" id="customColor" value="#ffd700" style="height:40px;cursor:pointer">
+      </div>
+      <div class="field">
+        <label>Tamaño de tarjeta</label>
+        <select id="cardSize">
+          <option value="small">Chica (250×150)</option>
+          <option value="medium" selected>Mediana (320×200)</option>
+          <option value="large">Grande (400×250)</option>
+        </select>
+      </div>
+    </div>
+
+    <button class="btn btn-gold btn-block" id="generateBtn">🎟️ Generar Raspadita</button>
+  </div>
+
+  <!-- SCRATCH AREA -->
+  <div class="scratch-area" id="scratchArea">
+    <div class="card-wrapper" id="cardWrapper">
+      <div class="prize-layer" id="prizeLayer">
+        <div class="prize-emoji" id="prizeEmoji">🎁</div>
+        <div class="prize-text" id="prizeText">¡Premio!</div>
+        <div class="prize-sub" id="prizeSub"></div>
+      </div>
+      <canvas id="scratchCanvas"></canvas>
+    </div>
+    <div class="scratch-instructions" id="scratchInstructions">👆 Raspá con el dedo o el mouse para descubrir tu premio</div>
+    <div class="stats-bar" id="statsBar">
+      <div class="stat-chip">Raspadas: <span id="statTotal">0</span></div>
+      <div class="stat-chip">Premios: <span id="statWins">0</span></div>
+      <div class="stat-chip">Ratio: <span id="statRatio">0%</span></div>
+    </div>
+    <div class="btn-row" style="justify-content:center">
+      <button class="btn btn-gold" id="newCardBtn">🎟️ Nueva raspadita</button>
+      <button class="btn btn-primary" id="shareBtn">📤 Compartir resultado</button>
+      <button class="btn btn-secondary" id="backSetupBtn">⚙️ Configuración</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const defaultPrizes = [
+  { name: '🎉 ¡Ganaste un descuento 10%!', chance: 30, emoji: '🎉' },
+  { name: '🏆 ¡Premio mayor!', chance: 5, emoji: '🏆' },
+  { name: '🎁 ¡Regalo sorpresa!', chance: 15, emoji: '🎁' }
+];
+
+let prizes = [...defaultPrizes];
+let stats = { total: 0, wins: 0 };
+let currentPrize = null;
+let isRevealed = false;
+let isDrawing = false;
+let lastPoint = null;
+
+const sizes = { small: [250,150], medium: [320,200], large: [400,250] };
+const colorSchemes = {
+  gold:   { bg: '#ffd700', pattern: '#e6c200', text: '#1a1a2e', label: 'RASPADITA' },
+  silver: { bg: '#c0c0c0', pattern: '#a8a8a8', text: '#1a1a2e', label: 'RASPADITA' },
+  neon:   { bg: '#39ff14', pattern: '#2dd10f', text: '#060614', label: 'SCRATCH!' },
+  pink:   { bg: '#ff69b4', pattern: '#e055a0', text: '#1a1a2e', label: 'RASPADITA' },
+  custom: { bg: '#ffd700', pattern: '#e6c200', text: '#1a1a2e', label: 'RASPADITA' }
+};
+
+function renderPrizes() {
+  const c = document.getElementById('prizesContainer');
+  c.innerHTML = prizes.map((p, i) => `
+    <div class="prize-row">
+      <input type="text" value="${p.name.replace(/"/g,'&quot;')}" placeholder="Nombre del premio"
+             onchange="prizes[${i}].name=this.value">
+      <input type="number" class="prize-chance" value="${p.chance}" min="1" max="100"
+             onchange="prizes[${i}].chance=parseInt(this.value)||1" style="width:60px"> <span style="color:var(--text-dim);font-size:.75rem">%</span>
+      <button onclick="prizes.splice(${i},1);renderPrizes()">&times;</button>
+    </div>
+  `).join('');
+}
+
+function pickPrize() {
+  const totalChance = prizes.reduce((s, p) => s + p.chance, 0);
+  const roll = Math.random() * 100;
+  let cumulative = 0;
+  for (const p of prizes) {
+    cumulative += (p.chance / totalChance) * 100;
+    if (roll <= cumulative) return p;
+  }
+  return null; // No prize
+}
+
+function generateCard() {
+  const sizeKey = document.getElementById('cardSize').value;
+  const [w, h] = sizes[sizeKey];
+  const colorKey = document.getElementById('cardColor').value;
+  const scheme = { ...colorSchemes[colorKey] };
+
+  if (colorKey === 'custom') {
+    const hex = document.getElementById('customColor').value;
+    scheme.bg = hex;
+    // Darken for pattern
+    const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+    scheme.pattern = `rgb(${Math.max(0,r-30)},${Math.max(0,g-30)},${Math.max(0,b-30)})`;
+  }
+
+  // Determine prize
+  currentPrize = pickPrize();
+  isRevealed = false;
+
+  // Set prize layer
+  const prizeLayer = document.getElementById('prizeLayer');
+  const prizeEmoji = document.getElementById('prizeEmoji');
+  const prizeText = document.getElementById('prizeText');
+  const prizeSub = document.getElementById('prizeSub');
+
+  if (currentPrize) {
+    prizeEmoji.textContent = currentPrize.emoji || '🎁';
+    prizeText.textContent = currentPrize.name.replace(/^[^\s]+\s*/, '');
+    prizeText.style.color = 'var(--gold)';
+    prizeSub.textContent = '';
+    prizeLayer.style.background = 'radial-gradient(circle, rgba(255,215,0,.12) 0%, var(--surface) 70%)';
+  } else {
+    prizeEmoji.textContent = '😅';
+    prizeText.textContent = '¡Seguí intentando!';
+    prizeText.style.color = 'var(--text-muted)';
+    prizeSub.textContent = 'Mejor suerte la próxima';
+    prizeLayer.style.background = 'var(--surface)';
+  }
+
+  prizeLayer.style.width = w + 'px';
+  prizeLayer.style.height = h + 'px';
+
+  // Setup canvas
+  const canvas = document.getElementById('scratchCanvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+
+  // Draw scratch layer
+  ctx.fillStyle = scheme.bg;
+  ctx.fillRect(0, 0, w, h);
+
+  // Pattern dots
+  ctx.fillStyle = scheme.pattern;
+  for (let x = 0; x < w; x += 12) {
+    for (let y = 0; y < h; y += 12) {
+      if (Math.random() > 0.5) {
+        ctx.beginPath();
+        ctx.arc(x + 6, y + 6, 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+
+  // Border design
+  ctx.strokeStyle = scheme.pattern;
+  ctx.lineWidth = 3;
+  ctx.setLineDash([6, 4]);
+  ctx.strokeRect(8, 8, w - 16, h - 16);
+  ctx.setLineDash([]);
+
+  // Label text
+  ctx.fillStyle = scheme.text;
+  ctx.font = `900 ${Math.round(h * 0.18)}px 'Orbitron', monospace`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(scheme.label, w / 2, h / 2 - 10);
+
+  // Sub text
+  ctx.font = `400 ${Math.round(h * 0.08)}px 'Exo 2', sans-serif`;
+  ctx.fillText('RASPÁ AQUÍ ↓', w / 2, h / 2 + 18);
+
+  // Stars decoration
+  ctx.font = `${Math.round(h * 0.1)}px serif`;
+  ctx.fillText('✦  ✦  ✦', w / 2, h - 22);
+
+  // Show scratch area
+  document.getElementById('setupPanel').style.display = 'none';
+  document.getElementById('scratchArea').style.display = 'flex';
+  document.getElementById('scratchInstructions').style.display = 'block';
+  document.getElementById('cardWrapper').classList.remove('revealed');
+
+  lastPoint = null;
+}
+
+function getPos(e, canvas) {
+  const rect = canvas.getBoundingClientRect();
+  const touch = e.touches ? e.touches[0] : e;
+  return {
+    x: (touch.clientX - rect.left) * (canvas.width / rect.width),
+    y: (touch.clientY - rect.top) * (canvas.height / rect.height)
+  };
+}
+
+function scratch(pos) {
+  const canvas = document.getElementById('scratchCanvas');
+  const ctx = canvas.getContext('2d');
+  ctx.globalCompositeOperation = 'destination-out';
+
+  const radius = Math.max(20, canvas.width * 0.06);
+
+  if (lastPoint) {
+    ctx.beginPath();
+    ctx.moveTo(lastPoint.x, lastPoint.y);
+    ctx.lineTo(pos.x, pos.y);
+    ctx.lineWidth = radius * 2;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.stroke();
+  }
+
+  ctx.beginPath();
+  ctx.arc(pos.x, pos.y, radius, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.globalCompositeOperation = 'source-over';
+  lastPoint = pos;
+
+  checkReveal(canvas, ctx);
+}
+
+function checkReveal(canvas, ctx) {
+  if (isRevealed) return;
+  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  let transparent = 0;
+  const total = imageData.data.length / 4;
+  for (let i = 3; i < imageData.data.length; i += 4) {
+    if (imageData.data[i] === 0) transparent++;
+  }
+  const pct = transparent / total;
+  if (pct > 0.45) {
+    isRevealed = true;
+    // Clear remaining
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    document.getElementById('scratchInstructions').style.display = 'none';
+    document.getElementById('cardWrapper').classList.add('revealed');
+
+    stats.total++;
+    if (currentPrize) {
+      stats.wins++;
+      launchConfetti();
+    }
+    updateStats();
+  }
+}
+
+function updateStats() {
+  document.getElementById('statTotal').textContent = stats.total;
+  document.getElementById('statWins').textContent = stats.wins;
+  document.getElementById('statRatio').textContent = stats.total > 0 ? Math.round(stats.wins / stats.total * 100) + '%' : '0%';
+}
+
+function launchConfetti() {
+  const colors = ['#ffd700','#ff00aa','#00e5ff','#39ff14','#b24bff','#ff5252'];
+  for (let i = 0; i < 50; i++) {
+    const el = document.createElement('div');
+    el.className = 'confetti-piece';
+    el.style.left = Math.random() * 100 + 'vw';
+    el.style.background = colors[Math.floor(Math.random() * colors.length)];
+    el.style.borderRadius = Math.random() > 0.5 ? '50%' : '2px';
+    el.style.width = (4 + Math.random() * 8) + 'px';
+    el.style.height = (4 + Math.random() * 8) + 'px';
+    el.style.animationDuration = (1.5 + Math.random() * 2) + 's';
+    el.style.animationDelay = (Math.random() * 0.5) + 's';
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 4000);
+  }
+}
+
+function shareResult() {
+  const text = currentPrize
+    ? `🎟️ ¡Raspé y gané! ${currentPrize.name}\n🎰 Stats: ${stats.wins}/${stats.total} premios\n— Generado con RAFLY Raspadita`
+    : `🎟️ ¡Raspé pero no gané esta vez!\n🎰 Stats: ${stats.wins}/${stats.total} premios\n— Generado con RAFLY Raspadita`;
+
+  if (navigator.share) {
+    navigator.share({ title: 'RAFLY Raspadita', text }).catch(() => {});
+  } else {
+    navigator.clipboard.writeText(text).then(() => {
+      const btn = document.getElementById('shareBtn');
+      btn.textContent = '✅ ¡Copiado!';
+      setTimeout(() => btn.textContent = '📤 Compartir resultado', 2000);
+    }).catch(() => {});
+  }
+}
+
+// Canvas event listeners
+const canvas = document.getElementById('scratchCanvas');
+canvas.addEventListener('mousedown', e => { isDrawing = true; lastPoint = null; scratch(getPos(e, canvas)); });
+canvas.addEventListener('mousemove', e => { if (isDrawing) scratch(getPos(e, canvas)); });
+canvas.addEventListener('mouseup', () => { isDrawing = false; lastPoint = null; });
+canvas.addEventListener('mouseleave', () => { isDrawing = false; lastPoint = null; });
+canvas.addEventListener('touchstart', e => { e.preventDefault(); isDrawing = true; lastPoint = null; scratch(getPos(e, canvas)); }, { passive: false });
+canvas.addEventListener('touchmove', e => { e.preventDefault(); if (isDrawing) scratch(getPos(e, canvas)); }, { passive: false });
+canvas.addEventListener('touchend', () => { isDrawing = false; lastPoint = null; });
+
+// UI event listeners
+document.getElementById('cardColor').addEventListener('change', function() {
+  document.getElementById('customColorField').style.display = this.value === 'custom' ? 'block' : 'none';
+});
+document.getElementById('addPrizeBtn').addEventListener('click', () => {
+  prizes.push({ name: '🎁 Nuevo premio', chance: 10, emoji: '🎁' });
+  renderPrizes();
+});
+document.getElementById('generateBtn').addEventListener('click', generateCard);
+document.getElementById('newCardBtn').addEventListener('click', generateCard);
+document.getElementById('shareBtn').addEventListener('click', shareResult);
+document.getElementById('backSetupBtn').addEventListener('click', () => {
+  document.getElementById('scratchArea').style.display = 'none';
+  document.getElementById('setupPanel').style.display = 'block';
+});
+
+// Init
+renderPrizes();
+</script>
+</body>
+</html>
