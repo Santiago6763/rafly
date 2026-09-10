@@ -12,6 +12,10 @@
 
 require('dotenv').config();
 const express = require('express');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const Database = require('better-sqlite3');
+const path = require('path');
 const app = express();
 
 // ── Configuración ──────────────────────────────────────────────
@@ -38,9 +42,108 @@ let session = {
   profilePic: null
 };
 
+// ── JWT Secret ────────────────────────────────────────────────
+const JWT_SECRET = process.env.JWT_SECRET || 'rafly-secret-change-in-production-' + Date.now();
+const JWT_EXPIRES = '30d';
+
+// ── SQLite Database ───────────────────────────────────────────
+const dbPath = path.join(__dirname, 'data', 'rafly.db');
+const fs = require('fs');
+fs.mkdirSync(path.join(__dirname, 'data'), { recursive: true });
+const db = new Database(dbPath);
+db.pragma('journal_mode = WAL');
+
+// Create tables
+db.exec(`
+  CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT UNIQUE NOT NULL,
+    password TEXT NOT NULL,
+    name TEXT DEFAULT '',
+    plan TEXT DEFAULT 'free',
+    brand_settings TEXT DEFAULT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS sorteo_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    winner TEXT NOT NULL,
+    suplentes TEXT DEFAULT '[]',
+    participants_count INTEGER DEFAULT 0,
+    platform TEXT DEFAULT 'manual',
+    mode TEXT DEFAULT 'slot',
+    post_url TEXT DEFAULT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS daily_counts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    date TEXT NOT NULL,
+    count INTEGER DEFAULT 0,
+    UNIQUE(user_id, date),
+    FOREIGN KEY (user_id) REFERENCES users(id)
+  );
+`);
+
+// Prepared statements
+const stmts = {
+  findUserByEmail: db.prepare('SELECT * FROM users WHERE email = ?'),
+  findUserById: db.prepare('SELECT id, email, name, plan, brand_settings, created_at FROM users WHERE id = ?'),
+  createUser: db.prepare('INSERT INTO users (email, password, name) VALUES (?, ?, ?)'),
+  updateUser: db.prepare('UPDATE users SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'),
+  updatePlan: db.prepare('UPDATE users SET plan = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'),
+  updateBrand: db.prepare('UPDATE users SET brand_settings = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'),
+  addSorteo: db.prepare('INSERT INTO sorteo_history (user_id, winner, suplentes, participants_count, platform, mode, post_url) VALUES (?, ?, ?, ?, ?, ?, ?)'),
+  getSorteos: db.prepare('SELECT * FROM sorteo_history WHERE user_id = ? ORDER BY created_at DESC LIMIT ?'),
+  getSorteoCount: db.prepare('SELECT COUNT(*) as total FROM sorteo_history WHERE user_id = ?'),
+  getDailyCount: db.prepare('SELECT count FROM daily_counts WHERE user_id = ? AND date = ?'),
+  upsertDailyCount: db.prepare(`INSERT INTO daily_counts (user_id, date, count) VALUES (?, ?, 1)
+    ON CONFLICT(user_id, date) DO UPDATE SET count = count + 1`),
+};
+
+// ── Auth Middleware ────────────────────────────────────────────
+function authMiddleware(req, res, next) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'No autenticado' });
+  }
+  try {
+    const token = authHeader.split(' ')[1];
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.userId = decoded.userId;
+    next();
+  } catch (err) {
+    return res.status(401).json({ error: 'Token inválido o expirado' });
+  }
+}
+
+// Optional auth — sets req.userId if token present, doesn't block
+function optionalAuth(req, res, next) {
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    try {
+      const token = authHeader.split(' ')[1];
+      const decoded = jwt.verify(token, JWT_SECRET);
+      req.userId = decoded.userId;
+    } catch (err) { /* ignore */ }
+  }
+  next();
+}
+
 // ── Middleware ──────────────────────────────────────────────────
 app.use(express.static('public'));
-app.use(express.json());
+// Stripe webhook needs raw body — must come before express.json()
+app.use((req, res, next) => {
+  if (req.originalUrl === '/api/stripe/webhook') {
+    express.raw({ type: 'application/json' })(req, res, next);
+  } else {
+    express.json()(req, res, next);
+  }
+});
 
 // ── Utilidades ─────────────────────────────────────────────────
 async function graphGet(path, params = {}) {
@@ -507,6 +610,400 @@ app.post('/api/scrape', async (req, res) => {
     console.error('Scrape error:', err.message);
     res.status(500).json({ error: 'Error al procesar la URL: ' + err.message });
   }
+});
+
+// ══════════════════════════════════════════════════════════════
+//   LEVEL 6: AUTH API
+// ══════════════════════════════════════════════════════════════
+
+// ── Register ──
+app.post('/api/auth/register', async (req, res) => {
+  const { email, password, name } = req.body;
+  if (!email || !password) return res.status(400).json({ error: 'Email y contraseña requeridos' });
+  if (password.length < 6) return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
+
+  // Normalize email
+  const normalizedEmail = email.trim().toLowerCase();
+
+  // Check existing
+  const existing = stmts.findUserByEmail.get(normalizedEmail);
+  if (existing) return res.status(409).json({ error: 'Ya existe una cuenta con ese email' });
+
+  try {
+    const hashed = await bcrypt.hash(password, 10);
+    const result = stmts.createUser.run(normalizedEmail, hashed, name || '');
+    const userId = result.lastInsertRowid;
+
+    const token = jwt.sign({ userId: Number(userId) }, JWT_SECRET, { expiresIn: JWT_EXPIRES });
+    const user = stmts.findUserById.get(userId);
+
+    res.status(201).json({ token, user });
+  } catch (err) {
+    console.error('Register error:', err.message);
+    res.status(500).json({ error: 'Error al crear cuenta' });
+  }
+});
+
+// ── Login ──
+app.post('/api/auth/login', async (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password) return res.status(400).json({ error: 'Email y contraseña requeridos' });
+
+  const normalizedEmail = email.trim().toLowerCase();
+  const user = stmts.findUserByEmail.get(normalizedEmail);
+  if (!user) return res.status(401).json({ error: 'Credenciales inválidas' });
+
+  try {
+    const valid = await bcrypt.compare(password, user.password);
+    if (!valid) return res.status(401).json({ error: 'Credenciales inválidas' });
+
+    const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: JWT_EXPIRES });
+    const safeUser = stmts.findUserById.get(user.id);
+
+    res.json({ token, user: safeUser });
+  } catch (err) {
+    console.error('Login error:', err.message);
+    res.status(500).json({ error: 'Error al iniciar sesión' });
+  }
+});
+
+// ── Get current user ──
+app.get('/api/auth/me', authMiddleware, (req, res) => {
+  const user = stmts.findUserById.get(req.userId);
+  if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
+
+  const sorteoCount = stmts.getSorteoCount.get(req.userId);
+  const today = new Date().toISOString().split('T')[0];
+  const dailyCount = stmts.getDailyCount.get(req.userId, today);
+
+  res.json({
+    user,
+    stats: {
+      totalSorteos: sorteoCount.total,
+      todaySorteos: dailyCount ? dailyCount.count : 0
+    }
+  });
+});
+
+// ── Update profile ──
+app.put('/api/auth/profile', authMiddleware, (req, res) => {
+  const { name } = req.body;
+  stmts.updateUser.run(name || '', req.userId);
+  const user = stmts.findUserById.get(req.userId);
+  res.json({ user });
+});
+
+// ── Update plan ──
+app.put('/api/auth/plan', authMiddleware, (req, res) => {
+  const { plan } = req.body;
+  if (!['free', 'pro', 'enterprise'].includes(plan)) {
+    return res.status(400).json({ error: 'Plan inválido' });
+  }
+  stmts.updatePlan.run(plan, req.userId);
+  const user = stmts.findUserById.get(req.userId);
+  res.json({ user });
+});
+
+// ── Save brand settings ──
+app.put('/api/auth/brand', authMiddleware, (req, res) => {
+  const brand = JSON.stringify(req.body.brand || {});
+  stmts.updateBrand.run(brand, req.userId);
+  res.json({ ok: true });
+});
+
+// ── Save sorteo result ──
+app.post('/api/sorteos', authMiddleware, (req, res) => {
+  const { winner, suplentes, participantsCount, platform, mode, postUrl } = req.body;
+  if (!winner) return res.status(400).json({ error: 'Winner requerido' });
+
+  stmts.addSorteo.run(
+    req.userId, winner,
+    JSON.stringify(suplentes || []),
+    participantsCount || 0,
+    platform || 'manual',
+    mode || 'slot',
+    postUrl || null
+  );
+
+  // Increment daily count
+  const today = new Date().toISOString().split('T')[0];
+  stmts.upsertDailyCount.run(req.userId, today);
+
+  res.json({ ok: true });
+});
+
+// ── Get sorteo history ──
+app.get('/api/sorteos', authMiddleware, (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit) || 50, 200);
+  const sorteos = stmts.getSorteos.all(req.userId, limit);
+  sorteos.forEach(s => {
+    try { s.suplentes = JSON.parse(s.suplentes); } catch (e) { s.suplentes = []; }
+  });
+  res.json({ sorteos });
+});
+
+// ══════════════════════════════════════════════════════════════
+//   LEVEL 6: ADMIN API
+// ══════════════════════════════════════════════════════════════
+
+// Admin middleware — check if user has admin flag or is first user
+function adminMiddleware(req, res, next) {
+  const user = stmts.findUserById.get(req.userId);
+  if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
+  // First registered user is admin, or check admin column
+  if (user.id !== 1) {
+    return res.status(403).json({ error: 'Acceso denegado' });
+  }
+  next();
+}
+
+app.get('/api/admin/users', authMiddleware, adminMiddleware, (req, res) => {
+  const users = db.prepare(`
+    SELECT u.id, u.email, u.name, u.plan, u.created_at,
+           (SELECT COUNT(*) FROM sorteo_history WHERE user_id = u.id) as total_sorteos,
+           (SELECT MAX(created_at) FROM sorteo_history WHERE user_id = u.id) as last_sorteo
+    FROM users u ORDER BY u.created_at DESC
+  `).all();
+  res.json({ users });
+});
+
+app.get('/api/admin/stats', authMiddleware, adminMiddleware, (req, res) => {
+  const totalUsers = db.prepare('SELECT COUNT(*) as c FROM users').get().c;
+  const totalSorteos = db.prepare('SELECT COUNT(*) as c FROM sorteo_history').get().c;
+  const todaySorteos = db.prepare("SELECT COUNT(*) as c FROM sorteo_history WHERE date(created_at) = date('now')").get().c;
+  const planDist = db.prepare('SELECT plan, COUNT(*) as c FROM users GROUP BY plan').all();
+  const recentSorteos = db.prepare(`
+    SELECT sh.*, u.email, u.name as user_name
+    FROM sorteo_history sh JOIN users u ON sh.user_id = u.id
+    ORDER BY sh.created_at DESC LIMIT 20
+  `).all();
+
+  res.json({ totalUsers, totalSorteos, todaySorteos, planDist, recentSorteos });
+});
+
+app.put('/api/admin/users/:id/plan', authMiddleware, adminMiddleware, (req, res) => {
+  const { plan } = req.body;
+  if (!['free', 'pro', 'enterprise'].includes(plan)) {
+    return res.status(400).json({ error: 'Plan inválido' });
+  }
+  stmts.updatePlan.run(plan, req.params.id);
+  res.json({ ok: true });
+});
+
+// ══════════════════════════════════════════════════════════════
+//   LEVEL 6: STRIPE PAYMENTS
+// ══════════════════════════════════════════════════════════════
+
+const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
+const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
+let stripe = null;
+if (STRIPE_SECRET_KEY) {
+  stripe = require('stripe')(STRIPE_SECRET_KEY);
+}
+
+// Stripe price IDs — set these in .env or Stripe dashboard
+const STRIPE_PRICES = {
+  pro_monthly: process.env.STRIPE_PRICE_PRO_MONTHLY || null,
+  pro_annual: process.env.STRIPE_PRICE_PRO_ANNUAL || null,
+  enterprise_monthly: process.env.STRIPE_PRICE_ENT_MONTHLY || null,
+  enterprise_annual: process.env.STRIPE_PRICE_ENT_ANNUAL || null,
+};
+
+// Add stripe_customer_id column if not exists
+try {
+  db.exec(`ALTER TABLE users ADD COLUMN stripe_customer_id TEXT DEFAULT NULL`);
+} catch (e) { /* column already exists */ }
+try {
+  db.exec(`ALTER TABLE users ADD COLUMN stripe_subscription_id TEXT DEFAULT NULL`);
+} catch (e) { /* column already exists */ }
+
+const stmtUpdateStripeCustomer = db.prepare('UPDATE users SET stripe_customer_id = ? WHERE id = ?');
+const stmtUpdateStripeSubscription = db.prepare('UPDATE users SET stripe_subscription_id = ? WHERE id = ?');
+const stmtFindByStripeCustomer = db.prepare('SELECT * FROM users WHERE stripe_customer_id = ?');
+
+// ── Create Checkout Session ──
+app.post('/api/stripe/checkout', authMiddleware, async (req, res) => {
+  if (!stripe) return res.status(503).json({ error: 'Stripe no configurado. Contactá al administrador.' });
+
+  const { plan, billing } = req.body; // plan: 'pro'|'enterprise', billing: 'monthly'|'annual'
+  if (!['pro', 'enterprise'].includes(plan)) {
+    return res.status(400).json({ error: 'Plan inválido' });
+  }
+  if (!['monthly', 'annual'].includes(billing)) {
+    return res.status(400).json({ error: 'Período de facturación inválido' });
+  }
+
+  const priceKey = `${plan}_${billing}`;
+  const priceId = STRIPE_PRICES[priceKey];
+  if (!priceId) {
+    return res.status(400).json({ error: `Precio no configurado para ${plan} ${billing}. Contactá al administrador.` });
+  }
+
+  try {
+    const user = stmts.findUserByEmail.get(
+      db.prepare('SELECT email FROM users WHERE id = ?').get(req.userId)?.email
+    );
+    if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
+
+    // Get or create Stripe customer
+    let customerId = user.stripe_customer_id;
+    if (!customerId) {
+      const customer = await stripe.customers.create({
+        email: user.email,
+        metadata: { rafly_user_id: String(req.userId) }
+      });
+      customerId = customer.id;
+      stmtUpdateStripeCustomer.run(customerId, req.userId);
+    }
+
+    // If user already has an active subscription, redirect to portal instead
+    if (user.stripe_subscription_id) {
+      try {
+        const sub = await stripe.subscriptions.retrieve(user.stripe_subscription_id);
+        if (['active', 'trialing'].includes(sub.status)) {
+          // Create billing portal session for plan change
+          const portalSession = await stripe.billingPortal.sessions.create({
+            customer: customerId,
+            return_url: `${BASE_URL}/pricing.html?session=portal`,
+          });
+          return res.json({ url: portalSession.url, type: 'portal' });
+        }
+      } catch (e) { /* subscription not found or inactive, continue to checkout */ }
+    }
+
+    // Create checkout session
+    const session = await stripe.checkout.sessions.create({
+      customer: customerId,
+      mode: 'subscription',
+      payment_method_types: ['card'],
+      line_items: [{ price: priceId, quantity: 1 }],
+      success_url: `${BASE_URL}/pricing.html?session=success&plan=${plan}`,
+      cancel_url: `${BASE_URL}/pricing.html?session=cancel`,
+      metadata: { rafly_user_id: String(req.userId), plan },
+      subscription_data: {
+        metadata: { rafly_user_id: String(req.userId), plan }
+      },
+      allow_promotion_codes: true,
+    });
+
+    res.json({ url: session.url, type: 'checkout' });
+  } catch (err) {
+    console.error('Stripe checkout error:', err.message);
+    res.status(500).json({ error: 'Error al crear sesión de pago' });
+  }
+});
+
+// ── Stripe Customer Portal ──
+app.post('/api/stripe/portal', authMiddleware, async (req, res) => {
+  if (!stripe) return res.status(503).json({ error: 'Stripe no configurado' });
+
+  try {
+    const user = db.prepare('SELECT stripe_customer_id FROM users WHERE id = ?').get(req.userId);
+    if (!user?.stripe_customer_id) {
+      return res.status(400).json({ error: 'No tenés una suscripción activa' });
+    }
+
+    const portalSession = await stripe.billingPortal.sessions.create({
+      customer: user.stripe_customer_id,
+      return_url: `${BASE_URL}/pricing.html`,
+    });
+
+    res.json({ url: portalSession.url });
+  } catch (err) {
+    console.error('Portal error:', err.message);
+    res.status(500).json({ error: 'Error al abrir portal de facturación' });
+  }
+});
+
+// ── Stripe Webhook ──
+// IMPORTANT: This must be BEFORE express.json() for the raw body,
+// but since we already have express.json(), we handle it with a special parser
+app.post('/api/stripe/webhook', async (req, res) => {
+  if (!stripe) return res.status(503).send('Stripe not configured');
+
+  let event;
+  try {
+    if (STRIPE_WEBHOOK_SECRET) {
+      const sig = req.headers['stripe-signature'];
+      event = stripe.webhooks.constructEvent(req.body, sig, STRIPE_WEBHOOK_SECRET);
+    } else {
+      event = JSON.parse(req.body.toString());
+    }
+  } catch (err) {
+    console.error('Webhook signature verification failed:', err.message);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+
+  try {
+    switch (event.type) {
+      case 'checkout.session.completed': {
+        const session = event.data.object;
+        const userId = session.metadata?.rafly_user_id;
+        const plan = session.metadata?.plan;
+        if (userId && plan) {
+          stmts.updatePlan.run(plan, Number(userId));
+          if (session.subscription) {
+            stmtUpdateStripeSubscription.run(session.subscription, Number(userId));
+          }
+          console.log(`✦ User ${userId} upgraded to ${plan}`);
+        }
+        break;
+      }
+
+      case 'customer.subscription.updated': {
+        const subscription = event.data.object;
+        const userId = subscription.metadata?.rafly_user_id;
+        if (userId) {
+          if (subscription.status === 'active') {
+            const plan = subscription.metadata?.plan || 'pro';
+            stmts.updatePlan.run(plan, Number(userId));
+          } else if (['canceled', 'unpaid', 'past_due'].includes(subscription.status)) {
+            stmts.updatePlan.run('free', Number(userId));
+          }
+        }
+        break;
+      }
+
+      case 'customer.subscription.deleted': {
+        const subscription = event.data.object;
+        const userId = subscription.metadata?.rafly_user_id;
+        if (userId) {
+          stmts.updatePlan.run('free', Number(userId));
+          stmtUpdateStripeSubscription.run(null, Number(userId));
+          console.log(`✦ User ${userId} subscription canceled → free`);
+        }
+        break;
+      }
+
+      case 'invoice.payment_failed': {
+        const invoice = event.data.object;
+        const customerId = invoice.customer;
+        const user = stmtFindByStripeCustomer.get(customerId);
+        if (user) {
+          console.log(`⚠ Payment failed for user ${user.id} (${user.email})`);
+          // Don't downgrade immediately — Stripe retries
+        }
+        break;
+      }
+    }
+  } catch (err) {
+    console.error('Webhook processing error:', err.message);
+  }
+
+  res.json({ received: true });
+});
+
+// ── Stripe status (check if configured) ──
+app.get('/api/stripe/status', (req, res) => {
+  res.json({
+    configured: !!stripe,
+    prices: {
+      pro_monthly: !!STRIPE_PRICES.pro_monthly,
+      pro_annual: !!STRIPE_PRICES.pro_annual,
+      enterprise_monthly: !!STRIPE_PRICES.enterprise_monthly,
+      enterprise_annual: !!STRIPE_PRICES.enterprise_annual,
+    }
+  });
 });
 
 // ── Iniciar servidor ───────────────────────────────────────────
