@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RAFLY — Dashboard de Sorteos</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#00e5ff">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#060614;--surface:#0d0d2b;--surface2:#12123a;--border:rgba(0,229,255,.12);--neon-cyan:#00e5ff;--neon-magenta:#ff2d55;--neon-green:#39ff14;--neon-gold:#ffea00;--glow-cyan:rgba(0,229,255,.35);--text:#e8eaed;--text-muted:#8b8fa3;--text-dim:#565a6e}
+body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,-apple-system,sans-serif;min-height:100vh}
+header{padding:1rem 1.5rem;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)}
+.logo{font-family:'Orbitron',monospace;font-weight:900;font-size:1.1rem;background:linear-gradient(135deg,var(--neon-cyan),var(--neon-magenta));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.header-right{display:flex;gap:.5rem;align-items:center}
+.back-link{color:var(--text-muted);text-decoration:none;font-size:.75rem;border:1px solid var(--border);padding:.3rem .7rem;border-radius:8px;transition:all .2s}
+.back-link:hover{border-color:var(--neon-cyan);color:var(--neon-cyan)}
+.btn{padding:.4rem .8rem;border:1px solid var(--border);background:var(--surface);color:var(--text-muted);border-radius:8px;cursor:pointer;font-family:inherit;font-size:.72rem;transition:all .2s}
+.btn:hover{border-color:var(--neon-cyan);color:var(--neon-cyan)}
+.btn-primary{background:linear-gradient(135deg,var(--neon-cyan),#00b8d4);color:#060614;border:none;font-weight:600}
+.container{max-width:1000px;margin:0 auto;padding:1.5rem}
+h1{font-family:'Orbitron',monospace;font-size:1.2rem;font-weight:700;margin-bottom:.2rem;background:linear-gradient(135deg,var(--neon-cyan),var(--neon-magenta));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.subtitle{color:var(--text-muted);font-size:.72rem;margin-bottom:1.5rem}
+
+/* Stats grid */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:.8rem;margin-bottom:1.5rem}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1rem;text-align:center;transition:all .3s}
+.stat-card:hover{border-color:var(--neon-cyan);box-shadow:0 0 15px rgba(0,229,255,.1)}
+.stat-value{font-family:'Orbitron',monospace;font-size:2rem;font-weight:900;line-height:1.2}
+.stat-value.cyan{color:var(--neon-cyan)}
+.stat-value.magenta{color:var(--neon-magenta)}
+.stat-value.green{color:var(--neon-green)}
+.stat-value.gold{color:var(--neon-gold)}
+.stat-label{font-size:.68rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-top:.3rem}
+
+/* Charts */
+.chart-section{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.2rem;margin-bottom:1rem}
+.chart-title{font-family:'Orbitron',monospace;font-size:.8rem;font-weight:700;color:var(--text-muted);margin-bottom:1rem;text-transform:uppercase;letter-spacing:.05em}
+.chart-row{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem}
+@media(max-width:640px){.chart-row{grid-template-columns:1fr}}
+canvas{width:100%!important;border-radius:8px}
+
+/* History table */
+.table-wrap{overflow-x:auto;margin-top:.5rem}
+table{width:100%;border-collapse:collapse;font-size:.72rem}
+th{text-align:left;padding:.5rem .6rem;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--border);font-size:.65rem}
+td{padding:.45rem .6rem;border-bottom:1px solid rgba(255,255,255,.04);color:var(--text)}
+tr:hover td{background:rgba(0,229,255,.03)}
+.winner-badge{display:inline-block;padding:.1rem .4rem;border-radius:6px;font-size:.62rem;font-weight:600}
+.winner-badge.ganador{background:rgba(0,229,255,.12);color:var(--neon-cyan)}
+.winner-badge.suplente{background:rgba(255,234,0,.12);color:var(--neon-gold)}
+
+/* Empty state */
+.empty{text-align:center;padding:3rem 1rem;color:var(--text-dim)}
+.empty-icon{font-size:3rem;margin-bottom:.5rem}
+.empty h3{font-family:'Orbitron',monospace;font-size:.9rem;color:var(--text-muted);margin-bottom:.3rem}
+.empty p{font-size:.72rem;max-width:300px;margin:0 auto}
+
+/* Top winners */
+.top-list{display:flex;flex-direction:column;gap:.4rem}
+.top-item{display:flex;align-items:center;gap:.5rem;padding:.4rem .6rem;background:var(--bg);border-radius:8px}
+.top-rank{font-family:'Orbitron',monospace;font-size:.7rem;font-weight:900;width:22px;height:22px;display:flex;align-items:center;justify-content:center;border-radius:50%;border:1px solid var(--border)}
+.top-rank.r1{border-color:var(--neon-gold);color:var(--neon-gold)}
+.top-rank.r2{border-color:var(--text-muted);color:var(--text-muted)}
+.top-rank.r3{border-color:#cd7f32;color:#cd7f32}
+.top-name{flex:1;font-size:.75rem;font-weight:500}
+.top-count{font-family:'Orbitron',monospace;font-size:.7rem;color:var(--neon-cyan)}
+
+/* Bar chart */
+.bar-chart{display:flex;flex-direction:column;gap:.4rem}
+.bar-row{display:flex;align-items:center;gap:.5rem}
+.bar-label{font-size:.65rem;color:var(--text-muted);width:60px;text-align:right;flex-shrink:0}
+.bar-track{flex:1;height:20px;background:var(--bg);border-radius:4px;overflow:hidden}
+.bar-fill{height:100%;border-radius:4px;transition:width .5s ease;display:flex;align-items:center;padding-left:.4rem;font-size:.6rem;font-weight:600;color:#060614}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">RAFLY</div>
+  <div class="header-right">
+    <button class="btn" id="exportPdfBtn">📄 Exportar PDF</button>
+    <button class="btn" id="exportCsvBtn">📊 Exportar CSV</button>
+    <a href="/" class="back-link">← Sorteo</a>
+  </div>
+</header>
+
+<div class="container" id="mainContent">
+  <h1>📊 Dashboard de Sorteos</h1>
+  <p class="subtitle">Estadísticas de todos tus sorteos realizados</p>
+
+  <div class="stats-grid" id="statsGrid">
+    <div class="stat-card"><div class="stat-value cyan" id="statTotal">0</div><div class="stat-label">Sorteos realizados</div></div>
+    <div class="stat-card"><div class="stat-value magenta" id="statWinners">0</div><div class="stat-label">Ganadores elegidos</div></div>
+    <div class="stat-card"><div class="stat-value green" id="statParticipants">0</div><div class="stat-label">Participantes totales</div></div>
+    <div class="stat-card"><div class="stat-value gold" id="statAvgPart">0</div><div class="stat-label">Promedio participantes</div></div>
+  </div>
+
+  <div class="chart-row">
+    <div class="chart-section">
+      <div class="chart-title">📅 Sorteos por día</div>
+      <canvas id="chartTimeline" height="200"></canvas>
+    </div>
+    <div class="chart-section">
+      <div class="chart-title">🏆 Top ganadores</div>
+      <div class="top-list" id="topWinners">
+        <div class="empty" style="padding:1.5rem"><p>Sin datos aún</p></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="chart-row">
+    <div class="chart-section">
+      <div class="chart-title">📊 Plataformas</div>
+      <div class="bar-chart" id="platformChart"></div>
+    </div>
+    <div class="chart-section">
+      <div class="chart-title">🎰 Modos de sorteo</div>
+      <div class="bar-chart" id="modeChart"></div>
+    </div>
+  </div>
+
+  <div class="chart-section">
+    <div class="chart-title">📋 Historial completo</div>
+    <div class="table-wrap">
+      <table id="historyTable">
+        <thead>
+          <tr><th>#</th><th>Fecha</th><th>Hora</th><th>Ganador/es</th><th>Suplentes</th><th>Participantes</th><th>Modo</th></tr>
+        </thead>
+        <tbody id="historyBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+// Load history from localStorage
+function getHistory() {
+  try {
+    return JSON.parse(localStorage.getItem('rafly-history') || '[]');
+  } catch(e) { return []; }
+}
+
+function renderDashboard() {
+  const history = getHistory();
+
+  if (history.length === 0) {
+    document.getElementById('mainContent').innerHTML = `
+      <div class="empty" style="padding:4rem 1rem">
+        <div class="empty-icon">📊</div>
+        <h3>Sin sorteos registrados</h3>
+        <p>Realizá sorteos en RAFLY para ver tus estadísticas acá. El historial se guarda automáticamente.</p>
+        <a href="/" class="btn btn-primary" style="display:inline-block;margin-top:1rem;text-decoration:none;padding:.5rem 1.2rem">Ir a sortear →</a>
+      </div>`;
+    return;
+  }
+
+  // Calculate stats
+  const totalSorteos = history.length;
+  let totalWinners = 0;
+  let totalParticipants = 0;
+  const winnerCounts = {};
+  const dateCounts = {};
+  const platformCounts = {};
+  const modeCounts = {};
+
+  history.forEach(h => {
+    const winners = h.winners || [];
+    const suplentes = h.suplentes || [];
+    totalWinners += winners.length;
+    totalParticipants += h.participants || 0;
+
+    winners.forEach(w => { winnerCounts[w] = (winnerCounts[w] || 0) + 1; });
+
+    const d = new Date(h.date);
+    const dateKey = d.toLocaleDateString('es-AR', { day:'2-digit', month:'2-digit' });
+    dateCounts[dateKey] = (dateCounts[dateKey] || 0) + 1;
+
+    const plat = h.platform || 'Manual';
+    platformCounts[plat] = (platformCounts[plat] || 0) + 1;
+
+    const mode = h.mode || 'Slot';
+    modeCounts[mode] = (modeCounts[mode] || 0) + 1;
+  });
+
+  // Update stat cards
+  document.getElementById('statTotal').textContent = totalSorteos;
+  document.getElementById('statWinners').textContent = totalWinners;
+  document.getElementById('statParticipants').textContent = totalParticipants;
+  document.getElementById('statAvgPart').textContent = totalSorteos > 0 ? Math.round(totalParticipants / totalSorteos) : 0;
+
+  // Top winners
+  const topWinners = Object.entries(winnerCounts).sort((a,b) => b[1]-a[1]).slice(0, 5);
+  const topContainer = document.getElementById('topWinners');
+  if (topWinners.length > 0) {
+    topContainer.innerHTML = topWinners.map((w, i) => `
+      <div class="top-item">
+        <div class="top-rank ${i<3?'r'+(i+1):''}">${i+1}</div>
+        <div class="top-name">${w[0]}</div>
+        <div class="top-count">${w[1]}×</div>
+      </div>
+    `).join('');
+  }
+
+  // Timeline chart
+  drawTimeline(dateCounts);
+
+  // Platform chart
+  drawBarChart('platformChart', platformCounts, {
+    Instagram: 'linear-gradient(135deg,#833AB4,#E1306C)',
+    YouTube: 'linear-gradient(135deg,#FF0000,#CC0000)',
+    TikTok: 'linear-gradient(135deg,#00f2ea,#ff0050)',
+    Manual: 'linear-gradient(135deg,var(--neon-cyan),#0088aa)'
+  });
+
+  // Mode chart
+  drawBarChart('modeChart', modeCounts, {
+    Slot: 'linear-gradient(135deg,var(--neon-cyan),#0088aa)',
+    Ruleta: 'linear-gradient(135deg,var(--neon-magenta),#cc0044)',
+    Shuffle: 'linear-gradient(135deg,var(--neon-green),#22aa00)'
+  });
+
+  // History table
+  const tbody = document.getElementById('historyBody');
+  tbody.innerHTML = history.slice().reverse().map((h, i) => {
+    const d = new Date(h.date);
+    const winners = (h.winners || []).map(w => `<span class="winner-badge ganador">${w}</span>`).join(' ');
+    const suplentes = (h.suplentes || []).map(w => `<span class="winner-badge suplente">${w}</span>`).join(' ');
+    return `<tr>
+      <td>${history.length - i}</td>
+      <td>${d.toLocaleDateString('es-AR')}</td>
+      <td>${d.toLocaleTimeString('es-AR', {hour:'2-digit',minute:'2-digit'})}</td>
+      <td>${winners || '—'}</td>
+      <td>${suplentes || '—'}</td>
+      <td>${h.participants || '—'}</td>
+      <td>${h.mode || 'Slot'}</td>
+    </tr>`;
+  }).join('');
+}
+
+function drawTimeline(dateCounts) {
+  const canvas = document.getElementById('chartTimeline');
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.parentElement.clientWidth - 40;
+  const h = 180;
+  canvas.width = w * dpr;
+  canvas.height = h * dpr;
+  canvas.style.width = w + 'px';
+  canvas.style.height = h + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  const entries = Object.entries(dateCounts).slice(-14); // Last 14 days
+  if (entries.length === 0) return;
+  const maxVal = Math.max(...entries.map(e => e[1]), 1);
+  const barW = Math.min(30, (w - 40) / entries.length - 4);
+  const chartH = h - 40;
+  const startX = 30;
+
+  // Grid lines
+  ctx.strokeStyle = 'rgba(255,255,255,.06)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const y = 10 + (chartH / 4) * i;
+    ctx.beginPath(); ctx.moveTo(startX, y); ctx.lineTo(w - 10, y); ctx.stroke();
+    ctx.fillStyle = '#565a6e';
+    ctx.font = '9px Inter';
+    ctx.textAlign = 'right';
+    ctx.fillText(Math.round(maxVal - (maxVal / 4) * i), startX - 4, y + 3);
+  }
+
+  // Bars
+  entries.forEach((e, i) => {
+    const x = startX + i * ((w - startX - 10) / entries.length) + 2;
+    const barH = (e[1] / maxVal) * chartH;
+    const y = 10 + chartH - barH;
+
+    const grad = ctx.createLinearGradient(x, y, x, y + barH);
+    grad.addColorStop(0, '#00e5ff');
+    grad.addColorStop(1, '#0088aa');
+    ctx.fillStyle = grad;
+
+    // Rounded top
+    const r = Math.min(4, barW / 2);
+    ctx.beginPath();
+    ctx.moveTo(x, y + barH);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.lineTo(x + barW - r, y);
+    ctx.quadraticCurveTo(x + barW, y, x + barW, y + r);
+    ctx.lineTo(x + barW, y + barH);
+    ctx.closePath();
+    ctx.fill();
+
+    // Glow
+    ctx.shadowColor = 'rgba(0,229,255,.3)';
+    ctx.shadowBlur = 8;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+
+    // Value on top
+    ctx.fillStyle = '#e8eaed';
+    ctx.font = 'bold 9px Orbitron';
+    ctx.textAlign = 'center';
+    ctx.fillText(e[1], x + barW / 2, y - 4);
+
+    // Date label
+    ctx.fillStyle = '#565a6e';
+    ctx.font = '8px Inter';
+    ctx.fillText(e[0], x + barW / 2, h - 5);
+  });
+}
+
+function drawBarChart(containerId, data, colorMap) {
+  const container = document.getElementById(containerId);
+  const entries = Object.entries(data).sort((a,b) => b[1]-a[1]);
+  const maxVal = Math.max(...entries.map(e => e[1]), 1);
+
+  container.innerHTML = entries.map(([label, count]) => {
+    const pct = (count / maxVal * 100).toFixed(0);
+    const bg = colorMap[label] || 'linear-gradient(135deg,#666,#444)';
+    return `<div class="bar-row">
+      <div class="bar-label">${label}</div>
+      <div class="bar-track">
+        <div class="bar-fill" style="width:${pct}%;background:${bg}">${count}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// Export CSV
+document.getElementById('exportCsvBtn').addEventListener('click', () => {
+  const history = getHistory();
+  if (history.length === 0) return;
+  let csv = 'Numero,Fecha,Hora,Ganadores,Suplentes,Participantes,Modo\n';
+  history.forEach((h, i) => {
+    const d = new Date(h.date);
+    csv += `${i+1},${d.toLocaleDateString('es-AR')},${d.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'})},"${(h.winners||[]).join('; ')}","${(h.suplentes||[]).join('; ')}",${h.participants||0},${h.mode||'Slot'}\n`;
+  });
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'rafly-estadisticas.csv'; a.click();
+  URL.revokeObjectURL(url);
+});
+
+// Export PDF (simple HTML-based printable report)
+document.getElementById('exportPdfBtn').addEventListener('click', () => {
+  const history = getHistory();
+  if (history.length === 0) return;
+
+  const totalSorteos = history.length;
+  let totalWinners = 0;
+  let totalParticipants = 0;
+  history.forEach(h => {
+    totalWinners += (h.winners || []).length;
+    totalParticipants += h.participants || 0;
+  });
+
+  const printWin = window.open('', '_blank');
+  printWin.document.write(`<!DOCTYPE html><html><head><title>RAFLY - Reporte de Sorteos</title>
+  <style>
+    body{font-family:Arial,sans-serif;padding:2rem;color:#222;max-width:800px;margin:0 auto}
+    h1{color:#00b4d8;border-bottom:2px solid #00b4d8;padding-bottom:.5rem}
+    .stats{display:flex;gap:1.5rem;margin:1rem 0 2rem}
+    .stat{text-align:center;flex:1;padding:1rem;background:#f5f5f5;border-radius:8px}
+    .stat b{display:block;font-size:1.5rem;color:#00b4d8}
+    table{width:100%;border-collapse:collapse;font-size:.85rem;margin-top:1rem}
+    th{background:#f0f0f0;text-align:left;padding:.4rem .6rem;border:1px solid #ddd}
+    td{padding:.4rem .6rem;border:1px solid #eee}
+    .footer{margin-top:2rem;font-size:.7rem;color:#888;border-top:1px solid #eee;padding-top:.5rem}
+  </style></head><body>
+  <h1>📊 RAFLY — Reporte de Sorteos</h1>
+  <p style="color:#666;font-size:.85rem">Generado: ${new Date().toLocaleString('es-AR')}</p>
+  <div class="stats">
+    <div class="stat"><b>${totalSorteos}</b>Sorteos</div>
+    <div class="stat"><b>${totalWinners}</b>Ganadores</div>
+    <div class="stat"><b>${totalParticipants}</b>Participantes</div>
+    <div class="stat"><b>${totalSorteos>0?Math.round(totalParticipants/totalSorteos):0}</b>Prom. Participantes</div>
+  </div>
+  <h2>Historial de sorteos</h2>
+  <table>
+    <tr><th>#</th><th>Fecha</th><th>Hora</th><th>Ganador/es</th><th>Suplentes</th><th>Participantes</th></tr>
+    ${history.map((h, i) => {
+      const d = new Date(h.date);
+      return `<tr><td>${i+1}</td><td>${d.toLocaleDateString('es-AR')}</td><td>${d.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'})}</td><td>${(h.winners||[]).join(', ')||'—'}</td><td>${(h.suplentes||[]).join(', ')||'—'}</td><td>${h.participants||'—'}</td></tr>`;
+    }).join('')}
+  </table>
+  <div class="footer">
+    <p>Reporte generado por RAFLY — Sorteos en vivo | rafly.onrender.com</p>
+    <p>Este documento certifica los sorteos realizados a través de la plataforma RAFLY.</p>
+  </div>
+  </body></html>`);
+  printWin.document.close();
+  setTimeout(() => printWin.print(), 500);
+});
+
+// Init
+renderDashboard();
+</script>
+</body>
+</html>
