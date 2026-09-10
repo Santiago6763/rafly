@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>RAFLY — Sorteos en vivo</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#00e5ff">
+<link rel="apple-touch-icon" href="/icon-192.png">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Exo+2:wght@400;500;600;700&display=swap">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -569,6 +572,34 @@ main{
 .platform-badge.youtube{background:rgba(255,0,0,.1);color:#ff0000}
 .platform-badge.tiktok{background:rgba(0,242,234,.1);color:#00f2ea}
 .url-platform-icon{width:16px;height:16px;display:inline-block;vertical-align:middle;margin-right:.3rem}
+
+/* ═══ LEVEL 3: Tools Dropdown ═══ */
+.tools-dropdown{position:fixed;top:52px;right:1rem;background:var(--surface);border:1px solid var(--border-bright);border-radius:10px;padding:.4rem;z-index:55;min-width:200px;opacity:0;transform:translateY(-8px);pointer-events:none;transition:all .25s var(--ease-out-expo);box-shadow:0 8px 32px rgba(0,0,0,.5)}
+.tools-dropdown.open{opacity:1;transform:translateY(0);pointer-events:auto}
+.tool-link{display:flex;align-items:center;gap:.6rem;padding:.55rem .7rem;border-radius:8px;color:var(--text);text-decoration:none;font-size:.8rem;font-weight:500;transition:all .15s}
+.tool-link:hover{background:rgba(0,229,255,.08);color:var(--neon-cyan)}
+.tool-link .tl-icon{font-size:1.1rem;width:24px;text-align:center}
+.tool-link .tl-name{flex:1}
+.tool-link .tl-badge{font-size:.55rem;background:var(--neon-purple);color:#fff;padding:.1rem .35rem;border-radius:4px;font-weight:700;text-transform:uppercase;letter-spacing:.03em}
+.tools-sep{height:1px;background:var(--border);margin:.3rem .5rem}
+
+/* ═══ LEVEL 3: Light Theme ═══ */
+body.light-theme{--void:#f0f0f5;--bg:#f5f5fa;--surface:#ffffff;--elevated:#eeeef5;--text:#1a1a2e;--text-muted:#6a6a8a;--text-dim:#aaaacc;--border:rgba(0,0,0,.08);--border-bright:rgba(0,0,0,.15)}
+body.light-theme{background:var(--bg);color:var(--text)}
+body.light-theme header{background:rgba(245,245,250,.9)}
+body.light-theme .scan-lines{display:none}
+body.light-theme .cursor-dot,.light-theme .cursor-ring{display:none}
+body.light-theme{cursor:auto}
+body.light-theme a,body.light-theme button,body.light-theme input,body.light-theme textarea,body.light-theme select{cursor:auto!important}
+body.light-theme .logo{filter:none}
+body.light-theme .stat-pill{background:#fff;border-color:rgba(0,0,0,.1)}
+body.light-theme textarea,body.light-theme input[type="text"]{background:#fff;border-color:rgba(0,0,0,.12);color:#1a1a2e}
+body.light-theme .side-panel{background:#fff}
+body.light-theme .p-item:hover{background:rgba(0,229,255,.08)!important}
+
+/* ═══ LEVEL 3: PWA Install ═══ */
+.pwa-install-btn{display:none;align-items:center;gap:.3rem;background:var(--neon-green);color:#060614;border:none;padding:.3rem .7rem;border-radius:20px;font-family:inherit;font-size:.7rem;font-weight:700;cursor:pointer;transition:all .2s}
+.pwa-install-btn:hover{opacity:.85}
 </style>
 </head>
 <body>
@@ -590,10 +621,22 @@ main{
     </div>
   </div>
   <div class="header-actions">
+    <button class="btn-icon" id="themeToggle" title="Cambiar tema">🌙</button>
+    <button class="btn-icon" id="toolsToggle" title="Herramientas">🧰</button>
     <button class="btn-icon" id="historyToggle" title="Historial">&#9776;</button>
     <button class="btn-icon" id="panelToggle" title="Panel de control">&#9881;</button>
   </div>
 </header>
+
+<!-- Tools Dropdown -->
+<div class="tools-dropdown" id="toolsDropdown">
+  <a href="/trivia.html" class="tool-link"><span class="tl-icon">🧠</span><span class="tl-name">Trivia Quiz</span><span class="tl-badge">Nuevo</span></a>
+  <a href="/raspadita.html" class="tool-link"><span class="tl-icon">🎟️</span><span class="tl-name">Raspadita</span><span class="tl-badge">Nuevo</span></a>
+  <a href="/legal.html" class="tool-link"><span class="tl-icon">📋</span><span class="tl-name">Bases Legales</span><span class="tl-badge">Nuevo</span></a>
+  <a href="/engagement.html" class="tool-link"><span class="tl-icon">📊</span><span class="tl-name">Engagement Calculator</span><span class="tl-badge">Nuevo</span></a>
+  <div class="tools-sep"></div>
+  <a href="/landing.html" class="tool-link"><span class="tl-icon">🌐</span><span class="tl-name">Landing Page</span></a>
+</div>
 
 <div class="panel-overlay" id="panelOverlay"></div>
 <aside class="side-panel" id="sidePanel">
@@ -2729,6 +2772,51 @@ function init() {
 
   // ── Level 2: Multi-platform URL detection ──
   document.getElementById('urlInput').addEventListener('input', (e) => updatePlatformBadge(e.target.value));
+
+  // ── Level 3: Theme Toggle ──
+  const themeBtn = document.getElementById('themeToggle');
+  const savedTheme = localStorage.getItem('rafly-theme');
+  if (savedTheme === 'light') { document.body.classList.add('light-theme'); themeBtn.textContent = '☀️'; }
+  themeBtn.addEventListener('click', () => {
+    document.body.classList.toggle('light-theme');
+    const isLight = document.body.classList.contains('light-theme');
+    themeBtn.textContent = isLight ? '☀️' : '🌙';
+    localStorage.setItem('rafly-theme', isLight ? 'light' : 'dark');
+  });
+
+  // ── Level 3: Tools Dropdown ──
+  const toolsBtn = document.getElementById('toolsToggle');
+  const toolsDrop = document.getElementById('toolsDropdown');
+  toolsBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toolsDrop.classList.toggle('open');
+  });
+  document.addEventListener('click', (e) => {
+    if (!toolsDrop.contains(e.target)) toolsDrop.classList.remove('open');
+  });
+
+  // ── Level 3: PWA Install ──
+  let deferredPrompt;
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    const installBtn = document.createElement('button');
+    installBtn.className = 'pwa-install-btn';
+    installBtn.style.display = 'flex';
+    installBtn.innerHTML = '📲 Instalar App';
+    installBtn.addEventListener('click', async () => {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') installBtn.remove();
+      deferredPrompt = null;
+    });
+    document.querySelector('.header-actions').prepend(installBtn);
+  });
+
+  // ── Level 3: Register Service Worker ──
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  }
 
   // Check Instagram
   checkIgConnection();
