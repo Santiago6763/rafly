@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RAFLY — Bases Legales</title>
+<link rel="manifest" href="/manifest.json">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Exo+2:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#060614;--surface:#0d0d2b;--border:rgba(255,255,255,.06);--text:#e0e0e8;--text-muted:#8888a8;--text-dim:#5a5a7a;--neon-cyan:#00e5ff;--neon-pink:#ff00aa;--neon-green:#39ff14;--gold:#ffd700}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:'Exo 2',sans-serif;min-height:100vh;overflow-x:hidden}
+.back-link{position:fixed;top:1rem;left:1rem;color:var(--text-muted);text-decoration:none;font-size:.8rem;z-index:100;display:flex;align-items:center;gap:.3rem;transition:color .2s}
+.back-link:hover{color:var(--neon-cyan)}
+.container{max-width:750px;margin:0 auto;padding:2rem 1rem}
+h1{font-family:'Orbitron',monospace;font-size:1.8rem;text-align:center;color:var(--neon-cyan);margin-bottom:.3rem}
+.subtitle{text-align:center;color:var(--text-muted);font-size:.85rem;margin-bottom:2rem}
+
+.form-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.5rem;margin-bottom:1rem}
+.form-card h2{font-family:'Orbitron',monospace;font-size:.9rem;color:var(--gold);margin-bottom:1rem;display:flex;align-items:center;gap:.5rem}
+.field{margin-bottom:.8rem}
+.field label{display:block;font-size:.75rem;color:var(--text-muted);margin-bottom:.3rem;font-weight:600}
+.field input,.field textarea,.field select{width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:.5rem .7rem;border-radius:8px;font-family:inherit;font-size:.85rem;outline:none;transition:border-color .2s}
+.field input:focus,.field textarea:focus,.field select:focus{border-color:var(--neon-cyan)}
+.field textarea{resize:vertical;min-height:60px}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:.5rem}
+.field .hint{font-size:.65rem;color:var(--text-dim);margin-top:.2rem}
+
+.checkbox-row{display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem;font-size:.8rem;color:var(--text-muted)}
+.checkbox-row input[type=checkbox]{accent-color:var(--neon-cyan);width:16px;height:16px}
+
+.btn{padding:.5rem 1.2rem;border:none;border-radius:8px;font-family:inherit;font-weight:700;font-size:.8rem;cursor:pointer;transition:all .2s}
+.btn-primary{background:var(--neon-cyan);color:#060614}
+.btn-primary:hover{opacity:.85}
+.btn-secondary{background:var(--surface);color:var(--text-muted);border:1px solid var(--border)}
+.btn-secondary:hover{border-color:var(--neon-cyan)}
+.btn-gold{background:linear-gradient(135deg,#ffd700,#ffaa00);color:#1a1a2e}
+.btn-block{width:100%;padding:.7rem;font-size:.95rem}
+.btn-row{display:flex;gap:.5rem;margin-top:1rem;flex-wrap:wrap;justify-content:center}
+
+/* Preview */
+.preview-area{display:none}
+.preview-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.5rem;margin-bottom:1rem}
+.preview-card h2{font-family:'Orbitron',monospace;font-size:.9rem;color:var(--neon-cyan);margin-bottom:1rem}
+.legal-text{font-size:.8rem;line-height:1.7;color:var(--text);white-space:pre-wrap;max-height:500px;overflow-y:auto;padding:1rem;background:var(--bg);border-radius:8px;border:1px solid var(--border)}
+.legal-text h3{color:var(--gold);font-size:.85rem;margin:1rem 0 .3rem;font-family:'Orbitron',monospace}
+.legal-text p{margin-bottom:.5rem}
+
+.toast{position:fixed;bottom:2rem;left:50%;transform:translateX(-50%);background:var(--neon-green);color:#060614;padding:.5rem 1.2rem;border-radius:20px;font-size:.8rem;font-weight:700;opacity:0;transition:opacity .3s;pointer-events:none;z-index:200}
+.toast.show{opacity:1}
+</style>
+</head>
+<body>
+<a href="/" class="back-link">← Volver a RAFLY</a>
+<div class="container">
+  <h1>📋 BASES LEGALES</h1>
+  <p class="subtitle">Generá las bases legales para tu sorteo en segundos</p>
+
+  <!-- FORM -->
+  <div id="formArea">
+    <div class="form-card">
+      <h2>📌 Datos del sorteo</h2>
+      <div class="field">
+        <label>Nombre del sorteo / concurso</label>
+        <input type="text" id="contestName" placeholder="Ej: Sorteo Navideño 2026">
+      </div>
+      <div class="field">
+        <label>Organizador (marca / empresa / persona)</label>
+        <input type="text" id="organizer" placeholder="Ej: Mi Marca S.R.L.">
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Fecha de inicio</label>
+          <input type="date" id="startDate">
+        </div>
+        <div class="field">
+          <label>Fecha de finalización</label>
+          <input type="date" id="endDate">
+        </div>
+      </div>
+      <div class="field">
+        <label>Fecha y hora del sorteo</label>
+        <input type="datetime-local" id="drawDate">
+      </div>
+    </div>
+
+    <div class="form-card">
+      <h2>🎁 Premio(s)</h2>
+      <div class="field">
+        <label>Descripción del/los premio(s)</label>
+        <textarea id="prizes" placeholder="Ej: 1er premio: iPhone 15 Pro&#10;2do premio: AirPods Pro&#10;3er premio: Gift Card $10.000"></textarea>
+      </div>
+      <div class="field">
+        <label>Valor aproximado total de los premios</label>
+        <input type="text" id="prizeValue" placeholder="Ej: $500.000 ARS">
+      </div>
+    </div>
+
+    <div class="form-card">
+      <h2>👥 Participación</h2>
+      <div class="field">
+        <label>Red social / plataforma</label>
+        <select id="platform">
+          <option value="Instagram">Instagram</option>
+          <option value="YouTube">YouTube</option>
+          <option value="TikTok">TikTok</option>
+          <option value="Facebook">Facebook</option>
+          <option value="Twitter/X">Twitter/X</option>
+          <option value="Múltiples plataformas">Múltiples plataformas</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Requisitos para participar</label>
+        <div style="margin-top:.3rem">
+          <label class="checkbox-row"><input type="checkbox" id="reqFollow" checked> Seguir la cuenta</label>
+          <label class="checkbox-row"><input type="checkbox" id="reqLike" checked> Dar like a la publicación</label>
+          <label class="checkbox-row"><input type="checkbox" id="reqComment" checked> Comentar en la publicación</label>
+          <label class="checkbox-row"><input type="checkbox" id="reqTag"> Etiquetar amigos</label>
+          <label class="checkbox-row"><input type="checkbox" id="reqShare"> Compartir en stories</label>
+          <label class="checkbox-row"><input type="checkbox" id="reqSubscribe"> Suscribirse al canal</label>
+          <label class="checkbox-row"><input type="checkbox" id="reqHashtag"> Usar hashtag específico</label>
+        </div>
+      </div>
+      <div class="field" id="hashtagField" style="display:none">
+        <label>Hashtag requerido</label>
+        <input type="text" id="hashtag" placeholder="Ej: #SorteoMiMarca">
+      </div>
+      <div class="field" id="tagCountField" style="display:none">
+        <label>Cantidad de amigos a etiquetar</label>
+        <input type="number" id="tagCount" value="2" min="1" max="10" style="width:80px">
+      </div>
+    </div>
+
+    <div class="form-card">
+      <h2>⚖️ Condiciones</h2>
+      <div class="field">
+        <label>País / región de alcance</label>
+        <input type="text" id="country" value="Argentina" placeholder="Ej: Argentina, LATAM, Mundial">
+      </div>
+      <div class="field">
+        <label>Edad mínima para participar</label>
+        <input type="number" id="minAge" value="18" min="13" max="99" style="width:80px">
+      </div>
+      <div class="field">
+        <label>Método de selección del ganador</label>
+        <select id="selectionMethod">
+          <option value="aleatorio">Selección aleatoria (RAFLY)</option>
+          <option value="jurado">Jurado / evaluación</option>
+          <option value="primeros">Primeros en participar</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Plazo para reclamar el premio (días)</label>
+        <input type="number" id="claimDays" value="7" min="1" max="90" style="width:80px">
+      </div>
+      <div class="field">
+        <label>Condiciones adicionales (opcional)</label>
+        <textarea id="extraConditions" placeholder="Ej: No aplica para empleados de la empresa. Solo válido para cuentas públicas."></textarea>
+      </div>
+    </div>
+
+    <div class="form-card">
+      <h2>📞 Contacto</h2>
+      <div class="field-row">
+        <div class="field">
+          <label>Email de contacto</label>
+          <input type="email" id="contactEmail" placeholder="sorteos@mimarca.com">
+        </div>
+        <div class="field">
+          <label>Instagram / web (opcional)</label>
+          <input type="text" id="contactWeb" placeholder="@mimarca">
+        </div>
+      </div>
+    </div>
+
+    <button class="btn btn-gold btn-block" id="generateBtn">📋 Generar Bases Legales</button>
+  </div>
+
+  <!-- PREVIEW -->
+  <div class="preview-area" id="previewArea">
+    <div class="preview-card">
+      <h2>📄 Vista previa de Bases Legales</h2>
+      <div class="legal-text" id="legalOutput"></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-gold" id="copyBtn">📋 Copiar texto</button>
+      <button class="btn btn-primary" id="downloadBtn">⬇️ Descargar .txt</button>
+      <button class="btn btn-secondary" id="editBtn">✏️ Editar datos</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// Toggle conditional fields
+document.getElementById('reqHashtag').addEventListener('change', function() {
+  document.getElementById('hashtagField').style.display = this.checked ? 'block' : 'none';
+});
+document.getElementById('reqTag').addEventListener('change', function() {
+  document.getElementById('tagCountField').style.display = this.checked ? 'block' : 'none';
+});
+
+// Set default dates
+const today = new Date();
+const nextWeek = new Date(today);
+nextWeek.setDate(today.getDate() + 7);
+document.getElementById('startDate').value = today.toISOString().split('T')[0];
+document.getElementById('endDate').value = nextWeek.toISOString().split('T')[0];
+const drawDt = new Date(nextWeek);
+drawDt.setHours(20, 0);
+document.getElementById('drawDate').value = drawDt.toISOString().slice(0, 16);
+
+function formatDate(dateStr) {
+  if (!dateStr) return '___';
+  const d = new Date(dateStr + 'T12:00:00');
+  return d.toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+function formatDateTime(dtStr) {
+  if (!dtStr) return '___';
+  const d = new Date(dtStr);
+  return d.toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' }) +
+    ' a las ' + d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) + ' hs';
+}
+
+function generateLegal() {
+  const data = {
+    name: document.getElementById('contestName').value || 'Sorteo',
+    organizer: document.getElementById('organizer').value || '[Organizador]',
+    startDate: document.getElementById('startDate').value,
+    endDate: document.getElementById('endDate').value,
+    drawDate: document.getElementById('drawDate').value,
+    prizes: document.getElementById('prizes').value || '[Descripción del premio]',
+    prizeValue: document.getElementById('prizeValue').value,
+    platform: document.getElementById('platform').value,
+    country: document.getElementById('country').value || 'Argentina',
+    minAge: document.getElementById('minAge').value || '18',
+    selectionMethod: document.getElementById('selectionMethod').value,
+    claimDays: document.getElementById('claimDays').value || '7',
+    extraConditions: document.getElementById('extraConditions').value,
+    contactEmail: document.getElementById('contactEmail').value,
+    contactWeb: document.getElementById('contactWeb').value,
+    hashtag: document.getElementById('hashtag').value,
+    tagCount: document.getElementById('tagCount').value || '2'
+  };
+
+  // Build requirements list
+  const reqs = [];
+  if (document.getElementById('reqFollow').checked) reqs.push('Seguir la cuenta oficial del organizador en ' + data.platform);
+  if (document.getElementById('reqLike').checked) reqs.push('Dar "Me gusta" a la publicación del sorteo');
+  if (document.getElementById('reqComment').checked) reqs.push('Dejar un comentario en la publicación del sorteo');
+  if (document.getElementById('reqTag').checked) reqs.push(`Etiquetar a ${data.tagCount} amigo(s) en los comentarios (cuentas reales y activas)`);
+  if (document.getElementById('reqShare').checked) reqs.push('Compartir la publicación en sus stories mencionando al organizador');
+  if (document.getElementById('reqSubscribe').checked) reqs.push('Suscribirse al canal del organizador');
+  if (document.getElementById('reqHashtag').checked && data.hashtag) reqs.push(`Utilizar el hashtag ${data.hashtag} en su participación`);
+
+  const methodText = {
+    'aleatorio': 'Los ganadores serán seleccionados de manera aleatoria mediante la plataforma RAFLY (rafly.onrender.com), que garantiza un proceso transparente e imparcial.',
+    'jurado': 'Los ganadores serán seleccionados por un jurado designado por el organizador, quien evaluará las participaciones según criterios previamente establecidos.',
+    'primeros': 'Los ganadores serán los primeros participantes que cumplan con todos los requisitos establecidos en estas bases.'
+  };
+
+  let text = `BASES Y CONDICIONES — "${data.name.toUpperCase()}"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. ORGANIZADOR
+
+El presente sorteo/concurso denominado "${data.name}" (en adelante, "el Sorteo") es organizado por ${data.organizer} (en adelante, "el Organizador").
+
+2. VIGENCIA
+
+El Sorteo se llevará a cabo desde el ${formatDate(data.startDate)} hasta el ${formatDate(data.endDate)}, inclusive. La selección del/los ganador(es) se realizará el ${formatDateTime(data.drawDate)}.
+
+3. ALCANCE TERRITORIAL
+
+Podrán participar del Sorteo personas que residan en ${data.country}.
+
+4. DESTINATARIOS
+
+Podrán participar todas las personas mayores de ${data.minAge} años que cumplan con los requisitos establecidos en la cláusula 5 de las presentes bases y condiciones.${data.extraConditions ? '\n\n' + data.extraConditions : ''}
+
+5. MECÁNICA DE PARTICIPACIÓN
+
+Para participar del Sorteo, los interesados deberán cumplir con TODOS los siguientes requisitos durante el período de vigencia:
+
+${reqs.map((r, i) => `   ${i + 1}. ${r}`).join('\n')}
+
+La participación en el Sorteo implica la aceptación total e incondicional de estas bases y condiciones.
+
+6. PREMIO(S)
+
+${data.prizes}
+${data.prizeValue ? `\nValor aproximado total: ${data.prizeValue}` : ''}
+
+El/los premio(s) no es/son canjeable(s) por dinero en efectivo ni transferible(s) a terceros, salvo autorización expresa del Organizador. El Organizador se reserva el derecho de sustituir el/los premio(s) por otro(s) de valor similar en caso de fuerza mayor o indisponibilidad.
+
+7. SELECCIÓN DEL GANADOR
+
+${methodText[data.selectionMethod]}
+
+Se seleccionará además al menos un (1) suplente para el caso de que el ganador no cumpla con los requisitos o no reclame su premio dentro del plazo establecido.
+
+8. NOTIFICACIÓN Y ENTREGA DEL PREMIO
+
+El/los ganador(es) será(n) notificado(s) a través de ${data.platform} y/o por los medios de contacto disponibles. El ganador deberá reclamar su premio dentro de los ${data.claimDays} (${numberToWords(parseInt(data.claimDays))}) días corridos posteriores a la notificación. Vencido dicho plazo sin que el ganador se haya contactado, se procederá a contactar al suplente.
+
+Para hacer efectiva la entrega del premio, el ganador deberá acreditar su identidad y el cumplimiento de todos los requisitos de participación.
+
+9. LIMITACIONES DE RESPONSABILIDAD
+
+El Organizador no se responsabiliza por:
+   • Problemas técnicos en las plataformas de redes sociales
+   • Interrupciones del servicio de internet
+   • Participaciones incompletas o que no cumplan los requisitos
+   • Datos erróneos proporcionados por los participantes
+   • Demoras en la entrega del premio por causas ajenas al Organizador
+
+10. DATOS PERSONALES
+
+Los datos personales de los participantes serán tratados con confidencialidad y utilizados únicamente para los fines del presente Sorteo, de acuerdo con la legislación vigente en materia de protección de datos personales.
+
+11. PUBLICACIÓN DE RESULTADOS
+
+Los resultados serán publicados en la cuenta oficial del Organizador en ${data.platform}. El ganador autoriza al Organizador a publicar su nombre de usuario en relación con el Sorteo.
+
+12. MODIFICACIONES Y CANCELACIÓN
+
+El Organizador se reserva el derecho de modificar, suspender o cancelar el Sorteo en cualquier momento, comunicando dicha decisión a través de sus canales oficiales. En caso de cancelación, no se generará derecho a compensación alguna.
+
+13. ACEPTACIÓN
+
+La participación en el Sorteo implica el conocimiento y la aceptación total de estas bases y condiciones.
+
+14. CONTACTO
+
+Para consultas relacionadas con el Sorteo:${data.contactEmail ? '\n   Email: ' + data.contactEmail : ''}${data.contactWeb ? '\n   Redes: ' + data.contactWeb : ''}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Documento generado con RAFLY — rafly.onrender.com
+Fecha de emisión: ${new Date().toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })}`;
+
+  document.getElementById('legalOutput').textContent = text;
+  document.getElementById('formArea').style.display = 'none';
+  document.getElementById('previewArea').style.display = 'block';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function numberToWords(n) {
+  const words = {1:'un',2:'dos',3:'tres',4:'cuatro',5:'cinco',6:'seis',7:'siete',8:'ocho',9:'nueve',10:'diez',
+    11:'once',12:'doce',13:'trece',14:'catorce',15:'quince',20:'veinte',30:'treinta',60:'sesenta',90:'noventa'};
+  return words[n] || String(n);
+}
+
+function copyLegal() {
+  const text = document.getElementById('legalOutput').textContent;
+  navigator.clipboard.writeText(text).then(() => showToast('✅ Bases legales copiadas'));
+}
+
+function downloadLegal() {
+  const text = document.getElementById('legalOutput').textContent;
+  const name = document.getElementById('contestName').value || 'Sorteo';
+  const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `Bases_Legales_${name.replace(/\s+/g, '_')}.txt`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('⬇️ Descargando archivo...');
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+document.getElementById('generateBtn').addEventListener('click', generateLegal);
+document.getElementById('copyBtn').addEventListener('click', copyLegal);
+document.getElementById('downloadBtn').addEventListener('click', downloadLegal);
+document.getElementById('editBtn').addEventListener('click', () => {
+  document.getElementById('previewArea').style.display = 'none';
+  document.getElementById('formArea').style.display = 'block';
+});
+</script>
+</body>
+</html>
