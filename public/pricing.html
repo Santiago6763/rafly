@@ -180,7 +180,7 @@ footer a:hover{color:var(--neon-cyan)}
       <li><span class="icon check">✓</span>Historial ilimitado</li>
       <li><span class="icon cross">✕</span>Sin marca blanca</li>
     </ul>
-    <a href="/" class="plan-cta cta-pro">Empezar prueba Pro →</a>
+    <button class="plan-cta cta-pro" onclick="startCheckout('pro')">Suscribirme a Pro →</button>
   </div>
 
   <!-- Enterprise -->
@@ -202,7 +202,7 @@ footer a:hover{color:var(--neon-cyan)}
       <li><span class="icon check">✓</span>Soporte prioritario</li>
       <li><span class="icon check">✓</span>Multi-usuario (5 seats)</li>
     </ul>
-    <a href="/" class="plan-cta cta-enterprise">Contactar ventas</a>
+    <button class="plan-cta cta-enterprise" onclick="startCheckout('enterprise')">Suscribirme a Enterprise →</button>
   </div>
 </div>
 
@@ -292,7 +292,7 @@ footer a:hover{color:var(--neon-cyan)}
 </footer>
 
 <script>
-// Billing toggle
+// ── Billing toggle ──
 let isAnnual = false;
 const toggle = document.getElementById('billingToggle');
 const lblM = document.getElementById('lblMonthly');
@@ -316,7 +316,126 @@ function updatePrices() {
   document.getElementById('entPeriod').textContent = period;
 }
 
-// Smooth scroll for anchor links
+// ── Stripe Checkout ──
+function getToken() {
+  try { return localStorage.getItem('rafly-token'); } catch(e) { return null; }
+}
+
+async function startCheckout(plan) {
+  const token = getToken();
+  if (!token) {
+    // Not logged in — redirect to app to login first
+    alert('Necesitás iniciar sesión para suscribirte. Te redirigimos a la app.');
+    window.location.href = '/?action=login&redirect=pricing&plan=' + plan;
+    return;
+  }
+
+  const billing = isAnnual ? 'annual' : 'monthly';
+  const btn = event.target;
+  const origText = btn.textContent;
+  btn.textContent = 'Procesando...';
+  btn.disabled = true;
+
+  try {
+    const res = await fetch('/api/stripe/checkout', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ plan, billing })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      alert(data.error || 'Error al iniciar el pago');
+      btn.textContent = origText;
+      btn.disabled = false;
+      return;
+    }
+
+    // Redirect to Stripe Checkout or Customer Portal
+    window.location.href = data.url;
+  } catch (err) {
+    alert('Error de conexión. Intentá de nuevo.');
+    btn.textContent = origText;
+    btn.disabled = false;
+  }
+}
+
+// ── Handle return from Stripe ──
+const urlParams = new URLSearchParams(window.location.search);
+const sessionResult = urlParams.get('session');
+
+if (sessionResult === 'success') {
+  const plan = urlParams.get('plan') || 'pro';
+  // Show success banner
+  const banner = document.createElement('div');
+  banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:999;background:linear-gradient(135deg,var(--neon-green),#00b85c);color:#060614;text-align:center;padding:.8rem 1rem;font-weight:700;font-size:.9rem;animation:slideDown .4s ease';
+  banner.innerHTML = `🎉 ¡Bienvenido al plan ${plan.charAt(0).toUpperCase() + plan.slice(1)}! Tu suscripción está activa. <a href="/" style="color:#060614;text-decoration:underline;margin-left:.5rem">Ir a la app →</a>`;
+  document.body.appendChild(banner);
+  // Update token user info
+  const token = getToken();
+  if (token) {
+    fetch('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json()).catch(() => {});
+  }
+  // Clean URL
+  history.replaceState({}, '', '/pricing.html');
+} else if (sessionResult === 'cancel') {
+  history.replaceState({}, '', '/pricing.html');
+} else if (sessionResult === 'portal') {
+  history.replaceState({}, '', '/pricing.html');
+}
+
+// ── Manage subscription button (for existing subscribers) ──
+async function checkExistingSubscription() {
+  const token = getToken();
+  if (!token) return;
+  try {
+    const res = await fetch('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data.user && data.user.plan !== 'free') {
+      // Show "Manage subscription" link in nav
+      const manageLink = document.createElement('a');
+      manageLink.href = '#';
+      manageLink.textContent = 'Gestionar suscripción';
+      manageLink.style.cssText = 'color:var(--neon-green);font-weight:600';
+      manageLink.addEventListener('click', async (e) => {
+        e.preventDefault();
+        try {
+          const pRes = await fetch('/api/stripe/portal', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
+          });
+          const pData = await pRes.json();
+          if (pData.url) window.location.href = pData.url;
+          else alert(pData.error || 'Error');
+        } catch(err) { alert('Error de conexión'); }
+      });
+      document.querySelector('.nav-links').insertBefore(manageLink, document.querySelector('.nav-cta'));
+
+      // Update CTA button text for current plan
+      const planBtns = document.querySelectorAll('.plan-cta');
+      planBtns.forEach(btn => {
+        if (btn.textContent.includes('Pro') && data.user.plan === 'pro') {
+          btn.textContent = 'Plan actual ✓';
+          btn.style.opacity = '.6';
+          btn.style.pointerEvents = 'none';
+        } else if (btn.textContent.includes('Enterprise') && data.user.plan === 'enterprise') {
+          btn.textContent = 'Plan actual ✓';
+          btn.style.opacity = '.6';
+          btn.style.pointerEvents = 'none';
+        }
+      });
+    }
+  } catch(e) {}
+}
+checkExistingSubscription();
+
+// ── Smooth scroll ──
 document.querySelectorAll('a[href^="#"]').forEach(a => {
   a.addEventListener('click', e => {
     e.preventDefault();
