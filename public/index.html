@@ -3633,20 +3633,27 @@ function init() {
 
   // ── Level 3: PWA Install ──
   let deferredPrompt;
+  let pwaInstallBtn = null;
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
     deferredPrompt = e;
-    const installBtn = document.createElement('button');
-    installBtn.className = 'pwa-install-btn';
-    installBtn.style.display = 'flex';
-    installBtn.innerHTML = '📲 Instalar App';
-    installBtn.addEventListener('click', async () => {
-      deferredPrompt.prompt();
-      const { outcome } = await deferredPrompt.userChoice;
-      if (outcome === 'accepted') installBtn.remove();
-      deferredPrompt = null;
-    });
-    document.querySelector('.header-actions').prepend(installBtn);
+    // Reutilizar el botón existente en vez de crear uno nuevo
+    if (!pwaInstallBtn) {
+      pwaInstallBtn = document.createElement('button');
+      pwaInstallBtn.className = 'pwa-install-btn';
+      pwaInstallBtn.innerHTML = '📲 Instalar App';
+      pwaInstallBtn.addEventListener('click', async () => {
+        if (!deferredPrompt) return;
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        if (outcome === 'accepted') {
+          pwaInstallBtn.style.display = 'none';
+        }
+        deferredPrompt = null;
+      });
+      document.querySelector('.header-actions').prepend(pwaInstallBtn);
+    }
+    pwaInstallBtn.style.display = 'flex';
   });
 
   // ── Level 3: Register Service Worker ──
