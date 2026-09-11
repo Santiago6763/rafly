@@ -14,7 +14,7 @@ require('dotenv').config();
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const Database = require('better-sqlite3');
+const { Pool } = require('pg');
 const path = require('path');
 const app = express();
 
@@ -46,64 +46,165 @@ let session = {
 const JWT_SECRET = process.env.JWT_SECRET || 'rafly-secret-change-in-production-' + Date.now();
 const JWT_EXPIRES = '30d';
 
-// ── SQLite Database ───────────────────────────────────────────
-const dbPath = path.join(__dirname, 'data', 'rafly.db');
-const fs = require('fs');
-fs.mkdirSync(path.join(__dirname, 'data'), { recursive: true });
-const db = new Database(dbPath);
-db.pragma('journal_mode = WAL');
+// ── PostgreSQL Database ──────────────────────────────────────
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.DATABASE_URL && process.env.DATABASE_URL.includes('.neon.tech')
+    ? { rejectUnauthorized: false }
+    : undefined
+});
 
-// Create tables
-db.exec(`
-  CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    email TEXT UNIQUE NOT NULL,
-    password TEXT NOT NULL,
-    name TEXT DEFAULT '',
-    plan TEXT DEFAULT 'free',
-    brand_settings TEXT DEFAULT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
-
-  CREATE TABLE IF NOT EXISTS sorteo_history (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    winner TEXT NOT NULL,
-    suplentes TEXT DEFAULT '[]',
-    participants_count INTEGER DEFAULT 0,
-    platform TEXT DEFAULT 'manual',
-    mode TEXT DEFAULT 'slot',
-    post_url TEXT DEFAULT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id)
-  );
-
-  CREATE TABLE IF NOT EXISTS daily_counts (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    date TEXT NOT NULL,
-    count INTEGER DEFAULT 0,
-    UNIQUE(user_id, date),
-    FOREIGN KEY (user_id) REFERENCES users(id)
-  );
-`);
-
-// Prepared statements
-const stmts = {
-  findUserByEmail: db.prepare('SELECT * FROM users WHERE email = ?'),
-  findUserById: db.prepare('SELECT id, email, name, plan, brand_settings, created_at FROM users WHERE id = ?'),
-  createUser: db.prepare('INSERT INTO users (email, password, name) VALUES (?, ?, ?)'),
-  updateUser: db.prepare('UPDATE users SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'),
-  updatePlan: db.prepare('UPDATE users SET plan = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'),
-  updateBrand: db.prepare('UPDATE users SET brand_settings = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'),
-  addSorteo: db.prepare('INSERT INTO sorteo_history (user_id, winner, suplentes, participants_count, platform, mode, post_url) VALUES (?, ?, ?, ?, ?, ?, ?)'),
-  getSorteos: db.prepare('SELECT * FROM sorteo_history WHERE user_id = ? ORDER BY created_at DESC LIMIT ?'),
-  getSorteoCount: db.prepare('SELECT COUNT(*) as total FROM sorteo_history WHERE user_id = ?'),
-  getDailyCount: db.prepare('SELECT count FROM daily_counts WHERE user_id = ? AND date = ?'),
-  upsertDailyCount: db.prepare(`INSERT INTO daily_counts (user_id, date, count) VALUES (?, ?, 1)
-    ON CONFLICT(user_id, date) DO UPDATE SET count = count + 1`),
+// Helper functions for cleaner DB access
+const db = {
+  async get(text, params = []) {
+    const { rows } = await pool.query(text, params);
+    return rows[0] || null;
+  },
+  async all(text, params = []) {
+    const { rows } = await pool.query(text, params);
+    return rows;
+  },
+  async run(text, params = []) {
+    return await pool.query(text, params);
+  }
 };
+
+// Initialize all tables
+async function initDB() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      id SERIAL PRIMARY KEY,
+      email TEXT UNIQUE NOT NULL,
+      password TEXT NOT NULL,
+      name TEXT DEFAULT '',
+      plan TEXT DEFAULT 'free',
+      brand_settings TEXT DEFAULT NULL,
+      stripe_customer_id TEXT DEFAULT NULL,
+      stripe_subscription_id TEXT DEFAULT NULL,
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS sorteo_history (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      winner TEXT NOT NULL,
+      suplentes TEXT DEFAULT '[]',
+      participants_count INTEGER DEFAULT 0,
+      platform TEXT DEFAULT 'manual',
+      mode TEXT DEFAULT 'slot',
+      post_url TEXT DEFAULT NULL,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS daily_counts (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      date TEXT NOT NULL,
+      count INTEGER DEFAULT 0,
+      UNIQUE(user_id, date)
+    );
+
+    CREATE TABLE IF NOT EXISTS push_subscriptions (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      endpoint TEXT UNIQUE NOT NULL,
+      keys_p256dh TEXT NOT NULL,
+      keys_auth TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS api_keys (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      key_hash TEXT UNIQUE NOT NULL,
+      key_prefix TEXT NOT NULL,
+      name TEXT DEFAULT 'default',
+      created_at TIMESTAMP DEFAULT NOW(),
+      last_used TIMESTAMP,
+      requests_today INTEGER DEFAULT 0,
+      requests_total INTEGER DEFAULT 0
+    );
+
+    CREATE TABLE IF NOT EXISTS scheduled_sorteos (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      title TEXT DEFAULT 'Sorteo programado',
+      participants TEXT NOT NULL,
+      winner_count INTEGER DEFAULT 1,
+      suplente_count INTEGER DEFAULT 0,
+      remove_duplicates INTEGER DEFAULT 0,
+      mode TEXT DEFAULT 'slot',
+      scheduled_at TIMESTAMP NOT NULL,
+      status TEXT DEFAULT 'pending',
+      winners TEXT DEFAULT NULL,
+      executed_at TIMESTAMP DEFAULT NULL,
+      share_url TEXT DEFAULT NULL,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS teams (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      owner_id INTEGER NOT NULL REFERENCES users(id),
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS team_members (
+      id SERIAL PRIMARY KEY,
+      team_id INTEGER NOT NULL REFERENCES teams(id),
+      user_id INTEGER,
+      email TEXT NOT NULL,
+      role TEXT DEFAULT 'viewer',
+      status TEXT DEFAULT 'pending',
+      invited_at TIMESTAMP DEFAULT NOW(),
+      joined_at TIMESTAMP DEFAULT NULL,
+      UNIQUE(team_id, email)
+    );
+
+    CREATE TABLE IF NOT EXISTS sorteo_shares (
+      id SERIAL PRIMARY KEY,
+      sorteo_id INTEGER NOT NULL,
+      team_id INTEGER NOT NULL REFERENCES teams(id),
+      shared_by INTEGER NOT NULL REFERENCES users(id),
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS webhooks (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      url TEXT NOT NULL,
+      events TEXT NOT NULL DEFAULT '["sorteo.completed"]',
+      secret TEXT NOT NULL,
+      active INTEGER DEFAULT 1,
+      created_at TIMESTAMP DEFAULT NOW(),
+      last_triggered TIMESTAMP DEFAULT NULL,
+      fail_count INTEGER DEFAULT 0
+    );
+
+    CREATE TABLE IF NOT EXISTS webhook_logs (
+      id SERIAL PRIMARY KEY,
+      webhook_id INTEGER NOT NULL REFERENCES webhooks(id),
+      event TEXT NOT NULL,
+      payload TEXT NOT NULL,
+      status_code INTEGER,
+      response TEXT,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS widgets (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      widget_key TEXT UNIQUE NOT NULL,
+      name TEXT DEFAULT 'Mi Widget',
+      config TEXT DEFAULT '{}',
+      active INTEGER DEFAULT 1,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+  `);
+
+  console.log('  ✦ Database tables initialized');
+}
 
 // ── Auth Middleware ────────────────────────────────────────────
 function authMiddleware(req, res, next) {
@@ -209,8 +310,7 @@ app.get('/auth/callback', async (req, res) => {
     const longData = await longRes.json();
     session.accessToken = longData.access_token || tokenData.access_token;
 
-    // 3. Obtener perfil de Instagram (usar /me en vez del ID numérico
-    //    para evitar problemas de precisión con IDs grandes en JavaScript)
+    // 3. Obtener perfil de Instagram
     const profile = await graphGet('/me', {
       fields: 'id,username,account_type,profile_picture_url'
     });
@@ -353,12 +453,10 @@ function detectPlatform(url) {
 
 // ── YouTube comment scraping ──
 async function scrapeYouTubeComments(videoId) {
-  // Use YouTube's internal API (no key needed, limited results)
   const comments = [];
   let postInfo = null;
 
   try {
-    // Get video info via oEmbed
     const oembedRes = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`);
     if (oembedRes.ok) {
       const oembed = await oembedRes.json();
@@ -376,7 +474,6 @@ async function scrapeYouTubeComments(videoId) {
     };
   }
 
-  // Try to get comments via YouTube page scraping
   try {
     const pageRes = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
       headers: {
@@ -386,12 +483,10 @@ async function scrapeYouTubeComments(videoId) {
     });
     if (pageRes.ok) {
       const html = await pageRes.text();
-      // Extract initial data JSON
       const match = html.match(/var ytInitialData\s*=\s*({.*?});\s*<\/script>/s);
       if (match) {
         try {
           const data = JSON.parse(match[1]);
-          // Navigate to comment section in the data structure
           const contents = data?.contents?.twoColumnWatchNextResults?.results?.results?.contents;
           if (contents) {
             for (const section of contents) {
@@ -422,7 +517,6 @@ async function scrapeTikTokComments(url) {
   let postInfo = null;
   const comments = [];
 
-  // Try oEmbed for video info
   try {
     const oembedRes = await fetch(`https://www.tiktok.com/oembed?url=${encodeURIComponent(url)}`);
     if (oembedRes.ok) {
@@ -434,8 +528,6 @@ async function scrapeTikTokComments(url) {
     }
   } catch (e) { /* oEmbed failed */ }
 
-  // TikTok comments are very hard to scrape without API access
-  // We return post info and note that manual paste is needed for comments
   return { comments, post: postInfo };
 }
 
@@ -481,7 +573,7 @@ app.post('/api/scrape', async (req, res) => {
   if (!shortcode) return res.status(400).json({ error: 'URL de Instagram no válida. Usá un link de post, reel o carrusel.' });
 
   try {
-    // 1. Obtener info del post via oEmbed (confiable, usa app credentials)
+    // 1. Obtener info del post via oEmbed
     let postInfo = null;
     try {
       const oembedUrl = `https://graph.facebook.com/v20.0/instagram_oembed`
@@ -498,7 +590,7 @@ app.post('/api/scrape', async (req, res) => {
     let comments = [];
     let method = 'none';
 
-    // Método A: Instagram GraphQL endpoint (público, sin auth)
+    // Método A: Instagram GraphQL endpoint
     try {
       const graphqlUrl = `https://www.instagram.com/graphql/query/`
         + `?query_hash=bc3296d1ce80a24b1b6e40b1e72903f5`
@@ -522,7 +614,6 @@ app.post('/api/scrape', async (req, res) => {
         }));
         if (comments.length > 0) method = 'graphql';
 
-        // Obtener thumbnail del post si oEmbed falló
         if (!postInfo) {
           const media = gData?.data?.shortcode_media;
           if (media) {
@@ -547,7 +638,6 @@ app.post('/api/scrape', async (req, res) => {
         });
         if (pageRes.ok) {
           const html = await pageRes.text();
-          // Buscar JSON embebido en el HTML
           const jsonMatch = html.match(/window\._sharedData\s*=\s*({.*?});\s*<\/script>/s)
             || html.match(/"edge_media_to_parent_comment":\s*(\{.*?\})\s*,\s*"edge_media_to_hoisted_comment"/s);
           if (jsonMatch) {
@@ -622,20 +712,24 @@ app.post('/api/auth/register', async (req, res) => {
   if (!email || !password) return res.status(400).json({ error: 'Email y contraseña requeridos' });
   if (password.length < 6) return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
 
-  // Normalize email
   const normalizedEmail = email.trim().toLowerCase();
 
-  // Check existing
-  const existing = stmts.findUserByEmail.get(normalizedEmail);
-  if (existing) return res.status(409).json({ error: 'Ya existe una cuenta con ese email' });
-
   try {
-    const hashed = await bcrypt.hash(password, 10);
-    const result = stmts.createUser.run(normalizedEmail, hashed, name || '');
-    const userId = result.lastInsertRowid;
+    const existing = await db.get('SELECT * FROM users WHERE email = $1', [normalizedEmail]);
+    if (existing) return res.status(409).json({ error: 'Ya existe una cuenta con ese email' });
 
-    const token = jwt.sign({ userId: Number(userId) }, JWT_SECRET, { expiresIn: JWT_EXPIRES });
-    const user = stmts.findUserById.get(userId);
+    const hashed = await bcrypt.hash(password, 10);
+    const result = await db.get(
+      'INSERT INTO users (email, password, name) VALUES ($1, $2, $3) RETURNING id',
+      [normalizedEmail, hashed, name || '']
+    );
+    const userId = result.id;
+
+    const token = jwt.sign({ userId }, JWT_SECRET, { expiresIn: JWT_EXPIRES });
+    const user = await db.get(
+      'SELECT id, email, name, plan, brand_settings, created_at FROM users WHERE id = $1',
+      [userId]
+    );
 
     res.status(201).json({ token, user });
   } catch (err) {
@@ -650,18 +744,22 @@ app.post('/api/auth/login', async (req, res) => {
   if (!email || !password) return res.status(400).json({ error: 'Email y contraseña requeridos' });
 
   const normalizedEmail = email.trim().toLowerCase();
-  const user = stmts.findUserByEmail.get(normalizedEmail);
-  if (!user) return res.status(401).json({ error: 'Credenciales inválidas' });
 
   try {
+    const user = await db.get('SELECT * FROM users WHERE email = $1', [normalizedEmail]);
+    if (!user) return res.status(401).json({ error: 'Credenciales inválidas' });
+
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) return res.status(401).json({ error: 'Credenciales inválidas' });
 
     const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: JWT_EXPIRES });
-    const safeUser = stmts.findUserById.get(user.id);
+    const safeUser = await db.get(
+      'SELECT id, email, name, plan, brand_settings, created_at FROM users WHERE id = $1',
+      [user.id]
+    );
 
     // Auto-accept pending team invitations
-    try { autoAcceptInvitations(user.id, normalizedEmail); } catch(e) {}
+    try { await autoAcceptInvitations(user.id, normalizedEmail); } catch(e) {}
 
     res.json({ token, user: safeUser });
   } catch (err) {
@@ -671,126 +769,200 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 // ── Get current user ──
-app.get('/api/auth/me', authMiddleware, (req, res) => {
-  const user = stmts.findUserById.get(req.userId);
-  if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
+app.get('/api/auth/me', authMiddleware, async (req, res) => {
+  try {
+    const user = await db.get(
+      'SELECT id, email, name, plan, brand_settings, created_at FROM users WHERE id = $1',
+      [req.userId]
+    );
+    if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
 
-  const sorteoCount = stmts.getSorteoCount.get(req.userId);
-  const today = new Date().toISOString().split('T')[0];
-  const dailyCount = stmts.getDailyCount.get(req.userId, today);
+    const sorteoCount = await db.get(
+      'SELECT COUNT(*) as total FROM sorteo_history WHERE user_id = $1',
+      [req.userId]
+    );
+    const today = new Date().toISOString().split('T')[0];
+    const dailyCount = await db.get(
+      'SELECT count FROM daily_counts WHERE user_id = $1 AND date = $2',
+      [req.userId, today]
+    );
 
-  res.json({
-    user,
-    stats: {
-      totalSorteos: sorteoCount.total,
-      todaySorteos: dailyCount ? dailyCount.count : 0
-    }
-  });
+    res.json({
+      user,
+      stats: {
+        totalSorteos: parseInt(sorteoCount.total),
+        todaySorteos: dailyCount ? dailyCount.count : 0
+      }
+    });
+  } catch (err) {
+    console.error('Me error:', err.message);
+    res.status(500).json({ error: 'Error al obtener usuario' });
+  }
 });
 
 // ── Update profile ──
-app.put('/api/auth/profile', authMiddleware, (req, res) => {
-  const { name } = req.body;
-  stmts.updateUser.run(name || '', req.userId);
-  const user = stmts.findUserById.get(req.userId);
-  res.json({ user });
+app.put('/api/auth/profile', authMiddleware, async (req, res) => {
+  try {
+    const { name } = req.body;
+    await db.run('UPDATE users SET name = $1, updated_at = NOW() WHERE id = $2', [name || '', req.userId]);
+    const user = await db.get(
+      'SELECT id, email, name, plan, brand_settings, created_at FROM users WHERE id = $1',
+      [req.userId]
+    );
+    res.json({ user });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al actualizar perfil' });
+  }
 });
 
 // ── Update plan ──
-app.put('/api/auth/plan', authMiddleware, (req, res) => {
-  const { plan } = req.body;
-  if (!['free', 'pro', 'enterprise'].includes(plan)) {
-    return res.status(400).json({ error: 'Plan inválido' });
+app.put('/api/auth/plan', authMiddleware, async (req, res) => {
+  try {
+    const { plan } = req.body;
+    if (!['free', 'pro', 'enterprise'].includes(plan)) {
+      return res.status(400).json({ error: 'Plan inválido' });
+    }
+    await db.run('UPDATE users SET plan = $1, updated_at = NOW() WHERE id = $2', [plan, req.userId]);
+    const user = await db.get(
+      'SELECT id, email, name, plan, brand_settings, created_at FROM users WHERE id = $1',
+      [req.userId]
+    );
+    res.json({ user });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al actualizar plan' });
   }
-  stmts.updatePlan.run(plan, req.userId);
-  const user = stmts.findUserById.get(req.userId);
-  res.json({ user });
 });
 
 // ── Save brand settings ──
-app.put('/api/auth/brand', authMiddleware, (req, res) => {
-  const brand = JSON.stringify(req.body.brand || {});
-  stmts.updateBrand.run(brand, req.userId);
-  res.json({ ok: true });
+app.put('/api/auth/brand', authMiddleware, async (req, res) => {
+  try {
+    const brand = JSON.stringify(req.body.brand || {});
+    await db.run('UPDATE users SET brand_settings = $1, updated_at = NOW() WHERE id = $2', [brand, req.userId]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al guardar marca' });
+  }
 });
 
 // ── Save sorteo result ──
-app.post('/api/sorteos', authMiddleware, (req, res) => {
-  const { winner, suplentes, participantsCount, platform, mode, postUrl } = req.body;
-  if (!winner) return res.status(400).json({ error: 'Winner requerido' });
+app.post('/api/sorteos', authMiddleware, async (req, res) => {
+  try {
+    const { winner, suplentes, participantsCount, platform, mode, postUrl } = req.body;
+    if (!winner) return res.status(400).json({ error: 'Winner requerido' });
 
-  stmts.addSorteo.run(
-    req.userId, winner,
-    JSON.stringify(suplentes || []),
-    participantsCount || 0,
-    platform || 'manual',
-    mode || 'slot',
-    postUrl || null
-  );
+    await db.run(
+      'INSERT INTO sorteo_history (user_id, winner, suplentes, participants_count, platform, mode, post_url) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+      [req.userId, winner, JSON.stringify(suplentes || []), participantsCount || 0, platform || 'manual', mode || 'slot', postUrl || null]
+    );
 
-  // Increment daily count
-  const today = new Date().toISOString().split('T')[0];
-  stmts.upsertDailyCount.run(req.userId, today);
+    // Increment daily count
+    const today = new Date().toISOString().split('T')[0];
+    await db.run(
+      'INSERT INTO daily_counts (user_id, date, count) VALUES ($1, $2, 1) ON CONFLICT(user_id, date) DO UPDATE SET count = daily_counts.count + 1',
+      [req.userId, today]
+    );
 
-  res.json({ ok: true });
+    // Fire webhooks
+    fireWebhooks(req.userId, 'sorteo.completed', {
+      winner, suplentes: suplentes || [],
+      participants_count: participantsCount || 0,
+      platform: platform || 'manual', mode: mode || 'slot', post_url: postUrl || null
+    }).catch(() => {});
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Save sorteo error:', err.message);
+    res.status(500).json({ error: 'Error al guardar sorteo' });
+  }
 });
 
 // ── Get sorteo history ──
-app.get('/api/sorteos', authMiddleware, (req, res) => {
-  const limit = Math.min(parseInt(req.query.limit) || 50, 200);
-  const sorteos = stmts.getSorteos.all(req.userId, limit);
-  sorteos.forEach(s => {
-    try { s.suplentes = JSON.parse(s.suplentes); } catch (e) { s.suplentes = []; }
-  });
-  res.json({ sorteos });
+app.get('/api/sorteos', authMiddleware, async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit) || 50, 200);
+    const sorteos = await db.all(
+      'SELECT * FROM sorteo_history WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2',
+      [req.userId, limit]
+    );
+    sorteos.forEach(s => {
+      try { s.suplentes = JSON.parse(s.suplentes); } catch (e) { s.suplentes = []; }
+    });
+    res.json({ sorteos });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al obtener historial' });
+  }
 });
 
 // ══════════════════════════════════════════════════════════════
 //   LEVEL 6: ADMIN API
 // ══════════════════════════════════════════════════════════════
 
-// Admin middleware — check if user has admin flag or is first user
-function adminMiddleware(req, res, next) {
-  const user = stmts.findUserById.get(req.userId);
-  if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
-  // First registered user is admin, or check admin column
-  if (user.id !== 1) {
-    return res.status(403).json({ error: 'Acceso denegado' });
+// Admin middleware
+async function adminMiddleware(req, res, next) {
+  try {
+    const user = await db.get(
+      'SELECT id, email, name, plan, brand_settings, created_at FROM users WHERE id = $1',
+      [req.userId]
+    );
+    if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
+    if (user.id !== 1) {
+      return res.status(403).json({ error: 'Acceso denegado' });
+    }
+    next();
+  } catch (err) {
+    res.status(500).json({ error: 'Error de autenticación admin' });
   }
-  next();
 }
 
-app.get('/api/admin/users', authMiddleware, adminMiddleware, (req, res) => {
-  const users = db.prepare(`
-    SELECT u.id, u.email, u.name, u.plan, u.created_at,
-           (SELECT COUNT(*) FROM sorteo_history WHERE user_id = u.id) as total_sorteos,
-           (SELECT MAX(created_at) FROM sorteo_history WHERE user_id = u.id) as last_sorteo
-    FROM users u ORDER BY u.created_at DESC
-  `).all();
-  res.json({ users });
-});
-
-app.get('/api/admin/stats', authMiddleware, adminMiddleware, (req, res) => {
-  const totalUsers = db.prepare('SELECT COUNT(*) as c FROM users').get().c;
-  const totalSorteos = db.prepare('SELECT COUNT(*) as c FROM sorteo_history').get().c;
-  const todaySorteos = db.prepare("SELECT COUNT(*) as c FROM sorteo_history WHERE date(created_at) = date('now')").get().c;
-  const planDist = db.prepare('SELECT plan, COUNT(*) as c FROM users GROUP BY plan').all();
-  const recentSorteos = db.prepare(`
-    SELECT sh.*, u.email, u.name as user_name
-    FROM sorteo_history sh JOIN users u ON sh.user_id = u.id
-    ORDER BY sh.created_at DESC LIMIT 20
-  `).all();
-
-  res.json({ totalUsers, totalSorteos, todaySorteos, planDist, recentSorteos });
-});
-
-app.put('/api/admin/users/:id/plan', authMiddleware, adminMiddleware, (req, res) => {
-  const { plan } = req.body;
-  if (!['free', 'pro', 'enterprise'].includes(plan)) {
-    return res.status(400).json({ error: 'Plan inválido' });
+app.get('/api/admin/users', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const users = await db.all(`
+      SELECT u.id, u.email, u.name, u.plan, u.created_at,
+             (SELECT COUNT(*) FROM sorteo_history WHERE user_id = u.id) as total_sorteos,
+             (SELECT MAX(created_at) FROM sorteo_history WHERE user_id = u.id) as last_sorteo
+      FROM users u ORDER BY u.created_at DESC
+    `);
+    res.json({ users });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al obtener usuarios' });
   }
-  stmts.updatePlan.run(plan, req.params.id);
-  res.json({ ok: true });
+});
+
+app.get('/api/admin/stats', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const totalUsers = await db.get('SELECT COUNT(*) as c FROM users');
+    const totalSorteos = await db.get('SELECT COUNT(*) as c FROM sorteo_history');
+    const todaySorteos = await db.get("SELECT COUNT(*) as c FROM sorteo_history WHERE DATE(created_at) = CURRENT_DATE");
+    const planDist = await db.all('SELECT plan, COUNT(*) as c FROM users GROUP BY plan');
+    const recentSorteos = await db.all(`
+      SELECT sh.*, u.email, u.name as user_name
+      FROM sorteo_history sh JOIN users u ON sh.user_id = u.id
+      ORDER BY sh.created_at DESC LIMIT 20
+    `);
+
+    res.json({
+      totalUsers: parseInt(totalUsers.c),
+      totalSorteos: parseInt(totalSorteos.c),
+      todaySorteos: parseInt(todaySorteos.c),
+      planDist,
+      recentSorteos
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al obtener estadísticas' });
+  }
+});
+
+app.put('/api/admin/users/:id/plan', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { plan } = req.body;
+    if (!['free', 'pro', 'enterprise'].includes(plan)) {
+      return res.status(400).json({ error: 'Plan inválido' });
+    }
+    await db.run('UPDATE users SET plan = $1, updated_at = NOW() WHERE id = $2', [plan, req.params.id]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al actualizar plan' });
+  }
 });
 
 // ══════════════════════════════════════════════════════════════
@@ -804,7 +976,7 @@ if (STRIPE_SECRET_KEY) {
   stripe = require('stripe')(STRIPE_SECRET_KEY);
 }
 
-// Stripe price IDs — set these in .env or Stripe dashboard
+// Stripe price IDs
 const STRIPE_PRICES = {
   pro_monthly: process.env.STRIPE_PRICE_PRO_MONTHLY || null,
   pro_annual: process.env.STRIPE_PRICE_PRO_ANNUAL || null,
@@ -812,23 +984,11 @@ const STRIPE_PRICES = {
   enterprise_annual: process.env.STRIPE_PRICE_ENT_ANNUAL || null,
 };
 
-// Add stripe_customer_id column if not exists
-try {
-  db.exec(`ALTER TABLE users ADD COLUMN stripe_customer_id TEXT DEFAULT NULL`);
-} catch (e) { /* column already exists */ }
-try {
-  db.exec(`ALTER TABLE users ADD COLUMN stripe_subscription_id TEXT DEFAULT NULL`);
-} catch (e) { /* column already exists */ }
-
-const stmtUpdateStripeCustomer = db.prepare('UPDATE users SET stripe_customer_id = ? WHERE id = ?');
-const stmtUpdateStripeSubscription = db.prepare('UPDATE users SET stripe_subscription_id = ? WHERE id = ?');
-const stmtFindByStripeCustomer = db.prepare('SELECT * FROM users WHERE stripe_customer_id = ?');
-
 // ── Create Checkout Session ──
 app.post('/api/stripe/checkout', authMiddleware, async (req, res) => {
   if (!stripe) return res.status(503).json({ error: 'Stripe no configurado. Contactá al administrador.' });
 
-  const { plan, billing } = req.body; // plan: 'pro'|'enterprise', billing: 'monthly'|'annual'
+  const { plan, billing } = req.body;
   if (!['pro', 'enterprise'].includes(plan)) {
     return res.status(400).json({ error: 'Plan inválido' });
   }
@@ -843,9 +1003,7 @@ app.post('/api/stripe/checkout', authMiddleware, async (req, res) => {
   }
 
   try {
-    const user = stmts.findUserByEmail.get(
-      db.prepare('SELECT email FROM users WHERE id = ?').get(req.userId)?.email
-    );
+    const user = await db.get('SELECT * FROM users WHERE id = $1', [req.userId]);
     if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
 
     // Get or create Stripe customer
@@ -856,26 +1014,25 @@ app.post('/api/stripe/checkout', authMiddleware, async (req, res) => {
         metadata: { rafly_user_id: String(req.userId) }
       });
       customerId = customer.id;
-      stmtUpdateStripeCustomer.run(customerId, req.userId);
+      await db.run('UPDATE users SET stripe_customer_id = $1 WHERE id = $2', [customerId, req.userId]);
     }
 
-    // If user already has an active subscription, redirect to portal instead
+    // If user already has an active subscription, redirect to portal
     if (user.stripe_subscription_id) {
       try {
         const sub = await stripe.subscriptions.retrieve(user.stripe_subscription_id);
         if (['active', 'trialing'].includes(sub.status)) {
-          // Create billing portal session for plan change
           const portalSession = await stripe.billingPortal.sessions.create({
             customer: customerId,
             return_url: `${BASE_URL}/pricing.html?session=portal`,
           });
           return res.json({ url: portalSession.url, type: 'portal' });
         }
-      } catch (e) { /* subscription not found or inactive, continue to checkout */ }
+      } catch (e) { /* subscription not found or inactive */ }
     }
 
     // Create checkout session
-    const session = await stripe.checkout.sessions.create({
+    const checkoutSession = await stripe.checkout.sessions.create({
       customer: customerId,
       mode: 'subscription',
       payment_method_types: ['card'],
@@ -889,7 +1046,7 @@ app.post('/api/stripe/checkout', authMiddleware, async (req, res) => {
       allow_promotion_codes: true,
     });
 
-    res.json({ url: session.url, type: 'checkout' });
+    res.json({ url: checkoutSession.url, type: 'checkout' });
   } catch (err) {
     console.error('Stripe checkout error:', err.message);
     res.status(500).json({ error: 'Error al crear sesión de pago' });
@@ -901,7 +1058,7 @@ app.post('/api/stripe/portal', authMiddleware, async (req, res) => {
   if (!stripe) return res.status(503).json({ error: 'Stripe no configurado' });
 
   try {
-    const user = db.prepare('SELECT stripe_customer_id FROM users WHERE id = ?').get(req.userId);
+    const user = await db.get('SELECT stripe_customer_id FROM users WHERE id = $1', [req.userId]);
     if (!user?.stripe_customer_id) {
       return res.status(400).json({ error: 'No tenés una suscripción activa' });
     }
@@ -919,8 +1076,6 @@ app.post('/api/stripe/portal', authMiddleware, async (req, res) => {
 });
 
 // ── Stripe Webhook ──
-// IMPORTANT: This must be BEFORE express.json() for the raw body,
-// but since we already have express.json(), we handle it with a special parser
 app.post('/api/stripe/webhook', async (req, res) => {
   if (!stripe) return res.status(503).send('Stripe not configured');
 
@@ -940,13 +1095,13 @@ app.post('/api/stripe/webhook', async (req, res) => {
   try {
     switch (event.type) {
       case 'checkout.session.completed': {
-        const session = event.data.object;
-        const userId = session.metadata?.rafly_user_id;
-        const plan = session.metadata?.plan;
+        const sess = event.data.object;
+        const userId = sess.metadata?.rafly_user_id;
+        const plan = sess.metadata?.plan;
         if (userId && plan) {
-          stmts.updatePlan.run(plan, Number(userId));
-          if (session.subscription) {
-            stmtUpdateStripeSubscription.run(session.subscription, Number(userId));
+          await db.run('UPDATE users SET plan = $1, updated_at = NOW() WHERE id = $2', [plan, Number(userId)]);
+          if (sess.subscription) {
+            await db.run('UPDATE users SET stripe_subscription_id = $1 WHERE id = $2', [sess.subscription, Number(userId)]);
           }
           console.log(`✦ User ${userId} upgraded to ${plan}`);
         }
@@ -959,9 +1114,9 @@ app.post('/api/stripe/webhook', async (req, res) => {
         if (userId) {
           if (subscription.status === 'active') {
             const plan = subscription.metadata?.plan || 'pro';
-            stmts.updatePlan.run(plan, Number(userId));
+            await db.run('UPDATE users SET plan = $1, updated_at = NOW() WHERE id = $2', [plan, Number(userId)]);
           } else if (['canceled', 'unpaid', 'past_due'].includes(subscription.status)) {
-            stmts.updatePlan.run('free', Number(userId));
+            await db.run('UPDATE users SET plan = $1, updated_at = NOW() WHERE id = $2', ['free', Number(userId)]);
           }
         }
         break;
@@ -971,8 +1126,8 @@ app.post('/api/stripe/webhook', async (req, res) => {
         const subscription = event.data.object;
         const userId = subscription.metadata?.rafly_user_id;
         if (userId) {
-          stmts.updatePlan.run('free', Number(userId));
-          stmtUpdateStripeSubscription.run(null, Number(userId));
+          await db.run('UPDATE users SET plan = $1, updated_at = NOW() WHERE id = $2', ['free', Number(userId)]);
+          await db.run('UPDATE users SET stripe_subscription_id = NULL WHERE id = $1', [Number(userId)]);
           console.log(`✦ User ${userId} subscription canceled → free`);
         }
         break;
@@ -981,10 +1136,9 @@ app.post('/api/stripe/webhook', async (req, res) => {
       case 'invoice.payment_failed': {
         const invoice = event.data.object;
         const customerId = invoice.customer;
-        const user = stmtFindByStripeCustomer.get(customerId);
+        const user = await db.get('SELECT * FROM users WHERE stripe_customer_id = $1', [customerId]);
         if (user) {
           console.log(`⚠ Payment failed for user ${user.id} (${user.email})`);
-          // Don't downgrade immediately — Stripe retries
         }
         break;
       }
@@ -996,7 +1150,7 @@ app.post('/api/stripe/webhook', async (req, res) => {
   res.json({ received: true });
 });
 
-// ── Stripe status (check if configured) ──
+// ── Stripe status ──
 app.get('/api/stripe/status', (req, res) => {
   res.json({
     configured: !!stripe,
@@ -1075,35 +1229,45 @@ function sorteoEmailHTML(winner, participantsCount, mode) {
     </div>`;
 }
 
-// Hook: send welcome email on register
-const originalRegisterHandler = app._router.stack;
-// We'll add email sending to the existing register route via a post-register hook
-
-// ── Send welcome email endpoint (called by frontend after register) ──
+// ── Send welcome email endpoint ──
 app.post('/api/email/welcome', authMiddleware, async (req, res) => {
-  const user = stmts.findUserById.get(req.userId);
-  if (!user) return res.status(404).json({ error: 'User not found' });
+  try {
+    const user = await db.get(
+      'SELECT id, email, name, plan, brand_settings, created_at FROM users WHERE id = $1',
+      [req.userId]
+    );
+    if (!user) return res.status(404).json({ error: 'User not found' });
 
-  const result = await sendEmail(
-    user.email,
-    '¡Bienvenido a RAFLY! 🎰',
-    welcomeEmailHTML(user.name)
-  );
-  res.json(result);
+    const result = await sendEmail(
+      user.email,
+      '¡Bienvenido a RAFLY! 🎰',
+      welcomeEmailHTML(user.name)
+    );
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: 'Error al enviar email' });
+  }
 });
 
 // ── Send sorteo result email ──
 app.post('/api/email/sorteo-result', authMiddleware, async (req, res) => {
-  const user = stmts.findUserById.get(req.userId);
-  if (!user) return res.status(404).json({ error: 'User not found' });
+  try {
+    const user = await db.get(
+      'SELECT id, email, name, plan, brand_settings, created_at FROM users WHERE id = $1',
+      [req.userId]
+    );
+    if (!user) return res.status(404).json({ error: 'User not found' });
 
-  const { winner, participantsCount, mode } = req.body;
-  const result = await sendEmail(
-    user.email,
-    `🎉 Ganador: ${winner} — RAFLY`,
-    sorteoEmailHTML(winner, participantsCount || 0, mode || 'slot')
-  );
-  res.json(result);
+    const { winner, participantsCount, mode } = req.body;
+    const result = await sendEmail(
+      user.email,
+      `🎉 Ganador: ${winner} — RAFLY`,
+      sorteoEmailHTML(winner, participantsCount || 0, mode || 'slot')
+    );
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: 'Error al enviar email' });
+  }
 });
 
 // ── Web Push Notifications ──
@@ -1115,25 +1279,8 @@ if (VAPID_PUBLIC && VAPID_PRIVATE) {
   webpush.setVapidDetails(VAPID_EMAIL, VAPID_PUBLIC, VAPID_PRIVATE);
 }
 
-// Create push_subscriptions table
-db.exec(`
-  CREATE TABLE IF NOT EXISTS push_subscriptions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    endpoint TEXT UNIQUE NOT NULL,
-    keys_p256dh TEXT NOT NULL,
-    keys_auth TEXT NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id)
-  );
-`);
-
-const stmtSavePushSub = db.prepare('INSERT OR REPLACE INTO push_subscriptions (user_id, endpoint, keys_p256dh, keys_auth) VALUES (?, ?, ?, ?)');
-const stmtGetPushSubs = db.prepare('SELECT * FROM push_subscriptions WHERE user_id = ?');
-const stmtDeletePushSub = db.prepare('DELETE FROM push_subscriptions WHERE endpoint = ?');
-
 // Subscribe to push
-app.post('/api/push/subscribe', authMiddleware, (req, res) => {
+app.post('/api/push/subscribe', authMiddleware, async (req, res) => {
   if (!VAPID_PUBLIC) return res.status(503).json({ error: 'Push not configured' });
 
   const { subscription } = req.body;
@@ -1141,15 +1288,27 @@ app.post('/api/push/subscribe', authMiddleware, (req, res) => {
     return res.status(400).json({ error: 'Invalid subscription' });
   }
 
-  stmtSavePushSub.run(req.userId, subscription.endpoint, subscription.keys.p256dh, subscription.keys.auth);
-  res.json({ ok: true });
+  try {
+    await db.run(
+      `INSERT INTO push_subscriptions (user_id, endpoint, keys_p256dh, keys_auth) VALUES ($1, $2, $3, $4)
+       ON CONFLICT(endpoint) DO UPDATE SET user_id = $1, keys_p256dh = $3, keys_auth = $4`,
+      [req.userId, subscription.endpoint, subscription.keys.p256dh, subscription.keys.auth]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al guardar suscripción' });
+  }
 });
 
 // Unsubscribe
-app.post('/api/push/unsubscribe', authMiddleware, (req, res) => {
-  const { endpoint } = req.body;
-  if (endpoint) stmtDeletePushSub.run(endpoint);
-  res.json({ ok: true });
+app.post('/api/push/unsubscribe', authMiddleware, async (req, res) => {
+  try {
+    const { endpoint } = req.body;
+    if (endpoint) await db.run('DELETE FROM push_subscriptions WHERE endpoint = $1', [endpoint]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Error' });
+  }
 });
 
 // Get VAPID public key
@@ -1160,7 +1319,7 @@ app.get('/api/push/vapid-key', (req, res) => {
 // Send push notification to a user
 async function sendPushToUser(userId, payload) {
   if (!VAPID_PUBLIC) return;
-  const subs = stmtGetPushSubs.all(userId);
+  const subs = await db.all('SELECT * FROM push_subscriptions WHERE user_id = $1', [userId]);
   for (const sub of subs) {
     try {
       await webpush.sendNotification({
@@ -1169,8 +1328,7 @@ async function sendPushToUser(userId, payload) {
       }, JSON.stringify(payload));
     } catch (err) {
       if (err.statusCode === 410 || err.statusCode === 404) {
-        // Subscription expired — remove it
-        stmtDeletePushSub.run(sub.endpoint);
+        await db.run('DELETE FROM push_subscriptions WHERE endpoint = $1', [sub.endpoint]);
       }
     }
   }
@@ -1182,7 +1340,6 @@ async function sendPushToUser(userId, payload) {
 
 const GA_MEASUREMENT_ID = process.env.GA_MEASUREMENT_ID || null;
 
-// Endpoint to get analytics config (avoids hardcoding GA ID in frontend)
 app.get('/api/config', (req, res) => {
   res.json({
     ga: GA_MEASUREMENT_ID,
@@ -1196,35 +1353,12 @@ app.get('/api/config', (req, res) => {
 
 const crypto = require('crypto');
 
-// API keys table
-db.exec(`
-  CREATE TABLE IF NOT EXISTS api_keys (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    key_hash TEXT UNIQUE NOT NULL,
-    key_prefix TEXT NOT NULL,
-    name TEXT DEFAULT 'default',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    last_used DATETIME,
-    requests_today INTEGER DEFAULT 0,
-    requests_total INTEGER DEFAULT 0,
-    FOREIGN KEY (user_id) REFERENCES users(id)
-  );
-`);
-
-const stmtCreateApiKey = db.prepare('INSERT INTO api_keys (user_id, key_hash, key_prefix, name) VALUES (?, ?, ?, ?)');
-const stmtGetApiKeyByHash = db.prepare('SELECT ak.*, u.email, u.plan FROM api_keys ak JOIN users u ON ak.user_id = u.id WHERE ak.key_hash = ?');
-const stmtGetApiKeysByUser = db.prepare('SELECT id, key_prefix, name, created_at, last_used, requests_today, requests_total FROM api_keys WHERE user_id = ?');
-const stmtDeleteApiKey = db.prepare('DELETE FROM api_keys WHERE id = ? AND user_id = ?');
-const stmtUpdateApiKeyUsage = db.prepare('UPDATE api_keys SET last_used = CURRENT_TIMESTAMP, requests_today = requests_today + 1, requests_total = requests_total + 1 WHERE id = ?');
-const stmtResetDailyApiUsage = db.prepare('UPDATE api_keys SET requests_today = 0');
-
-// Reset daily API usage at midnight (simple approach)
+// Reset daily API usage at midnight
 let lastResetDate = new Date().toDateString();
-function checkDailyReset() {
+async function checkDailyReset() {
   const today = new Date().toDateString();
   if (today !== lastResetDate) {
-    stmtResetDailyApiUsage.run();
+    await db.run('UPDATE api_keys SET requests_today = 0');
     lastResetDate = today;
   }
 }
@@ -1241,78 +1375,110 @@ const apiMinuteCounters = new Map();
 setInterval(() => apiMinuteCounters.clear(), 60000);
 
 // API key auth middleware
-function apiKeyAuth(req, res, next) {
-  checkDailyReset();
+async function apiKeyAuth(req, res, next) {
+  try {
+    await checkDailyReset();
 
-  const apiKey = req.headers['x-api-key'] || req.query.api_key;
-  if (!apiKey) {
-    return res.status(401).json({ error: 'Missing API key. Pass it via X-API-Key header or api_key query param.' });
+    const apiKey = req.headers['x-api-key'] || req.query.api_key;
+    if (!apiKey) {
+      return res.status(401).json({ error: 'Missing API key. Pass it via X-API-Key header or api_key query param.' });
+    }
+
+    const hash = crypto.createHash('sha256').update(apiKey).digest('hex');
+    const keyRow = await db.get(
+      'SELECT ak.*, u.email, u.plan FROM api_keys ak JOIN users u ON ak.user_id = u.id WHERE ak.key_hash = $1',
+      [hash]
+    );
+    if (!keyRow) {
+      return res.status(401).json({ error: 'Invalid API key' });
+    }
+
+    const plan = keyRow.plan || 'free';
+    const limits = API_RATE_LIMITS[plan] || API_RATE_LIMITS.free;
+
+    // Check daily limit
+    if (keyRow.requests_today >= limits.daily) {
+      return res.status(429).json({ error: 'Daily API limit reached', limit: limits.daily, plan });
+    }
+
+    // Check per-minute limit
+    const minuteKey = `api:${keyRow.id}`;
+    const minuteCount = (apiMinuteCounters.get(minuteKey) || 0) + 1;
+    apiMinuteCounters.set(minuteKey, minuteCount);
+    if (minuteCount > limits.perMinute) {
+      return res.status(429).json({ error: 'Rate limit exceeded. Try again in a minute.', limit: limits.perMinute });
+    }
+
+    // Update usage
+    await db.run(
+      'UPDATE api_keys SET last_used = NOW(), requests_today = requests_today + 1, requests_total = requests_total + 1 WHERE id = $1',
+      [keyRow.id]
+    );
+
+    req.apiUser = { id: keyRow.user_id, email: keyRow.email, plan };
+    req.apiLimits = limits;
+    next();
+  } catch (err) {
+    console.error('API key auth error:', err.message);
+    res.status(500).json({ error: 'Internal error' });
   }
-
-  const hash = crypto.createHash('sha256').update(apiKey).digest('hex');
-  const keyRow = stmtGetApiKeyByHash.get(hash);
-  if (!keyRow) {
-    return res.status(401).json({ error: 'Invalid API key' });
-  }
-
-  const plan = keyRow.plan || 'free';
-  const limits = API_RATE_LIMITS[plan] || API_RATE_LIMITS.free;
-
-  // Check daily limit
-  if (keyRow.requests_today >= limits.daily) {
-    return res.status(429).json({ error: 'Daily API limit reached', limit: limits.daily, plan });
-  }
-
-  // Check per-minute limit
-  const minuteKey = `api:${keyRow.id}`;
-  const minuteCount = (apiMinuteCounters.get(minuteKey) || 0) + 1;
-  apiMinuteCounters.set(minuteKey, minuteCount);
-  if (minuteCount > limits.perMinute) {
-    return res.status(429).json({ error: 'Rate limit exceeded. Try again in a minute.', limit: limits.perMinute });
-  }
-
-  // Update usage
-  stmtUpdateApiKeyUsage.run(keyRow.id);
-
-  req.apiUser = { id: keyRow.user_id, email: keyRow.email, plan };
-  req.apiLimits = limits;
-  next();
 }
 
-// ── API Key Management (requires JWT auth) ──
+// ── API Key Management ──
 
 // Create API key
-app.post('/api/keys', authMiddleware, (req, res) => {
-  const { name } = req.body || {};
-  const existing = stmtGetApiKeysByUser.all(req.userId);
-  if (existing.length >= 5) {
-    return res.status(400).json({ error: 'Max 5 API keys per account' });
+app.post('/api/keys', authMiddleware, async (req, res) => {
+  try {
+    const { name } = req.body || {};
+    const existing = await db.all(
+      'SELECT id, key_prefix, name, created_at, last_used, requests_today, requests_total FROM api_keys WHERE user_id = $1',
+      [req.userId]
+    );
+    if (existing.length >= 5) {
+      return res.status(400).json({ error: 'Max 5 API keys per account' });
+    }
+
+    const rawKey = `rfly_${crypto.randomBytes(24).toString('hex')}`;
+    const hash = crypto.createHash('sha256').update(rawKey).digest('hex');
+    const prefix = rawKey.substring(0, 12) + '...';
+
+    await db.run(
+      'INSERT INTO api_keys (user_id, key_hash, key_prefix, name) VALUES ($1, $2, $3, $4)',
+      [req.userId, hash, prefix, name || 'default']
+    );
+    res.json({ key: rawKey, prefix, name: name || 'default', message: 'Save this key — it won\'t be shown again.' });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al crear API key' });
   }
-
-  const rawKey = `rfly_${crypto.randomBytes(24).toString('hex')}`;
-  const hash = crypto.createHash('sha256').update(rawKey).digest('hex');
-  const prefix = rawKey.substring(0, 12) + '...';
-
-  stmtCreateApiKey.run(req.userId, hash, prefix, name || 'default');
-  res.json({ key: rawKey, prefix, name: name || 'default', message: 'Save this key — it won\'t be shown again.' });
 });
 
 // List API keys
-app.get('/api/keys', authMiddleware, (req, res) => {
-  const keys = stmtGetApiKeysByUser.all(req.userId);
-  res.json({ keys });
+app.get('/api/keys', authMiddleware, async (req, res) => {
+  try {
+    const keys = await db.all(
+      'SELECT id, key_prefix, name, created_at, last_used, requests_today, requests_total FROM api_keys WHERE user_id = $1',
+      [req.userId]
+    );
+    res.json({ keys });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al obtener API keys' });
+  }
 });
 
 // Delete API key
-app.delete('/api/keys/:id', authMiddleware, (req, res) => {
-  const result = stmtDeleteApiKey.run(req.params.id, req.userId);
-  if (result.changes === 0) return res.status(404).json({ error: 'Key not found' });
-  res.json({ ok: true });
+app.delete('/api/keys/:id', authMiddleware, async (req, res) => {
+  try {
+    const result = await db.run('DELETE FROM api_keys WHERE id = $1 AND user_id = $2', [req.params.id, req.userId]);
+    if (result.rowCount === 0) return res.status(404).json({ error: 'Key not found' });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al eliminar API key' });
+  }
 });
 
-// ── Public API Endpoints (require API key) ──
+// ── Public API Endpoints ──
 
-// GET /api/v1/sorteo/random — pick random winner(s) from a list
+// POST /api/v1/sorteo/random — pick random winner(s) from a list
 app.post('/api/v1/sorteo/random', apiKeyAuth, (req, res) => {
   const { participants, count, removeDuplicates } = req.body || {};
 
@@ -1328,11 +1494,11 @@ app.post('/api/v1/sorteo/random', apiKeyAuth, (req, res) => {
 
   const winnerCount = Math.min(Math.max(1, parseInt(count) || 1), list.length);
   const winners = [];
-  const pool = [...list];
+  const pool2 = [...list];
 
   for (let i = 0; i < winnerCount; i++) {
-    const idx = crypto.randomInt(pool.length);
-    winners.push(pool.splice(idx, 1)[0]);
+    const idx = crypto.randomInt(pool2.length);
+    winners.push(pool2.splice(idx, 1)[0]);
   }
 
   res.json({
@@ -1344,15 +1510,21 @@ app.post('/api/v1/sorteo/random', apiKeyAuth, (req, res) => {
 });
 
 // GET /api/v1/sorteos — list user's sorteo history
-app.get('/api/v1/sorteos', apiKeyAuth, (req, res) => {
-  const limit = Math.min(parseInt(req.query.limit) || 20, 100);
-  const offset = parseInt(req.query.offset) || 0;
+app.get('/api/v1/sorteos', apiKeyAuth, async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit) || 20, 100);
+    const offset = parseInt(req.query.offset) || 0;
 
-  const sorteos = db.prepare('SELECT * FROM sorteos WHERE user_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?')
-    .all(req.apiUser.id, limit, offset);
-  const total = db.prepare('SELECT COUNT(*) as count FROM sorteos WHERE user_id = ?').get(req.apiUser.id);
+    const sorteos = await db.all(
+      'SELECT * FROM sorteo_history WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3',
+      [req.apiUser.id, limit, offset]
+    );
+    const total = await db.get('SELECT COUNT(*) as count FROM sorteo_history WHERE user_id = $1', [req.apiUser.id]);
 
-  res.json({ sorteos, total: total.count, limit, offset });
+    res.json({ sorteos, total: parseInt(total.count), limit, offset });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al obtener sorteos' });
+  }
 });
 
 // GET /api/v1/account — account info + usage
@@ -1364,7 +1536,7 @@ app.get('/api/v1/account', apiKeyAuth, (req, res) => {
   });
 });
 
-// API docs endpoint (returns OpenAPI-style spec)
+// API docs endpoint
 app.get('/api/v1/spec', (req, res) => {
   res.json({
     openapi: '3.0.0',
@@ -1399,236 +1571,246 @@ app.get('/api/v1/spec', (req, res) => {
 //   LEVEL 8: SCHEDULED DRAWS
 // ══════════════════════════════════════════════════════════════
 
-db.exec(`
-  CREATE TABLE IF NOT EXISTS scheduled_sorteos (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    title TEXT DEFAULT 'Sorteo programado',
-    participants TEXT NOT NULL,
-    winner_count INTEGER DEFAULT 1,
-    suplente_count INTEGER DEFAULT 0,
-    remove_duplicates INTEGER DEFAULT 0,
-    mode TEXT DEFAULT 'slot',
-    scheduled_at DATETIME NOT NULL,
-    status TEXT DEFAULT 'pending',
-    winners TEXT DEFAULT NULL,
-    executed_at DATETIME DEFAULT NULL,
-    share_url TEXT DEFAULT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id)
-  );
-`);
-
-const stmtCreateScheduled = db.prepare('INSERT INTO scheduled_sorteos (user_id, title, participants, winner_count, suplente_count, remove_duplicates, mode, scheduled_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
-const stmtGetScheduled = db.prepare('SELECT * FROM scheduled_sorteos WHERE user_id = ? ORDER BY scheduled_at DESC LIMIT ? OFFSET ?');
-const stmtGetScheduledById = db.prepare('SELECT * FROM scheduled_sorteos WHERE id = ? AND user_id = ?');
-const stmtGetPendingScheduled = db.prepare("SELECT * FROM scheduled_sorteos WHERE status = 'pending' AND scheduled_at <= datetime('now')");
-const stmtUpdateScheduledResult = db.prepare("UPDATE scheduled_sorteos SET status = 'completed', winners = ?, executed_at = CURRENT_TIMESTAMP WHERE id = ?");
-const stmtDeleteScheduled = db.prepare("DELETE FROM scheduled_sorteos WHERE id = ? AND user_id = ? AND status = 'pending'");
-const stmtCountScheduled = db.prepare('SELECT COUNT(*) as total FROM scheduled_sorteos WHERE user_id = ?');
-
 // Create scheduled sorteo
-app.post('/api/scheduled-sorteos', authMiddleware, (req, res) => {
-  const { title, participants, winnerCount, suplenteCount, removeDuplicates, mode, scheduledAt } = req.body;
+app.post('/api/scheduled-sorteos', authMiddleware, async (req, res) => {
+  try {
+    const { title, participants, winnerCount, suplenteCount, removeDuplicates, mode, scheduledAt } = req.body;
 
-  if (!Array.isArray(participants) || participants.length < 2) {
-    return res.status(400).json({ error: 'Se necesitan al menos 2 participantes' });
+    if (!Array.isArray(participants) || participants.length < 2) {
+      return res.status(400).json({ error: 'Se necesitan al menos 2 participantes' });
+    }
+    const schedDate = new Date(scheduledAt);
+    if (isNaN(schedDate.getTime()) || schedDate <= new Date()) {
+      return res.status(400).json({ error: 'La fecha debe ser futura' });
+    }
+
+    const result = await db.get(
+      'INSERT INTO scheduled_sorteos (user_id, title, participants, winner_count, suplente_count, remove_duplicates, mode, scheduled_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id',
+      [
+        req.userId,
+        title || 'Sorteo programado',
+        JSON.stringify(participants),
+        Math.max(1, parseInt(winnerCount) || 1),
+        Math.max(0, parseInt(suplenteCount) || 0),
+        removeDuplicates ? 1 : 0,
+        mode || 'slot',
+        schedDate.toISOString()
+      ]
+    );
+
+    res.json({ id: result.id, scheduledAt: schedDate.toISOString() });
+  } catch (err) {
+    console.error('Create scheduled error:', err.message);
+    res.status(500).json({ error: 'Error al crear sorteo programado' });
   }
-  const schedDate = new Date(scheduledAt);
-  if (isNaN(schedDate.getTime()) || schedDate <= new Date()) {
-    return res.status(400).json({ error: 'La fecha debe ser futura' });
-  }
-
-  const result = stmtCreateScheduled.run(
-    req.userId,
-    title || 'Sorteo programado',
-    JSON.stringify(participants),
-    Math.max(1, parseInt(winnerCount) || 1),
-    Math.max(0, parseInt(suplenteCount) || 0),
-    removeDuplicates ? 1 : 0,
-    mode || 'slot',
-    schedDate.toISOString()
-  );
-
-  res.json({ id: result.lastInsertRowid, scheduledAt: schedDate.toISOString() });
 });
 
 // List scheduled sorteos
-app.get('/api/scheduled-sorteos', authMiddleware, (req, res) => {
-  const limit = Math.min(parseInt(req.query.limit) || 20, 100);
-  const offset = parseInt(req.query.offset) || 0;
-  const sorteos = stmtGetScheduled.all(req.userId, limit, offset);
-  const total = stmtCountScheduled.get(req.userId);
-  res.json({ sorteos: sorteos.map(s => ({ ...s, participants: JSON.parse(s.participants), winners: s.winners ? JSON.parse(s.winners) : null })), total: total.total });
+app.get('/api/scheduled-sorteos', authMiddleware, async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit) || 20, 100);
+    const offset = parseInt(req.query.offset) || 0;
+    const sorteos = await db.all(
+      'SELECT * FROM scheduled_sorteos WHERE user_id = $1 ORDER BY scheduled_at DESC LIMIT $2 OFFSET $3',
+      [req.userId, limit, offset]
+    );
+    const total = await db.get('SELECT COUNT(*) as total FROM scheduled_sorteos WHERE user_id = $1', [req.userId]);
+    res.json({
+      sorteos: sorteos.map(s => ({
+        ...s,
+        participants: JSON.parse(s.participants),
+        winners: s.winners ? JSON.parse(s.winners) : null
+      })),
+      total: parseInt(total.total)
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al obtener sorteos programados' });
+  }
 });
 
 // Get single scheduled sorteo
-app.get('/api/scheduled-sorteos/:id', authMiddleware, (req, res) => {
-  const s = stmtGetScheduledById.get(req.params.id, req.userId);
-  if (!s) return res.status(404).json({ error: 'No encontrado' });
-  res.json({ ...s, participants: JSON.parse(s.participants), winners: s.winners ? JSON.parse(s.winners) : null });
+app.get('/api/scheduled-sorteos/:id', authMiddleware, async (req, res) => {
+  try {
+    const s = await db.get('SELECT * FROM scheduled_sorteos WHERE id = $1 AND user_id = $2', [req.params.id, req.userId]);
+    if (!s) return res.status(404).json({ error: 'No encontrado' });
+    res.json({ ...s, participants: JSON.parse(s.participants), winners: s.winners ? JSON.parse(s.winners) : null });
+  } catch (err) {
+    res.status(500).json({ error: 'Error' });
+  }
 });
 
 // Delete scheduled sorteo (only if pending)
-app.delete('/api/scheduled-sorteos/:id', authMiddleware, (req, res) => {
-  const result = stmtDeleteScheduled.run(req.params.id, req.userId);
-  if (result.changes === 0) return res.status(404).json({ error: 'No encontrado o ya ejecutado' });
-  res.json({ ok: true });
+app.delete('/api/scheduled-sorteos/:id', authMiddleware, async (req, res) => {
+  try {
+    const result = await db.run(
+      "DELETE FROM scheduled_sorteos WHERE id = $1 AND user_id = $2 AND status = 'pending'",
+      [req.params.id, req.userId]
+    );
+    if (result.rowCount === 0) return res.status(404).json({ error: 'No encontrado o ya ejecutado' });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Error' });
+  }
 });
 
 // Public view for scheduled sorteo countdown
-app.get('/api/scheduled-sorteos/:id/public', (req, res) => {
-  const s = db.prepare('SELECT id, title, scheduled_at, status, winners, mode, executed_at FROM scheduled_sorteos WHERE id = ?').get(req.params.id);
-  if (!s) return res.status(404).json({ error: 'No encontrado' });
-  res.json({ ...s, winners: s.winners ? JSON.parse(s.winners) : null });
+app.get('/api/scheduled-sorteos/:id/public', async (req, res) => {
+  try {
+    const s = await db.get(
+      'SELECT id, title, scheduled_at, status, winners, mode, executed_at FROM scheduled_sorteos WHERE id = $1',
+      [req.params.id]
+    );
+    if (!s) return res.status(404).json({ error: 'No encontrado' });
+    res.json({ ...s, winners: s.winners ? JSON.parse(s.winners) : null });
+  } catch (err) {
+    res.status(500).json({ error: 'Error' });
+  }
 });
 
 // Scheduled sorteo executor — runs every 10 seconds
-function executeScheduledSorteos() {
-  const pending = stmtGetPendingScheduled.all();
-  for (const sorteo of pending) {
-    try {
-      let pool = JSON.parse(sorteo.participants).map(p => String(p).trim()).filter(Boolean);
-      if (sorteo.remove_duplicates) pool = [...new Set(pool)];
+async function executeScheduledSorteos() {
+  try {
+    const pending = await db.all("SELECT * FROM scheduled_sorteos WHERE status = 'pending' AND scheduled_at <= NOW()");
+    for (const sorteo of pending) {
+      try {
+        let sorteoPool = JSON.parse(sorteo.participants).map(p => String(p).trim()).filter(Boolean);
+        if (sorteo.remove_duplicates) sorteoPool = [...new Set(sorteoPool)];
 
-      const totalWinners = Math.min(sorteo.winner_count + sorteo.suplente_count, pool.length);
-      const selected = [];
-      const available = [...pool];
+        const totalWinners = Math.min(sorteo.winner_count + sorteo.suplente_count, sorteoPool.length);
+        const selected = [];
+        const available = [...sorteoPool];
 
-      for (let i = 0; i < totalWinners; i++) {
-        const idx = crypto.randomInt(available.length);
-        selected.push(available.splice(idx, 1)[0]);
+        for (let i = 0; i < totalWinners; i++) {
+          const idx = crypto.randomInt(available.length);
+          selected.push(available.splice(idx, 1)[0]);
+        }
+
+        const winners = selected.slice(0, sorteo.winner_count);
+        const suplentes = selected.slice(sorteo.winner_count);
+
+        await db.run(
+          "UPDATE scheduled_sorteos SET status = 'completed', winners = $1, executed_at = NOW() WHERE id = $2",
+          [JSON.stringify({ winners, suplentes }), sorteo.id]
+        );
+
+        // Send push notification
+        sendPushToUser(sorteo.user_id, {
+          title: '🎉 ¡Sorteo completado!',
+          body: `Ganador: ${winners[0]}${winners.length > 1 ? ` (+${winners.length - 1} más)` : ''}`,
+          url: `/dashboard.html`
+        }).catch(() => {});
+
+        // Fire webhooks
+        fireWebhooks(sorteo.user_id, 'sorteo.completed', {
+          sorteo_id: sorteo.id,
+          title: sorteo.title,
+          winners,
+          suplentes,
+          participants_count: sorteoPool.length,
+          mode: sorteo.mode,
+          executed_at: new Date().toISOString()
+        });
+
+        console.log(`  ✦ Scheduled sorteo #${sorteo.id} executed — Winner: ${winners[0]}`);
+      } catch (err) {
+        console.error(`  ✗ Error executing scheduled sorteo #${sorteo.id}:`, err.message);
       }
-
-      const winners = selected.slice(0, sorteo.winner_count);
-      const suplentes = selected.slice(sorteo.winner_count);
-
-      stmtUpdateScheduledResult.run(JSON.stringify({ winners, suplentes }), sorteo.id);
-
-      // Send push notification to the user
-      sendPushToUser(sorteo.user_id, {
-        title: '🎉 ¡Sorteo completado!',
-        body: `Ganador: ${winners[0]}${winners.length > 1 ? ` (+${winners.length - 1} más)` : ''}`,
-        url: `/dashboard.html`
-      }).catch(() => {});
-
-      // Fire webhooks
-      fireWebhooks(sorteo.user_id, 'sorteo.completed', {
-        sorteo_id: sorteo.id,
-        title: sorteo.title,
-        winners,
-        suplentes,
-        participants_count: pool.length,
-        mode: sorteo.mode,
-        executed_at: new Date().toISOString()
-      });
-
-      console.log(`  ✦ Scheduled sorteo #${sorteo.id} executed — Winner: ${winners[0]}`);
-    } catch (err) {
-      console.error(`  ✗ Error executing scheduled sorteo #${sorteo.id}:`, err.message);
     }
+  } catch (err) {
+    console.error('Scheduled executor error:', err.message);
   }
 }
-setInterval(executeScheduledSorteos, 10000);
+setInterval(() => executeScheduledSorteos().catch(console.error), 10000);
 
 // ══════════════════════════════════════════════════════════════
 //   LEVEL 8: TEAMS / COLLABORATION
 // ══════════════════════════════════════════════════════════════
 
-db.exec(`
-  CREATE TABLE IF NOT EXISTS teams (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    owner_id INTEGER NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (owner_id) REFERENCES users(id)
-  );
-
-  CREATE TABLE IF NOT EXISTS team_members (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    team_id INTEGER NOT NULL,
-    user_id INTEGER,
-    email TEXT NOT NULL,
-    role TEXT DEFAULT 'viewer',
-    status TEXT DEFAULT 'pending',
-    invited_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    joined_at DATETIME DEFAULT NULL,
-    FOREIGN KEY (team_id) REFERENCES teams(id),
-    FOREIGN KEY (user_id) REFERENCES users(id),
-    UNIQUE(team_id, email)
-  );
-
-  CREATE TABLE IF NOT EXISTS sorteo_shares (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    sorteo_id INTEGER NOT NULL,
-    team_id INTEGER NOT NULL,
-    shared_by INTEGER NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (team_id) REFERENCES teams(id),
-    FOREIGN KEY (shared_by) REFERENCES users(id)
-  );
-`);
-
 // Create team
-app.post('/api/teams', authMiddleware, (req, res) => {
-  const { name } = req.body;
-  if (!name || !name.trim()) return res.status(400).json({ error: 'Nombre requerido' });
+app.post('/api/teams', authMiddleware, async (req, res) => {
+  try {
+    const { name } = req.body;
+    if (!name || !name.trim()) return res.status(400).json({ error: 'Nombre requerido' });
 
-  const teamCount = db.prepare('SELECT COUNT(*) as c FROM teams WHERE owner_id = ?').get(req.userId);
-  if (teamCount.c >= 5) return res.status(400).json({ error: 'Máximo 5 equipos' });
+    const teamCount = await db.get('SELECT COUNT(*) as c FROM teams WHERE owner_id = $1', [req.userId]);
+    if (parseInt(teamCount.c) >= 5) return res.status(400).json({ error: 'Máximo 5 equipos' });
 
-  const result = db.prepare('INSERT INTO teams (name, owner_id) VALUES (?, ?)').run(name.trim(), req.userId);
-  const teamId = result.lastInsertRowid;
+    const result = await db.get('INSERT INTO teams (name, owner_id) VALUES ($1, $2) RETURNING id', [name.trim(), req.userId]);
+    const teamId = result.id;
 
-  // Add owner as admin member
-  const user = stmts.findUserById.get(req.userId);
-  db.prepare("INSERT INTO team_members (team_id, user_id, email, role, status, joined_at) VALUES (?, ?, ?, 'admin', 'active', CURRENT_TIMESTAMP)")
-    .run(teamId, req.userId, user.email);
+    // Add owner as admin member
+    const user = await db.get(
+      'SELECT id, email, name, plan, brand_settings, created_at FROM users WHERE id = $1',
+      [req.userId]
+    );
+    await db.run(
+      "INSERT INTO team_members (team_id, user_id, email, role, status, joined_at) VALUES ($1, $2, $3, 'admin', 'active', NOW())",
+      [teamId, req.userId, user.email]
+    );
 
-  res.json({ id: teamId, name: name.trim() });
+    res.json({ id: teamId, name: name.trim() });
+  } catch (err) {
+    console.error('Create team error:', err.message);
+    res.status(500).json({ error: 'Error al crear equipo' });
+  }
 });
 
 // List user's teams
-app.get('/api/teams', authMiddleware, (req, res) => {
-  const user = stmts.findUserById.get(req.userId);
-  const teams = db.prepare(`
-    SELECT t.*, tm.role FROM teams t
-    JOIN team_members tm ON tm.team_id = t.id
-    WHERE tm.email = ? AND tm.status = 'active'
-    ORDER BY t.created_at DESC
-  `).all(user.email);
+app.get('/api/teams', authMiddleware, async (req, res) => {
+  try {
+    const user = await db.get(
+      'SELECT id, email, name, plan, brand_settings, created_at FROM users WHERE id = $1',
+      [req.userId]
+    );
+    const teams = await db.all(`
+      SELECT t.*, tm.role FROM teams t
+      JOIN team_members tm ON tm.team_id = t.id
+      WHERE tm.email = $1 AND tm.status = 'active'
+      ORDER BY t.created_at DESC
+    `, [user.email]);
 
-  const result = teams.map(t => {
-    const members = db.prepare('SELECT id, email, role, status, joined_at FROM team_members WHERE team_id = ?').all(t.id);
-    return { ...t, members };
-  });
+    const result = [];
+    for (const t of teams) {
+      const members = await db.all(
+        'SELECT id, email, role, status, joined_at FROM team_members WHERE team_id = $1',
+        [t.id]
+      );
+      result.push({ ...t, members });
+    }
 
-  res.json({ teams: result });
+    res.json({ teams: result });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al obtener equipos' });
+  }
 });
 
 // Invite member to team
-app.post('/api/teams/:teamId/invite', authMiddleware, (req, res) => {
-  const { email, role } = req.body;
-  if (!email) return res.status(400).json({ error: 'Email requerido' });
-
-  const team = db.prepare('SELECT * FROM teams WHERE id = ?').get(req.params.teamId);
-  if (!team) return res.status(404).json({ error: 'Equipo no encontrado' });
-
-  // Check permission (owner or admin)
-  const member = db.prepare("SELECT * FROM team_members WHERE team_id = ? AND user_id = ? AND role IN ('admin') AND status = 'active'")
-    .get(req.params.teamId, req.userId);
-  if (team.owner_id !== req.userId && !member) {
-    return res.status(403).json({ error: 'Sin permisos' });
-  }
-
-  const memberCount = db.prepare('SELECT COUNT(*) as c FROM team_members WHERE team_id = ?').get(req.params.teamId);
-  if (memberCount.c >= 20) return res.status(400).json({ error: 'Máximo 20 miembros por equipo' });
-
-  const validRole = ['admin', 'moderator', 'viewer'].includes(role) ? role : 'viewer';
-
+app.post('/api/teams/:teamId/invite', authMiddleware, async (req, res) => {
   try {
-    db.prepare("INSERT INTO team_members (team_id, email, role, status) VALUES (?, ?, ?, 'pending')")
-      .run(req.params.teamId, email, validRole);
+    const { email, role } = req.body;
+    if (!email) return res.status(400).json({ error: 'Email requerido' });
+
+    const team = await db.get('SELECT * FROM teams WHERE id = $1', [req.params.teamId]);
+    if (!team) return res.status(404).json({ error: 'Equipo no encontrado' });
+
+    // Check permission
+    const member = await db.get(
+      "SELECT * FROM team_members WHERE team_id = $1 AND user_id = $2 AND role IN ('admin') AND status = 'active'",
+      [req.params.teamId, req.userId]
+    );
+    if (team.owner_id !== req.userId && !member) {
+      return res.status(403).json({ error: 'Sin permisos' });
+    }
+
+    const memberCount = await db.get('SELECT COUNT(*) as c FROM team_members WHERE team_id = $1', [req.params.teamId]);
+    if (parseInt(memberCount.c) >= 20) return res.status(400).json({ error: 'Máximo 20 miembros por equipo' });
+
+    const validRole = ['admin', 'moderator', 'viewer'].includes(role) ? role : 'viewer';
+
+    await db.run(
+      "INSERT INTO team_members (team_id, email, role, status) VALUES ($1, $2, $3, 'pending')",
+      [req.params.teamId, email, validRole]
+    );
 
     // Send invite email if configured
     if (emailTransporter) {
@@ -1639,319 +1821,363 @@ app.post('/api/teams/:teamId/invite', authMiddleware, (req, res) => {
 
     res.json({ ok: true, email, role: validRole });
   } catch (err) {
-    if (err.message.includes('UNIQUE')) return res.status(400).json({ error: 'Ya invitado' });
-    throw err;
+    if (err.message.includes('duplicate key') || err.message.includes('unique constraint')) {
+      return res.status(400).json({ error: 'Ya invitado' });
+    }
+    console.error('Invite error:', err.message);
+    res.status(500).json({ error: 'Error al invitar' });
   }
 });
 
-// Accept team invitation (auto-accepts when user logs in with matching email)
-app.post('/api/teams/:teamId/accept', authMiddleware, (req, res) => {
-  const user = stmts.findUserById.get(req.userId);
-  const result = db.prepare("UPDATE team_members SET status = 'active', user_id = ?, joined_at = CURRENT_TIMESTAMP WHERE team_id = ? AND email = ? AND status = 'pending'")
-    .run(req.userId, req.params.teamId, user.email);
-  if (result.changes === 0) return res.status(404).json({ error: 'Invitación no encontrada' });
-  res.json({ ok: true });
+// Accept team invitation
+app.post('/api/teams/:teamId/accept', authMiddleware, async (req, res) => {
+  try {
+    const user = await db.get(
+      'SELECT id, email, name, plan, brand_settings, created_at FROM users WHERE id = $1',
+      [req.userId]
+    );
+    const result = await db.run(
+      "UPDATE team_members SET status = 'active', user_id = $1, joined_at = NOW() WHERE team_id = $2 AND email = $3 AND status = 'pending'",
+      [req.userId, req.params.teamId, user.email]
+    );
+    if (result.rowCount === 0) return res.status(404).json({ error: 'Invitación no encontrada' });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Error' });
+  }
 });
 
 // Remove member from team
-app.delete('/api/teams/:teamId/members/:memberId', authMiddleware, (req, res) => {
-  const team = db.prepare('SELECT * FROM teams WHERE id = ?').get(req.params.teamId);
-  if (!team || team.owner_id !== req.userId) return res.status(403).json({ error: 'Solo el owner puede remover miembros' });
+app.delete('/api/teams/:teamId/members/:memberId', authMiddleware, async (req, res) => {
+  try {
+    const team = await db.get('SELECT * FROM teams WHERE id = $1', [req.params.teamId]);
+    if (!team || team.owner_id !== req.userId) return res.status(403).json({ error: 'Solo el owner puede remover miembros' });
 
-  const member = db.prepare('SELECT * FROM team_members WHERE id = ? AND team_id = ?').get(req.params.memberId, req.params.teamId);
-  if (!member) return res.status(404).json({ error: 'Miembro no encontrado' });
-  if (member.user_id === req.userId) return res.status(400).json({ error: 'No podés removerte a vos mismo' });
+    const member = await db.get('SELECT * FROM team_members WHERE id = $1 AND team_id = $2', [req.params.memberId, req.params.teamId]);
+    if (!member) return res.status(404).json({ error: 'Miembro no encontrado' });
+    if (member.user_id === req.userId) return res.status(400).json({ error: 'No podés removerte a vos mismo' });
 
-  db.prepare('DELETE FROM team_members WHERE id = ?').run(req.params.memberId);
-  res.json({ ok: true });
+    await db.run('DELETE FROM team_members WHERE id = $1', [req.params.memberId]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Error' });
+  }
 });
 
 // Delete team
-app.delete('/api/teams/:teamId', authMiddleware, (req, res) => {
-  const team = db.prepare('SELECT * FROM teams WHERE id = ?').get(req.params.teamId);
-  if (!team || team.owner_id !== req.userId) return res.status(403).json({ error: 'Solo el owner puede eliminar el equipo' });
+app.delete('/api/teams/:teamId', authMiddleware, async (req, res) => {
+  try {
+    const team = await db.get('SELECT * FROM teams WHERE id = $1', [req.params.teamId]);
+    if (!team || team.owner_id !== req.userId) return res.status(403).json({ error: 'Solo el owner puede eliminar el equipo' });
 
-  db.prepare('DELETE FROM team_members WHERE team_id = ?').run(req.params.teamId);
-  db.prepare('DELETE FROM sorteo_shares WHERE team_id = ?').run(req.params.teamId);
-  db.prepare('DELETE FROM teams WHERE id = ?').run(req.params.teamId);
-  res.json({ ok: true });
+    await db.run('DELETE FROM team_members WHERE team_id = $1', [req.params.teamId]);
+    await db.run('DELETE FROM sorteo_shares WHERE team_id = $1', [req.params.teamId]);
+    await db.run('DELETE FROM teams WHERE id = $1', [req.params.teamId]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Error' });
+  }
 });
 
 // Auto-accept pending invitations on login
-function autoAcceptInvitations(userId, email) {
-  db.prepare("UPDATE team_members SET status = 'active', user_id = ?, joined_at = CURRENT_TIMESTAMP WHERE email = ? AND status = 'pending'")
-    .run(userId, email);
+async function autoAcceptInvitations(userId, email) {
+  await db.run(
+    "UPDATE team_members SET status = 'active', user_id = $1, joined_at = NOW() WHERE email = $2 AND status = 'pending'",
+    [userId, email]
+  );
 }
 
 // ══════════════════════════════════════════════════════════════
 //   LEVEL 8: WEBHOOKS
 // ══════════════════════════════════════════════════════════════
 
-db.exec(`
-  CREATE TABLE IF NOT EXISTS webhooks (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    url TEXT NOT NULL,
-    events TEXT NOT NULL DEFAULT '["sorteo.completed"]',
-    secret TEXT NOT NULL,
-    active INTEGER DEFAULT 1,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    last_triggered DATETIME DEFAULT NULL,
-    fail_count INTEGER DEFAULT 0,
-    FOREIGN KEY (user_id) REFERENCES users(id)
-  );
-
-  CREATE TABLE IF NOT EXISTS webhook_logs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    webhook_id INTEGER NOT NULL,
-    event TEXT NOT NULL,
-    payload TEXT NOT NULL,
-    status_code INTEGER,
-    response TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (webhook_id) REFERENCES webhooks(id)
-  );
-`);
-
 // Register webhook
-app.post('/api/webhooks', authMiddleware, (req, res) => {
-  const { url, events } = req.body;
-  if (!url || !url.startsWith('https://')) return res.status(400).json({ error: 'URL debe ser HTTPS' });
+app.post('/api/webhooks', authMiddleware, async (req, res) => {
+  try {
+    const { url, events } = req.body;
+    if (!url || !url.startsWith('https://')) return res.status(400).json({ error: 'URL debe ser HTTPS' });
 
-  const webhookCount = db.prepare('SELECT COUNT(*) as c FROM webhooks WHERE user_id = ?').get(req.userId);
-  if (webhookCount.c >= 10) return res.status(400).json({ error: 'Máximo 10 webhooks' });
+    const webhookCount = await db.get('SELECT COUNT(*) as c FROM webhooks WHERE user_id = $1', [req.userId]);
+    if (parseInt(webhookCount.c) >= 10) return res.status(400).json({ error: 'Máximo 10 webhooks' });
 
-  const validEvents = ['sorteo.completed', 'sorteo.scheduled', 'participant.added', 'team.member_joined'];
-  const selectedEvents = Array.isArray(events) ? events.filter(e => validEvents.includes(e)) : ['sorteo.completed'];
-  if (selectedEvents.length === 0) selectedEvents.push('sorteo.completed');
+    const validEvents = ['sorteo.completed', 'sorteo.scheduled', 'participant.added', 'team.member_joined'];
+    const selectedEvents = Array.isArray(events) ? events.filter(e => validEvents.includes(e)) : ['sorteo.completed'];
+    if (selectedEvents.length === 0) selectedEvents.push('sorteo.completed');
 
-  const secret = crypto.randomBytes(32).toString('hex');
+    const secret = crypto.randomBytes(32).toString('hex');
 
-  const result = db.prepare('INSERT INTO webhooks (user_id, url, events, secret) VALUES (?, ?, ?, ?)')
-    .run(req.userId, url, JSON.stringify(selectedEvents), secret);
+    const result = await db.get(
+      'INSERT INTO webhooks (user_id, url, events, secret) VALUES ($1, $2, $3, $4) RETURNING id',
+      [req.userId, url, JSON.stringify(selectedEvents), secret]
+    );
 
-  res.json({
-    id: result.lastInsertRowid,
-    url,
-    events: selectedEvents,
-    secret,
-    message: 'Guardá el secret — se usa para verificar la firma de los payloads.'
-  });
+    res.json({
+      id: result.id,
+      url,
+      events: selectedEvents,
+      secret,
+      message: 'Guardá el secret — se usa para verificar la firma de los payloads.'
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al crear webhook' });
+  }
 });
 
 // List webhooks
-app.get('/api/webhooks', authMiddleware, (req, res) => {
-  const webhooks = db.prepare('SELECT id, url, events, active, created_at, last_triggered, fail_count FROM webhooks WHERE user_id = ?').all(req.userId);
-  res.json({ webhooks: webhooks.map(w => ({ ...w, events: JSON.parse(w.events) })) });
+app.get('/api/webhooks', authMiddleware, async (req, res) => {
+  try {
+    const webhooks = await db.all(
+      'SELECT id, url, events, active, created_at, last_triggered, fail_count FROM webhooks WHERE user_id = $1',
+      [req.userId]
+    );
+    res.json({ webhooks: webhooks.map(w => ({ ...w, events: JSON.parse(w.events) })) });
+  } catch (err) {
+    res.status(500).json({ error: 'Error' });
+  }
 });
 
 // Delete webhook
-app.delete('/api/webhooks/:id', authMiddleware, (req, res) => {
-  const result = db.prepare('DELETE FROM webhooks WHERE id = ? AND user_id = ?').run(req.params.id, req.userId);
-  if (result.changes === 0) return res.status(404).json({ error: 'No encontrado' });
-  res.json({ ok: true });
+app.delete('/api/webhooks/:id', authMiddleware, async (req, res) => {
+  try {
+    const result = await db.run('DELETE FROM webhooks WHERE id = $1 AND user_id = $2', [req.params.id, req.userId]);
+    if (result.rowCount === 0) return res.status(404).json({ error: 'No encontrado' });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Error' });
+  }
 });
 
 // Toggle webhook active/inactive
-app.patch('/api/webhooks/:id', authMiddleware, (req, res) => {
-  const wh = db.prepare('SELECT * FROM webhooks WHERE id = ? AND user_id = ?').get(req.params.id, req.userId);
-  if (!wh) return res.status(404).json({ error: 'No encontrado' });
+app.patch('/api/webhooks/:id', authMiddleware, async (req, res) => {
+  try {
+    const wh = await db.get('SELECT * FROM webhooks WHERE id = $1 AND user_id = $2', [req.params.id, req.userId]);
+    if (!wh) return res.status(404).json({ error: 'No encontrado' });
 
-  db.prepare('UPDATE webhooks SET active = ? WHERE id = ?').run(wh.active ? 0 : 1, wh.id);
-  res.json({ ok: true, active: !wh.active });
+    await db.run('UPDATE webhooks SET active = $1 WHERE id = $2', [wh.active ? 0 : 1, wh.id]);
+    res.json({ ok: true, active: !wh.active });
+  } catch (err) {
+    res.status(500).json({ error: 'Error' });
+  }
 });
 
 // Webhook logs
-app.get('/api/webhooks/:id/logs', authMiddleware, (req, res) => {
-  const wh = db.prepare('SELECT * FROM webhooks WHERE id = ? AND user_id = ?').get(req.params.id, req.userId);
-  if (!wh) return res.status(404).json({ error: 'No encontrado' });
+app.get('/api/webhooks/:id/logs', authMiddleware, async (req, res) => {
+  try {
+    const wh = await db.get('SELECT * FROM webhooks WHERE id = $1 AND user_id = $2', [req.params.id, req.userId]);
+    if (!wh) return res.status(404).json({ error: 'No encontrado' });
 
-  const logs = db.prepare('SELECT * FROM webhook_logs WHERE webhook_id = ? ORDER BY created_at DESC LIMIT 20').all(wh.id);
-  res.json({ logs });
+    const logs = await db.all(
+      'SELECT * FROM webhook_logs WHERE webhook_id = $1 ORDER BY created_at DESC LIMIT 20',
+      [wh.id]
+    );
+    res.json({ logs });
+  } catch (err) {
+    res.status(500).json({ error: 'Error' });
+  }
 });
 
 // Fire webhooks for an event
 async function fireWebhooks(userId, event, data) {
-  const webhooks = db.prepare("SELECT * FROM webhooks WHERE user_id = ? AND active = 1").all(userId);
+  try {
+    const webhooks = await db.all("SELECT * FROM webhooks WHERE user_id = $1 AND active = 1", [userId]);
 
-  for (const wh of webhooks) {
-    const events = JSON.parse(wh.events);
-    if (!events.includes(event)) continue;
+    for (const wh of webhooks) {
+      const events = JSON.parse(wh.events);
+      if (!events.includes(event)) continue;
 
-    const payload = JSON.stringify({
-      event,
-      data,
-      timestamp: new Date().toISOString(),
-      webhook_id: wh.id
-    });
-
-    // Create HMAC signature
-    const signature = crypto.createHmac('sha256', wh.secret).update(payload).digest('hex');
-
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 10000);
-
-      const response = await fetch(wh.url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Rafly-Signature': signature,
-          'X-Rafly-Event': event,
-          'User-Agent': 'RAFLY-Webhooks/1.0'
-        },
-        body: payload,
-        signal: controller.signal
+      const payload = JSON.stringify({
+        event,
+        data,
+        timestamp: new Date().toISOString(),
+        webhook_id: wh.id
       });
-      clearTimeout(timeout);
 
-      db.prepare('INSERT INTO webhook_logs (webhook_id, event, payload, status_code, response) VALUES (?, ?, ?, ?, ?)')
-        .run(wh.id, event, payload, response.status, (await response.text()).substring(0, 500));
-      db.prepare('UPDATE webhooks SET last_triggered = CURRENT_TIMESTAMP, fail_count = 0 WHERE id = ?').run(wh.id);
-    } catch (err) {
-      db.prepare('INSERT INTO webhook_logs (webhook_id, event, payload, status_code, response) VALUES (?, ?, ?, ?, ?)')
-        .run(wh.id, event, payload, 0, err.message);
-      const newFails = wh.fail_count + 1;
-      if (newFails >= 10) {
-        db.prepare('UPDATE webhooks SET active = 0, fail_count = ? WHERE id = ?').run(newFails, wh.id);
-      } else {
-        db.prepare('UPDATE webhooks SET fail_count = ? WHERE id = ?').run(newFails, wh.id);
+      // Create HMAC signature
+      const signature = crypto.createHmac('sha256', wh.secret).update(payload).digest('hex');
+
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 10000);
+
+        const response = await fetch(wh.url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Rafly-Signature': signature,
+            'X-Rafly-Event': event,
+            'User-Agent': 'RAFLY-Webhooks/1.0'
+          },
+          body: payload,
+          signal: controller.signal
+        });
+        clearTimeout(timeout);
+
+        await db.run(
+          'INSERT INTO webhook_logs (webhook_id, event, payload, status_code, response) VALUES ($1, $2, $3, $4, $5)',
+          [wh.id, event, payload, response.status, (await response.text()).substring(0, 500)]
+        );
+        await db.run('UPDATE webhooks SET last_triggered = NOW(), fail_count = 0 WHERE id = $1', [wh.id]);
+      } catch (err) {
+        await db.run(
+          'INSERT INTO webhook_logs (webhook_id, event, payload, status_code, response) VALUES ($1, $2, $3, $4, $5)',
+          [wh.id, event, payload, 0, err.message]
+        );
+        const newFails = wh.fail_count + 1;
+        if (newFails >= 10) {
+          await db.run('UPDATE webhooks SET active = 0, fail_count = $1 WHERE id = $2', [newFails, wh.id]);
+        } else {
+          await db.run('UPDATE webhooks SET fail_count = $1 WHERE id = $2', [newFails, wh.id]);
+        }
       }
     }
+  } catch (err) {
+    console.error('fireWebhooks error:', err.message);
   }
 }
-
-// Also fire webhooks when regular sorteos are done
-const _origAddSorteoRun = stmts.addSorteo.run.bind(stmts.addSorteo);
-stmts.addSorteo.run = function(...args) {
-  const result = _origAddSorteoRun(...args);
-  const [userId, winner, suplentes, participantsCount, platform, mode, postUrl] = args;
-  fireWebhooks(userId, 'sorteo.completed', {
-    winner, suplentes: JSON.parse(suplentes || '[]'),
-    participants_count: participantsCount,
-    platform, mode, post_url: postUrl
-  }).catch(() => {});
-  return result;
-};
 
 // ══════════════════════════════════════════════════════════════
 //   LEVEL 8: WHITE-LABEL EMBEDDABLE WIDGET
 // ══════════════════════════════════════════════════════════════
 
-db.exec(`
-  CREATE TABLE IF NOT EXISTS widgets (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    widget_key TEXT UNIQUE NOT NULL,
-    name TEXT DEFAULT 'Mi Widget',
-    config TEXT DEFAULT '{}',
-    active INTEGER DEFAULT 1,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id)
-  );
-`);
-
 // Create widget
-app.post('/api/widgets', authMiddleware, (req, res) => {
-  const { name, config } = req.body;
+app.post('/api/widgets', authMiddleware, async (req, res) => {
+  try {
+    const { name, config } = req.body;
 
-  const user = stmts.findUserById.get(req.userId);
-  if (user.plan === 'free') return res.status(403).json({ error: 'Widget embebible disponible en plan Pro o Enterprise' });
+    const user = await db.get(
+      'SELECT id, email, name, plan, brand_settings, created_at FROM users WHERE id = $1',
+      [req.userId]
+    );
+    if (user.plan === 'free') return res.status(403).json({ error: 'Widget embebible disponible en plan Pro o Enterprise' });
 
-  const widgetCount = db.prepare('SELECT COUNT(*) as c FROM widgets WHERE user_id = ?').get(req.userId);
-  if (widgetCount.c >= 10) return res.status(400).json({ error: 'Máximo 10 widgets' });
+    const widgetCount = await db.get('SELECT COUNT(*) as c FROM widgets WHERE user_id = $1', [req.userId]);
+    if (parseInt(widgetCount.c) >= 10) return res.status(400).json({ error: 'Máximo 10 widgets' });
 
-  const widgetKey = 'w_' + crypto.randomBytes(12).toString('hex');
-  const widgetConfig = {
-    primaryColor: config?.primaryColor || '#00e5ff',
-    accentColor: config?.accentColor || '#ffd700',
-    bgColor: config?.bgColor || '#0a0a0f',
-    textColor: config?.textColor || '#e8e8f0',
-    borderRadius: config?.borderRadius || '12',
-    showBranding: config?.showBranding !== false,
-    title: config?.title || 'Sorteo',
-    buttonText: config?.buttonText || 'SORTEAR',
-    ...config
-  };
+    const widgetKey = 'w_' + crypto.randomBytes(12).toString('hex');
+    const widgetConfig = {
+      primaryColor: config?.primaryColor || '#00e5ff',
+      accentColor: config?.accentColor || '#ffd700',
+      bgColor: config?.bgColor || '#0a0a0f',
+      textColor: config?.textColor || '#e8e8f0',
+      borderRadius: config?.borderRadius || '12',
+      showBranding: config?.showBranding !== false,
+      title: config?.title || 'Sorteo',
+      buttonText: config?.buttonText || 'SORTEAR',
+      ...config
+    };
 
-  db.prepare('INSERT INTO widgets (user_id, widget_key, name, config) VALUES (?, ?, ?, ?)')
-    .run(req.userId, widgetKey, name || 'Mi Widget', JSON.stringify(widgetConfig));
+    await db.run(
+      'INSERT INTO widgets (user_id, widget_key, name, config) VALUES ($1, $2, $3, $4)',
+      [req.userId, widgetKey, name || 'Mi Widget', JSON.stringify(widgetConfig)]
+    );
 
-  res.json({
-    key: widgetKey,
-    embedCode: `<iframe src="${BASE_URL}/widget.html?key=${widgetKey}" width="400" height="500" frameborder="0" style="border-radius:12px;overflow:hidden"></iframe>`,
-    scriptEmbed: `<div id="rafly-widget" data-key="${widgetKey}"></div>\n<script src="${BASE_URL}/widget-sdk.js"></script>`
-  });
+    res.json({
+      key: widgetKey,
+      embedCode: `<iframe src="${BASE_URL}/widget.html?key=${widgetKey}" width="400" height="500" frameborder="0" style="border-radius:12px;overflow:hidden"></iframe>`,
+      scriptEmbed: `<div id="rafly-widget" data-key="${widgetKey}"></div>\n<script src="${BASE_URL}/widget-sdk.js"></script>`
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al crear widget' });
+  }
 });
 
 // List widgets
-app.get('/api/widgets', authMiddleware, (req, res) => {
-  const widgets = db.prepare('SELECT * FROM widgets WHERE user_id = ?').all(req.userId);
-  res.json({ widgets: widgets.map(w => ({ ...w, config: JSON.parse(w.config) })) });
+app.get('/api/widgets', authMiddleware, async (req, res) => {
+  try {
+    const widgets = await db.all('SELECT * FROM widgets WHERE user_id = $1', [req.userId]);
+    res.json({ widgets: widgets.map(w => ({ ...w, config: JSON.parse(w.config) })) });
+  } catch (err) {
+    res.status(500).json({ error: 'Error' });
+  }
 });
 
 // Update widget config
-app.put('/api/widgets/:key', authMiddleware, (req, res) => {
-  const widget = db.prepare('SELECT * FROM widgets WHERE widget_key = ? AND user_id = ?').get(req.params.key, req.userId);
-  if (!widget) return res.status(404).json({ error: 'Widget no encontrado' });
+app.put('/api/widgets/:key', authMiddleware, async (req, res) => {
+  try {
+    const widget = await db.get('SELECT * FROM widgets WHERE widget_key = $1 AND user_id = $2', [req.params.key, req.userId]);
+    if (!widget) return res.status(404).json({ error: 'Widget no encontrado' });
 
-  const { name, config } = req.body;
-  if (name) db.prepare('UPDATE widgets SET name = ? WHERE id = ?').run(name, widget.id);
-  if (config) db.prepare('UPDATE widgets SET config = ? WHERE id = ?').run(JSON.stringify(config), widget.id);
+    const { name, config } = req.body;
+    if (name) await db.run('UPDATE widgets SET name = $1 WHERE id = $2', [name, widget.id]);
+    if (config) await db.run('UPDATE widgets SET config = $1 WHERE id = $2', [JSON.stringify(config), widget.id]);
 
-  res.json({ ok: true });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Error' });
+  }
 });
 
 // Delete widget
-app.delete('/api/widgets/:key', authMiddleware, (req, res) => {
-  const result = db.prepare('DELETE FROM widgets WHERE widget_key = ? AND user_id = ?').run(req.params.key, req.userId);
-  if (result.changes === 0) return res.status(404).json({ error: 'No encontrado' });
-  res.json({ ok: true });
+app.delete('/api/widgets/:key', authMiddleware, async (req, res) => {
+  try {
+    const result = await db.run('DELETE FROM widgets WHERE widget_key = $1 AND user_id = $2', [req.params.key, req.userId]);
+    if (result.rowCount === 0) return res.status(404).json({ error: 'No encontrado' });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Error' });
+  }
 });
 
 // Public widget config endpoint
-app.get('/api/widgets/:key/config', (req, res) => {
-  const widget = db.prepare('SELECT config, active FROM widgets WHERE widget_key = ? AND active = 1').get(req.params.key);
-  if (!widget) return res.status(404).json({ error: 'Widget no encontrado o inactivo' });
-  res.json(JSON.parse(widget.config));
+app.get('/api/widgets/:key/config', async (req, res) => {
+  try {
+    const widget = await db.get('SELECT config, active FROM widgets WHERE widget_key = $1 AND active = 1', [req.params.key]);
+    if (!widget) return res.status(404).json({ error: 'Widget no encontrado o inactivo' });
+    res.json(JSON.parse(widget.config));
+  } catch (err) {
+    res.status(500).json({ error: 'Error' });
+  }
 });
 
 // Widget sorteo endpoint (public, rate limited by widget key)
 const widgetRateLimits = new Map();
 setInterval(() => widgetRateLimits.clear(), 60000);
 
-app.post('/api/widgets/:key/sorteo', (req, res) => {
-  const widget = db.prepare('SELECT * FROM widgets WHERE widget_key = ? AND active = 1').get(req.params.key);
-  if (!widget) return res.status(404).json({ error: 'Widget no encontrado' });
+app.post('/api/widgets/:key/sorteo', async (req, res) => {
+  try {
+    const widget = await db.get('SELECT * FROM widgets WHERE widget_key = $1 AND active = 1', [req.params.key]);
+    if (!widget) return res.status(404).json({ error: 'Widget no encontrado' });
 
-  // Rate limit: 30 per minute per widget
-  const count = (widgetRateLimits.get(req.params.key) || 0) + 1;
-  widgetRateLimits.set(req.params.key, count);
-  if (count > 30) return res.status(429).json({ error: 'Rate limit' });
+    // Rate limit: 30 per minute per widget
+    const count = (widgetRateLimits.get(req.params.key) || 0) + 1;
+    widgetRateLimits.set(req.params.key, count);
+    if (count > 30) return res.status(429).json({ error: 'Rate limit' });
 
-  const { participants, count: winnerCount } = req.body;
-  if (!Array.isArray(participants) || participants.length < 2) {
-    return res.status(400).json({ error: 'Se necesitan al menos 2 participantes' });
+    const { participants, count: winnerCount } = req.body;
+    if (!Array.isArray(participants) || participants.length < 2) {
+      return res.status(400).json({ error: 'Se necesitan al menos 2 participantes' });
+    }
+
+    const widgetPool = participants.map(p => String(p).trim()).filter(Boolean);
+    const total = Math.min(Math.max(1, parseInt(winnerCount) || 1), widgetPool.length);
+    const winners = [];
+    const available = [...widgetPool];
+
+    for (let i = 0; i < total; i++) {
+      const idx = crypto.randomInt(available.length);
+      winners.push(available.splice(idx, 1)[0]);
+    }
+
+    res.json({ winners, total_participants: widgetPool.length });
+  } catch (err) {
+    res.status(500).json({ error: 'Error' });
   }
-
-  const pool = participants.map(p => String(p).trim()).filter(Boolean);
-  const total = Math.min(Math.max(1, parseInt(winnerCount) || 1), pool.length);
-  const winners = [];
-  const available = [...pool];
-
-  for (let i = 0; i < total; i++) {
-    const idx = crypto.randomInt(available.length);
-    winners.push(available.splice(idx, 1)[0]);
-  }
-
-  res.json({ winners, total_participants: pool.length });
 });
 
 // ── Iniciar servidor ───────────────────────────────────────────
-app.listen(PORT, () => {
-  console.log(`\n  ✦ RAFLY corriendo en ${BASE_URL}\n`);
-  if (!FB_APP_ID || !FB_APP_SECRET) {
-    console.log('  ⚠ Falta FB_APP_ID o FB_APP_SECRET en .env');
-    console.log('  → Creá una Facebook App en https://developers.facebook.com\n');
-  }
+initDB().then(() => {
+  app.listen(PORT, () => {
+    console.log(`\n  ✦ RAFLY corriendo en ${BASE_URL}\n`);
+    if (!FB_APP_ID || !FB_APP_SECRET) {
+      console.log('  ⚠ Falta FB_APP_ID o FB_APP_SECRET en .env');
+      console.log('  → Creá una Facebook App en https://developers.facebook.com\n');
+    }
+    if (!process.env.DATABASE_URL) {
+      console.log('  ⚠ Falta DATABASE_URL en .env');
+      console.log('  → Creá una base PostgreSQL en https://neon.tech\n');
+    }
+  });
+}).catch(err => {
+  console.error('  ✗ Error al inicializar base de datos:', err.message);
+  process.exit(1);
 });
