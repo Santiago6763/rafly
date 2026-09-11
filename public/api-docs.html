@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RAFLY — API Docs</title>
+<meta name="description" content="Documentación de la API pública de RAFLY para sorteos y giveaways">
+<link rel="canonical" href="https://rafly.onrender.com/api-docs.html">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0a0f;
+  --surface: #12121a;
+  --surface2: #1a1a28;
+  --border: #2a2a3a;
+  --text: #e8e8f0;
+  --text-dim: #8888aa;
+  --neon-cyan: #00e5ff;
+  --neon-gold: #ffd700;
+  --neon-green: #00ff88;
+  --neon-red: #ff4466;
+  --glow-cyan: rgba(0,229,255,.3);
+  --glow-gold: rgba(255,215,0,.3);
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family:'Inter',sans-serif;
+  background:var(--bg);
+  color:var(--text);
+  min-height:100vh;
+  line-height:1.6;
+}
+a { color:var(--neon-cyan); text-decoration:none; }
+a:hover { text-decoration:underline; }
+
+/* Header */
+.docs-header {
+  background:var(--surface);
+  border-bottom:1px solid var(--border);
+  padding:1rem 2rem;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  position:sticky;
+  top:0;
+  z-index:100;
+  backdrop-filter:blur(10px);
+}
+.docs-logo {
+  font-family:'Orbitron',monospace;
+  font-weight:900;
+  font-size:1.4rem;
+  background:linear-gradient(135deg,var(--neon-cyan),var(--neon-gold));
+  -webkit-background-clip:text;
+  -webkit-text-fill-color:transparent;
+}
+.docs-badge {
+  font-family:'Orbitron',monospace;
+  font-size:.65rem;
+  padding:.25rem .6rem;
+  border:1px solid var(--neon-green);
+  color:var(--neon-green);
+  border-radius:4px;
+  margin-left:.5rem;
+  vertical-align:middle;
+}
+.docs-nav {
+  display:flex;
+  gap:1rem;
+  align-items:center;
+}
+.docs-nav a {
+  font-size:.85rem;
+  color:var(--text-dim);
+  transition:color .2s;
+}
+.docs-nav a:hover { color:var(--neon-cyan); text-decoration:none; }
+
+/* Layout */
+.docs-layout {
+  display:grid;
+  grid-template-columns:240px 1fr;
+  max-width:1200px;
+  margin:0 auto;
+  min-height:calc(100vh - 56px);
+}
+@media(max-width:768px) {
+  .docs-layout { grid-template-columns:1fr; }
+  .docs-sidebar { display:none; }
+  .docs-header { padding:1rem; }
+}
+
+/* Sidebar */
+.docs-sidebar {
+  border-right:1px solid var(--border);
+  padding:1.5rem 1rem;
+  position:sticky;
+  top:56px;
+  height:calc(100vh - 56px);
+  overflow-y:auto;
+}
+.sidebar-section {
+  margin-bottom:1.5rem;
+}
+.sidebar-section h4 {
+  font-size:.7rem;
+  text-transform:uppercase;
+  letter-spacing:.1em;
+  color:var(--text-dim);
+  margin-bottom:.5rem;
+  font-weight:600;
+}
+.sidebar-section a {
+  display:block;
+  padding:.35rem .6rem;
+  font-size:.85rem;
+  color:var(--text-dim);
+  border-radius:6px;
+  transition:all .2s;
+}
+.sidebar-section a:hover {
+  color:var(--neon-cyan);
+  background:rgba(0,229,255,.05);
+  text-decoration:none;
+}
+
+/* Main content */
+.docs-main {
+  padding:2rem 3rem;
+}
+@media(max-width:768px) {
+  .docs-main { padding:1.5rem 1rem; }
+}
+.docs-main h1 {
+  font-family:'Orbitron',monospace;
+  font-size:2rem;
+  font-weight:900;
+  margin-bottom:.5rem;
+  background:linear-gradient(135deg,var(--neon-cyan),var(--neon-gold));
+  -webkit-background-clip:text;
+  -webkit-text-fill-color:transparent;
+}
+.docs-main h2 {
+  font-family:'Orbitron',monospace;
+  font-size:1.2rem;
+  font-weight:700;
+  color:var(--neon-cyan);
+  margin:2.5rem 0 1rem;
+  padding-bottom:.5rem;
+  border-bottom:1px solid var(--border);
+}
+.docs-main h3 {
+  font-size:1rem;
+  font-weight:700;
+  margin:1.5rem 0 .5rem;
+  color:var(--text);
+}
+.docs-main p {
+  margin-bottom:1rem;
+  color:var(--text-dim);
+}
+
+/* Code blocks */
+pre {
+  background:var(--surface2);
+  border:1px solid var(--border);
+  border-radius:8px;
+  padding:1rem;
+  overflow-x:auto;
+  margin:1rem 0;
+  font-family:'JetBrains Mono',monospace;
+  font-size:.82rem;
+  line-height:1.5;
+}
+code {
+  font-family:'JetBrains Mono',monospace;
+  font-size:.85rem;
+}
+p code, li code {
+  background:var(--surface2);
+  padding:.15rem .4rem;
+  border-radius:4px;
+  color:var(--neon-gold);
+  font-size:.8rem;
+}
+.code-comment { color:#5c6370; }
+.code-string { color:#98c379; }
+.code-key { color:var(--neon-cyan); }
+.code-method { color:#c678dd; font-weight:600; }
+
+/* Method badges */
+.method {
+  display:inline-block;
+  font-family:'JetBrains Mono',monospace;
+  font-size:.7rem;
+  font-weight:700;
+  padding:.2rem .5rem;
+  border-radius:4px;
+  margin-right:.5rem;
+  vertical-align:middle;
+}
+.method-get { background:rgba(0,229,255,.15); color:var(--neon-cyan); }
+.method-post { background:rgba(0,255,136,.15); color:var(--neon-green); }
+.method-delete { background:rgba(255,68,102,.15); color:var(--neon-red); }
+
+/* Endpoint cards */
+.endpoint {
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:10px;
+  padding:1.2rem;
+  margin:1rem 0;
+}
+.endpoint-header {
+  display:flex;
+  align-items:center;
+  gap:.5rem;
+  flex-wrap:wrap;
+}
+.endpoint-path {
+  font-family:'JetBrains Mono',monospace;
+  font-size:.9rem;
+  color:var(--text);
+}
+.endpoint-desc {
+  color:var(--text-dim);
+  font-size:.85rem;
+  margin:.6rem 0 0;
+}
+
+/* Tables */
+table {
+  width:100%;
+  border-collapse:collapse;
+  margin:1rem 0;
+  font-size:.85rem;
+}
+th {
+  text-align:left;
+  font-size:.7rem;
+  text-transform:uppercase;
+  letter-spacing:.08em;
+  color:var(--text-dim);
+  padding:.6rem .8rem;
+  border-bottom:1px solid var(--border);
+}
+td {
+  padding:.6rem .8rem;
+  border-bottom:1px solid rgba(42,42,58,.5);
+  color:var(--text-dim);
+}
+td:first-child { color:var(--neon-gold); font-family:'JetBrains Mono',monospace; font-size:.82rem; }
+.required { color:var(--neon-red); font-size:.7rem; margin-left:.3rem; }
+
+/* Alert */
+.alert {
+  background:rgba(0,229,255,.05);
+  border:1px solid rgba(0,229,255,.2);
+  border-radius:8px;
+  padding:1rem;
+  margin:1rem 0;
+  font-size:.85rem;
+  color:var(--text-dim);
+}
+.alert-warn {
+  background:rgba(255,215,0,.05);
+  border-color:rgba(255,215,0,.2);
+}
+.alert strong { color:var(--text); }
+
+/* Plan table */
+.plan-grid {
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:1rem;
+  margin:1rem 0;
+}
+@media(max-width:640px) {
+  .plan-grid { grid-template-columns:1fr; }
+}
+.plan-card {
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:10px;
+  padding:1.2rem;
+  text-align:center;
+}
+.plan-card h4 {
+  font-family:'Orbitron',monospace;
+  font-size:.9rem;
+  font-weight:700;
+  margin-bottom:.8rem;
+}
+.plan-card .stat {
+  font-size:1.6rem;
+  font-weight:700;
+  font-family:'Orbitron',monospace;
+}
+.plan-card .stat-label {
+  font-size:.75rem;
+  color:var(--text-dim);
+  display:block;
+  margin-top:.2rem;
+}
+.plan-free h4 { color:var(--neon-green); }
+.plan-pro h4 { color:var(--neon-cyan); }
+.plan-ent h4 { color:var(--neon-gold); }
+
+/* API key section */
+#apiKeySection {
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:10px;
+  padding:1.5rem;
+  margin:1.5rem 0;
+}
+#apiKeySection h3 { margin-top:0; }
+.key-row {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:.6rem 0;
+  border-bottom:1px solid rgba(42,42,58,.4);
+  font-size:.85rem;
+}
+.key-prefix { font-family:'JetBrains Mono',monospace; color:var(--neon-gold); }
+.key-meta { color:var(--text-dim); font-size:.78rem; }
+.btn-sm {
+  font-size:.75rem;
+  padding:.3rem .7rem;
+  border-radius:5px;
+  border:1px solid var(--border);
+  background:transparent;
+  color:var(--text-dim);
+  cursor:pointer;
+  transition:all .2s;
+}
+.btn-sm:hover { border-color:var(--neon-red); color:var(--neon-red); }
+.btn-create {
+  font-size:.8rem;
+  padding:.5rem 1.2rem;
+  border-radius:6px;
+  border:1px solid var(--neon-cyan);
+  background:rgba(0,229,255,.1);
+  color:var(--neon-cyan);
+  cursor:pointer;
+  font-weight:600;
+  margin-top:.8rem;
+  transition:all .2s;
+}
+.btn-create:hover { background:rgba(0,229,255,.2); }
+.new-key-display {
+  background:var(--surface2);
+  border:1px solid var(--neon-gold);
+  border-radius:8px;
+  padding:1rem;
+  margin-top:1rem;
+  display:none;
+}
+.new-key-display code {
+  display:block;
+  word-break:break-all;
+  color:var(--neon-gold);
+  font-size:.82rem;
+  margin:.5rem 0;
+}
+.login-prompt {
+  text-align:center;
+  padding:1rem;
+  color:var(--text-dim);
+}
+</style>
+</head>
+<body>
+
+<header class="docs-header">
+  <div style="display:flex;align-items:center;gap:.3rem">
+    <a href="/" class="docs-logo">RAFLY</a>
+    <span class="docs-badge">API v1</span>
+  </div>
+  <nav class="docs-nav">
+    <a href="/">App</a>
+    <a href="/pricing.html">Planes</a>
+    <a href="/dashboard.html">Dashboard</a>
+  </nav>
+</header>
+
+<div class="docs-layout">
+  <aside class="docs-sidebar">
+    <div class="sidebar-section">
+      <h4>Inicio</h4>
+      <a href="#intro">Introducción</a>
+      <a href="#auth">Autenticación</a>
+      <a href="#rate-limits">Rate Limits</a>
+      <a href="#errors">Errores</a>
+    </div>
+    <div class="sidebar-section">
+      <h4>Endpoints</h4>
+      <a href="#sorteo-random">POST /sorteo/random</a>
+      <a href="#sorteos-list">GET /sorteos</a>
+      <a href="#account">GET /account</a>
+    </div>
+    <div class="sidebar-section">
+      <h4>Recursos</h4>
+      <a href="#api-keys">Tus API Keys</a>
+      <a href="#examples">Ejemplos</a>
+      <a href="#sdks">SDKs</a>
+    </div>
+  </aside>
+
+  <main class="docs-main">
+    <h1 id="intro">API Documentation</h1>
+    <p>Integrá sorteos criptográficamente seguros en tu app, bot o plataforma con la API de RAFLY.</p>
+
+    <div class="alert">
+      <strong>Base URL:</strong> <code>https://rafly.onrender.com/api/v1</code>
+    </div>
+
+    <!-- AUTH -->
+    <h2 id="auth">Autenticación</h2>
+    <p>Todas las requests a la API requieren un API key. Pasalo como header <code>X-API-Key</code> o como query param <code>api_key</code>.</p>
+    <pre><span class="code-comment"># Header (recomendado)</span>
+curl -H <span class="code-string">"X-API-Key: rfly_abc123..."</span> \
+  https://rafly.onrender.com/api/v1/account
+
+<span class="code-comment"># Query param</span>
+curl https://rafly.onrender.com/api/v1/account?api_key=rfly_abc123...</pre>
+    <p>Podés crear hasta 5 API keys desde esta misma página (abajo) o desde tu dashboard.</p>
+
+    <!-- RATE LIMITS -->
+    <h2 id="rate-limits">Rate Limits</h2>
+    <p>Los límites dependen de tu plan:</p>
+    <div class="plan-grid">
+      <div class="plan-card plan-free">
+        <h4>FREE</h4>
+        <div class="stat">50</div>
+        <span class="stat-label">requests/día</span>
+        <div class="stat" style="margin-top:.5rem">10</div>
+        <span class="stat-label">requests/min</span>
+      </div>
+      <div class="plan-card plan-pro">
+        <h4>PRO</h4>
+        <div class="stat">1,000</div>
+        <span class="stat-label">requests/día</span>
+        <div class="stat" style="margin-top:.5rem">60</div>
+        <span class="stat-label">requests/min</span>
+      </div>
+      <div class="plan-card plan-ent">
+        <h4>ENTERPRISE</h4>
+        <div class="stat">10,000</div>
+        <span class="stat-label">requests/día</span>
+        <div class="stat" style="margin-top:.5rem">200</div>
+        <span class="stat-label">requests/min</span>
+      </div>
+    </div>
+    <p>Cuando excedés el límite, la API responde con <code>429 Too Many Requests</code>.</p>
+
+    <!-- ERRORS -->
+    <h2 id="errors">Errores</h2>
+    <p>La API responde con JSON en formato <code>{"error": "mensaje"}</code>.</p>
+    <table>
+      <thead><tr><th>Código</th><th>Descripción</th></tr></thead>
+      <tbody>
+        <tr><td>400</td><td>Request inválido — revisá los parámetros</td></tr>
+        <tr><td>401</td><td>API key faltante o inválido</td></tr>
+        <tr><td>429</td><td>Rate limit excedido</td></tr>
+        <tr><td>500</td><td>Error interno del servidor</td></tr>
+      </tbody>
+    </table>
+
+    <!-- ENDPOINT: SORTEO RANDOM -->
+    <h2 id="sorteo-random">Sortear ganador(es)</h2>
+    <div class="endpoint">
+      <div class="endpoint-header">
+        <span class="method method-post">POST</span>
+        <span class="endpoint-path">/api/v1/sorteo/random</span>
+      </div>
+      <p class="endpoint-desc">Selecciona ganador(es) aleatorios de una lista usando criptografía segura (<code>crypto.randomInt</code>).</p>
+    </div>
+    <h3>Request Body</h3>
+    <table>
+      <thead><tr><th>Campo</th><th>Tipo</th><th>Descripción</th></tr></thead>
+      <tbody>
+        <tr><td>participants</td><td>string[]<span class="required">*</span></td><td>Lista de nombres (máx 10,000)</td></tr>
+        <tr><td>count</td><td>integer</td><td>Cantidad de ganadores (default: 1)</td></tr>
+        <tr><td>removeDuplicates</td><td>boolean</td><td>Eliminar duplicados (default: false)</td></tr>
+      </tbody>
+    </table>
+    <h3>Ejemplo</h3>
+    <pre>curl -X POST https://rafly.onrender.com/api/v1/sorteo/random \
+  -H <span class="code-string">"X-API-Key: rfly_abc123..."</span> \
+  -H <span class="code-string">"Content-Type: application/json"</span> \
+  -d <span class="code-string">'{
+  "participants": ["Ana", "Pedro", "Luis", "Maria", "Carlos"],
+  "count": 2,
+  "removeDuplicates": true
+}'</span></pre>
+    <h3>Respuesta</h3>
+    <pre>{
+  <span class="code-key">"winners"</span>: [<span class="code-string">"Maria"</span>, <span class="code-string">"Luis"</span>],
+  <span class="code-key">"total_participants"</span>: 5,
+  <span class="code-key">"draw_time"</span>: <span class="code-string">"2026-09-11T15:30:00.000Z"</span>,
+  <span class="code-key">"method"</span>: <span class="code-string">"crypto.randomInt"</span>
+}</pre>
+
+    <!-- ENDPOINT: SORTEOS LIST -->
+    <h2 id="sorteos-list">Historial de sorteos</h2>
+    <div class="endpoint">
+      <div class="endpoint-header">
+        <span class="method method-get">GET</span>
+        <span class="endpoint-path">/api/v1/sorteos</span>
+      </div>
+      <p class="endpoint-desc">Lista el historial de sorteos realizados con tu cuenta.</p>
+    </div>
+    <h3>Query Params</h3>
+    <table>
+      <thead><tr><th>Campo</th><th>Tipo</th><th>Descripción</th></tr></thead>
+      <tbody>
+        <tr><td>limit</td><td>integer</td><td>Cantidad (default: 20, máx: 100)</td></tr>
+        <tr><td>offset</td><td>integer</td><td>Offset para paginación (default: 0)</td></tr>
+      </tbody>
+    </table>
+    <h3>Ejemplo</h3>
+    <pre>curl https://rafly.onrender.com/api/v1/sorteos?limit=5 \
+  -H <span class="code-string">"X-API-Key: rfly_abc123..."</span></pre>
+
+    <!-- ENDPOINT: ACCOUNT -->
+    <h2 id="account">Info de cuenta</h2>
+    <div class="endpoint">
+      <div class="endpoint-header">
+        <span class="method method-get">GET</span>
+        <span class="endpoint-path">/api/v1/account</span>
+      </div>
+      <p class="endpoint-desc">Devuelve info de tu cuenta y límites del plan.</p>
+    </div>
+    <h3>Ejemplo</h3>
+    <pre>curl https://rafly.onrender.com/api/v1/account \
+  -H <span class="code-string">"X-API-Key: rfly_abc123..."</span></pre>
+    <h3>Respuesta</h3>
+    <pre>{
+  <span class="code-key">"email"</span>: <span class="code-string">"user@example.com"</span>,
+  <span class="code-key">"plan"</span>: <span class="code-string">"pro"</span>,
+  <span class="code-key">"api_limits"</span>: {
+    <span class="code-key">"daily"</span>: 1000,
+    <span class="code-key">"perMinute"</span>: 60
+  }
+}</pre>
+
+    <!-- API KEYS -->
+    <h2 id="api-keys">Tus API Keys</h2>
+    <div id="apiKeySection">
+      <div id="apiKeyLogin" class="login-prompt">
+        <p>Tenés que <a href="/" onclick="return false;" id="goLogin">iniciar sesión</a> para gestionar tus API keys.</p>
+      </div>
+      <div id="apiKeyManager" style="display:none">
+        <div id="keysList"></div>
+        <button class="btn-create" onclick="createApiKey()">+ Crear API Key</button>
+        <div class="new-key-display" id="newKeyDisplay">
+          <strong style="color:var(--neon-gold)">⚠ Guardá esta key — no se va a mostrar de nuevo:</strong>
+          <code id="newKeyValue"></code>
+        </div>
+      </div>
+    </div>
+
+    <!-- EXAMPLES -->
+    <h2 id="examples">Ejemplos</h2>
+
+    <h3>JavaScript / Node.js</h3>
+    <pre><span class="code-key">const</span> res = <span class="code-key">await</span> fetch(<span class="code-string">'https://rafly.onrender.com/api/v1/sorteo/random'</span>, {
+  method: <span class="code-string">'POST'</span>,
+  headers: {
+    <span class="code-string">'X-API-Key'</span>: <span class="code-string">'rfly_tu_key_aqui'</span>,
+    <span class="code-string">'Content-Type'</span>: <span class="code-string">'application/json'</span>
+  },
+  body: JSON.stringify({
+    participants: [<span class="code-string">'Ana'</span>, <span class="code-string">'Pedro'</span>, <span class="code-string">'Luis'</span>],
+    count: 1
+  })
+});
+<span class="code-key">const</span> { winners } = <span class="code-key">await</span> res.json();
+console.log(<span class="code-string">`Ganador: ${winners[0]}`</span>);</pre>
+
+    <h3>Python</h3>
+    <pre><span class="code-key">import</span> requests
+
+resp = requests.post(
+    <span class="code-string">"https://rafly.onrender.com/api/v1/sorteo/random"</span>,
+    headers={<span class="code-string">"X-API-Key"</span>: <span class="code-string">"rfly_tu_key_aqui"</span>},
+    json={
+        <span class="code-string">"participants"</span>: [<span class="code-string">"Ana"</span>, <span class="code-string">"Pedro"</span>, <span class="code-string">"Luis"</span>],
+        <span class="code-string">"count"</span>: 1
+    }
+)
+data = resp.json()
+print(f<span class="code-string">"Ganador: {data['winners'][0]}"</span>)</pre>
+
+    <!-- SDKs -->
+    <h2 id="sdks">SDKs</h2>
+    <div class="alert alert-warn">
+      <strong>Próximamente:</strong> SDKs oficiales para JavaScript, Python y PHP. Mientras tanto, usá la API REST directamente con cualquier HTTP client.
+    </div>
+
+  </main>
+</div>
+
+<script>
+// Auth helpers (reuse token from main app)
+function getToken() {
+  try { return localStorage.getItem('rafly-token'); } catch(e) { return null; }
+}
+
+async function authFetch(url, opts = {}) {
+  const token = getToken();
+  if (!token) return null;
+  opts.headers = opts.headers || {};
+  opts.headers['Authorization'] = 'Bearer ' + token;
+  return fetch(url, opts);
+}
+
+// Init
+async function initApiDocs() {
+  const token = getToken();
+  if (token) {
+    document.getElementById('apiKeyLogin').style.display = 'none';
+    document.getElementById('apiKeyManager').style.display = 'block';
+    loadKeys();
+  }
+}
+
+async function loadKeys() {
+  try {
+    const res = await authFetch('/api/keys');
+    if (!res || !res.ok) return;
+    const data = await res.json();
+    const list = document.getElementById('keysList');
+    if (!data.keys.length) {
+      list.innerHTML = '<p style="color:var(--text-dim);font-size:.85rem">No tenés API keys todavía.</p>';
+      return;
+    }
+    list.innerHTML = data.keys.map(k => `
+      <div class="key-row">
+        <div>
+          <span class="key-prefix">${k.key_prefix}</span>
+          <span class="key-meta" style="margin-left:.5rem">${k.name}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:.8rem">
+          <span class="key-meta">${k.requests_total} requests</span>
+          <button class="btn-sm" onclick="deleteKey(${k.id})">Eliminar</button>
+        </div>
+      </div>
+    `).join('');
+  } catch(e) {}
+}
+
+async function createApiKey() {
+  const name = prompt('Nombre para la key (opcional):', 'default');
+  if (name === null) return;
+  try {
+    const res = await authFetch('/api/keys', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name || 'default' })
+    });
+    if (!res || !res.ok) {
+      const err = await res.json();
+      alert(err.error || 'Error');
+      return;
+    }
+    const data = await res.json();
+    document.getElementById('newKeyDisplay').style.display = 'block';
+    document.getElementById('newKeyValue').textContent = data.key;
+    loadKeys();
+  } catch(e) { alert('Error de conexión'); }
+}
+
+async function deleteKey(id) {
+  if (!confirm('¿Eliminar esta API key?')) return;
+  try {
+    await authFetch('/api/keys/' + id, { method: 'DELETE' });
+    loadKeys();
+  } catch(e) {}
+}
+
+document.getElementById('goLogin')?.addEventListener('click', () => {
+  window.location.href = '/?login=1';
+});
+
+initApiDocs();
+</script>
+</body>
+</html>
