@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RAFLY — Countdown</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#0a0a0f;--surface:#12121a;--border:#2a2a3a;
+  --text:#e8e8f0;--text-dim:#8888aa;
+  --neon-cyan:#00e5ff;--neon-gold:#ffd700;--neon-green:#00ff88;
+  --glow-cyan:rgba(0,229,255,.3);--glow-gold:rgba(255,215,0,.3);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:2rem;text-align:center}
+.logo{font-family:'Orbitron',monospace;font-size:2rem;font-weight:900;background:linear-gradient(135deg,var(--neon-cyan),var(--neon-gold));-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:.5rem}
+.sorteo-title{font-size:1.2rem;color:var(--text-dim);margin-bottom:2rem}
+.countdown{display:flex;gap:1rem;margin-bottom:2rem}
+.cd-block{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.2rem 1.5rem;min-width:80px}
+.cd-num{font-family:'Orbitron',monospace;font-size:2.5rem;font-weight:900;color:var(--neon-cyan);text-shadow:0 0 20px var(--glow-cyan)}
+.cd-label{font-size:.65rem;text-transform:uppercase;letter-spacing:.1em;color:var(--text-dim);margin-top:.3rem}
+.status{font-size:.9rem;color:var(--text-dim);margin-bottom:1rem}
+.winner-reveal{display:none;animation:fadeUp .8s ease}
+@keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+.winner-label{font-size:.8rem;text-transform:uppercase;letter-spacing:.2em;color:var(--neon-gold);margin-bottom:.5rem}
+.winner-name{font-family:'Orbitron',monospace;font-size:2.5rem;font-weight:900;color:var(--neon-gold);text-shadow:0 0 30px var(--glow-gold);margin-bottom:1rem}
+.back-link{color:var(--neon-cyan);text-decoration:none;font-size:.85rem;margin-top:1.5rem}
+.back-link:hover{text-decoration:underline}
+@media(max-width:480px){.cd-num{font-size:1.8rem}.cd-block{padding:.8rem 1rem;min-width:60px}.countdown{gap:.5rem}}
+</style>
+</head>
+<body>
+<div class="logo">RAFLY</div>
+<div class="sorteo-title" id="title">Sorteo programado</div>
+
+<div class="countdown" id="countdown">
+  <div class="cd-block"><div class="cd-num" id="days">00</div><div class="cd-label">Días</div></div>
+  <div class="cd-block"><div class="cd-num" id="hours">00</div><div class="cd-label">Horas</div></div>
+  <div class="cd-block"><div class="cd-num" id="mins">00</div><div class="cd-label">Min</div></div>
+  <div class="cd-block"><div class="cd-num" id="secs">00</div><div class="cd-label">Seg</div></div>
+</div>
+
+<div class="status" id="status">Cargando...</div>
+
+<div class="winner-reveal" id="winnerReveal">
+  <div class="winner-label">🎉 Ganador</div>
+  <div class="winner-name" id="winnerName"></div>
+</div>
+
+<a href="/" class="back-link">← Volver a RAFLY</a>
+
+<script>
+const id = new URLSearchParams(window.location.search).get('id');
+let sorteo = null;
+
+async function loadSorteo() {
+  if (!id) { document.getElementById('status').textContent = 'ID de sorteo no proporcionado'; return; }
+  try {
+    const res = await fetch(`/api/scheduled-sorteos/${id}/public`);
+    if (!res.ok) { document.getElementById('status').textContent = 'Sorteo no encontrado'; return; }
+    sorteo = await res.json();
+    document.getElementById('title').textContent = sorteo.title || 'Sorteo programado';
+    document.title = `RAFLY — ${sorteo.title || 'Countdown'}`;
+
+    if (sorteo.status === 'completed') {
+      showWinner();
+    } else {
+      updateCountdown();
+      setInterval(updateCountdown, 1000);
+      // Poll for completion
+      setInterval(checkCompletion, 5000);
+    }
+  } catch(e) {
+    document.getElementById('status').textContent = 'Error al cargar el sorteo';
+  }
+}
+
+function updateCountdown() {
+  if (!sorteo) return;
+  const target = new Date(sorteo.scheduled_at).getTime();
+  const now = Date.now();
+  const diff = target - now;
+
+  if (diff <= 0) {
+    document.getElementById('status').textContent = 'Sorteando...';
+    document.querySelectorAll('.cd-num').forEach(el => el.textContent = '00');
+    return;
+  }
+
+  const d = Math.floor(diff / 86400000);
+  const h = Math.floor((diff % 86400000) / 3600000);
+  const m = Math.floor((diff % 3600000) / 60000);
+  const s = Math.floor((diff % 60000) / 1000);
+
+  document.getElementById('days').textContent = String(d).padStart(2, '0');
+  document.getElementById('hours').textContent = String(h).padStart(2, '0');
+  document.getElementById('mins').textContent = String(m).padStart(2, '0');
+  document.getElementById('secs').textContent = String(s).padStart(2, '0');
+  document.getElementById('status').textContent = 'Faltan...';
+}
+
+async function checkCompletion() {
+  try {
+    const res = await fetch(`/api/scheduled-sorteos/${id}/public`);
+    const data = await res.json();
+    if (data.status === 'completed') {
+      sorteo = data;
+      showWinner();
+    }
+  } catch(e) {}
+}
+
+function showWinner() {
+  document.getElementById('countdown').style.display = 'none';
+  document.getElementById('status').textContent = 'Sorteo completado';
+  const reveal = document.getElementById('winnerReveal');
+  reveal.style.display = 'block';
+
+  const winners = sorteo.winners?.winners || [];
+  document.getElementById('winnerName').textContent = winners.join(', ') || '—';
+}
+
+loadSorteo();
+</script>
+</body>
+</html>
