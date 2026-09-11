@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RAFLY Widget</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --primary: #00e5ff;
+  --accent: #ffd700;
+  --bg: #0a0a0f;
+  --text: #e8e8f0;
+  --text-dim: #8888aa;
+  --border: #2a2a3a;
+  --surface: #12121a;
+  --radius: 12px;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family:'Inter',sans-serif;
+  background:var(--bg);
+  color:var(--text);
+  min-height:100vh;
+  display:flex;
+  flex-direction:column;
+  padding:1rem;
+  overflow:hidden;
+}
+.widget-header {
+  text-align:center;
+  margin-bottom:1rem;
+}
+.widget-title {
+  font-family:'Orbitron',monospace;
+  font-size:1.3rem;
+  font-weight:900;
+  background:linear-gradient(135deg, var(--primary), var(--accent));
+  -webkit-background-clip:text;
+  -webkit-text-fill-color:transparent;
+}
+.participants-area {
+  flex:1;
+  display:flex;
+  flex-direction:column;
+  gap:.5rem;
+  margin-bottom:1rem;
+  min-height:0;
+}
+.participants-input {
+  flex:1;
+  width:100%;
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  color:var(--text);
+  font-family:'Inter',sans-serif;
+  font-size:.85rem;
+  padding:.8rem;
+  resize:none;
+  outline:none;
+  transition:border-color .2s;
+}
+.participants-input:focus { border-color:var(--primary); }
+.participants-input::placeholder { color:var(--text-dim); }
+.count-bar {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  font-size:.75rem;
+  color:var(--text-dim);
+  padding:0 .2rem;
+}
+.count-num {
+  font-family:'Orbitron',monospace;
+  color:var(--primary);
+  font-weight:700;
+}
+.spin-btn {
+  width:100%;
+  padding:.9rem;
+  font-family:'Orbitron',monospace;
+  font-size:1rem;
+  font-weight:900;
+  border:2px solid var(--primary);
+  background:rgba(0,229,255,.1);
+  color:var(--primary);
+  border-radius:var(--radius);
+  cursor:pointer;
+  transition:all .3s;
+  text-transform:uppercase;
+  letter-spacing:.05em;
+}
+.spin-btn:hover { background:rgba(0,229,255,.2); transform:scale(1.02); }
+.spin-btn:disabled { opacity:.5; cursor:not-allowed; transform:none; }
+.spin-btn.spinning {
+  animation:pulse-btn 1s infinite;
+}
+@keyframes pulse-btn {
+  0%,100% { box-shadow:0 0 10px rgba(0,229,255,.3); }
+  50% { box-shadow:0 0 25px rgba(0,229,255,.5); }
+}
+.winner-display {
+  display:none;
+  text-align:center;
+  padding:1rem;
+  margin-top:.8rem;
+  background:var(--surface);
+  border:1px solid var(--accent);
+  border-radius:var(--radius);
+  animation:fadeIn .5s;
+}
+@keyframes fadeIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+.winner-label {
+  font-size:.7rem;
+  text-transform:uppercase;
+  letter-spacing:.15em;
+  color:var(--accent);
+  margin-bottom:.3rem;
+}
+.winner-name {
+  font-family:'Orbitron',monospace;
+  font-size:1.4rem;
+  font-weight:900;
+  color:var(--accent);
+  text-shadow:0 0 15px rgba(255,215,0,.4);
+}
+.branding {
+  text-align:center;
+  margin-top:.8rem;
+  font-size:.65rem;
+  color:var(--text-dim);
+}
+.branding a { color:var(--primary); text-decoration:none; }
+</style>
+</head>
+<body>
+<div class="widget-header">
+  <div class="widget-title" id="widgetTitle">Sorteo</div>
+</div>
+
+<div class="participants-area">
+  <textarea class="participants-input" id="participants" placeholder="Pegá los nombres aquí (uno por línea)..."></textarea>
+  <div class="count-bar">
+    <span><span class="count-num" id="count">0</span> participantes</span>
+    <span id="statusText"></span>
+  </div>
+</div>
+
+<button class="spin-btn" id="spinBtn" onclick="doSorteo()">SORTEAR</button>
+
+<div class="winner-display" id="winnerDisplay">
+  <div class="winner-label">🎉 GANADOR</div>
+  <div class="winner-name" id="winnerName"></div>
+</div>
+
+<div class="branding" id="branding">
+  Powered by <a href="https://rafly.onrender.com" target="_blank">RAFLY</a>
+</div>
+
+<script>
+const params = new URLSearchParams(window.location.search);
+const widgetKey = params.get('key');
+
+// Load widget config
+async function loadConfig() {
+  if (!widgetKey) return;
+  try {
+    const res = await fetch(`/api/widgets/${widgetKey}/config`);
+    if (!res.ok) return;
+    const cfg = await res.json();
+    const r = document.documentElement;
+    if (cfg.primaryColor) r.style.setProperty('--primary', cfg.primaryColor);
+    if (cfg.accentColor) r.style.setProperty('--accent', cfg.accentColor);
+    if (cfg.bgColor) r.style.setProperty('--bg', cfg.bgColor);
+    if (cfg.textColor) r.style.setProperty('--text', cfg.textColor);
+    if (cfg.borderRadius) r.style.setProperty('--radius', cfg.borderRadius + 'px');
+    if (cfg.title) document.getElementById('widgetTitle').textContent = cfg.title;
+    if (cfg.buttonText) document.getElementById('spinBtn').textContent = cfg.buttonText;
+    if (cfg.showBranding === false) document.getElementById('branding').style.display = 'none';
+  } catch(e) {}
+}
+
+const textarea = document.getElementById('participants');
+const countEl = document.getElementById('count');
+
+textarea.addEventListener('input', () => {
+  const lines = textarea.value.split('\n').filter(l => l.trim());
+  countEl.textContent = lines.length;
+});
+
+let isSpinning = false;
+
+async function doSorteo() {
+  const lines = textarea.value.split('\n').map(l => l.trim()).filter(Boolean);
+  if (lines.length < 2) {
+    document.getElementById('statusText').textContent = 'Mínimo 2 participantes';
+    return;
+  }
+  if (isSpinning) return;
+  isSpinning = true;
+
+  const btn = document.getElementById('spinBtn');
+  btn.disabled = true;
+  btn.classList.add('spinning');
+  btn.textContent = 'SORTEANDO...';
+  document.getElementById('winnerDisplay').style.display = 'none';
+
+  // Slot animation effect
+  const display = document.getElementById('winnerDisplay');
+  const nameEl = document.getElementById('winnerName');
+  display.style.display = 'block';
+  document.querySelector('.winner-label').textContent = '⏳ SORTEANDO...';
+
+  let cycles = 0;
+  const maxCycles = 20;
+  const slotInterval = setInterval(() => {
+    nameEl.textContent = lines[Math.floor(Math.random() * lines.length)];
+    cycles++;
+    if (cycles >= maxCycles) {
+      clearInterval(slotInterval);
+      finalizeSorteo(lines);
+    }
+  }, 100 + cycles * 15);
+}
+
+async function finalizeSorteo(lines) {
+  let winner;
+
+  if (widgetKey) {
+    try {
+      const res = await fetch(`/api/widgets/${widgetKey}/sorteo`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ participants: lines, count: 1 })
+      });
+      const data = await res.json();
+      winner = data.winners?.[0] || lines[Math.floor(Math.random() * lines.length)];
+    } catch(e) {
+      winner = lines[Math.floor(Math.random() * lines.length)];
+    }
+  } else {
+    // Local crypto fallback
+    const arr = new Uint32Array(1);
+    crypto.getRandomValues(arr);
+    winner = lines[arr[0] % lines.length];
+  }
+
+  document.querySelector('.winner-label').textContent = '🎉 GANADOR';
+  document.getElementById('winnerName').textContent = winner;
+
+  const btn = document.getElementById('spinBtn');
+  btn.disabled = false;
+  btn.classList.remove('spinning');
+  btn.textContent = 'SORTEAR DE NUEVO';
+  isSpinning = false;
+
+  // Notify parent window
+  window.parent.postMessage({ type: 'rafly:winner', winner, participants: lines.length }, '*');
+}
+
+loadConfig();
+</script>
+</body>
+</html>
