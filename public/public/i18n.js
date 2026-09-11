@@ -208,6 +208,109 @@ const TRANSLATIONS = {
     'misc.cancel': 'Cancel',
     'misc.save': 'Save',
     'misc.loading': 'Loading...',
+  },
+
+  pt: {
+    // Header
+    'nav.tools': 'Ferramentas',
+    'nav.plans': 'Planos',
+    'nav.login': 'LOGIN',
+    'nav.logout': 'Sair',
+
+    // Main panel
+    'panel.title': 'Painel de Participantes',
+    'panel.placeholder': 'Cole os nomes aqui (um por linha)...',
+    'panel.count': 'participantes',
+    'panel.clear': 'Limpar',
+    'panel.import': 'Importar',
+    'panel.export': 'Exportar',
+
+    // Modes
+    'mode.slot': 'Slot',
+    'mode.roulette': 'Roleta',
+    'mode.shuffle': 'Shuffle',
+
+    // Spin
+    'spin.button': 'SORTEAR',
+    'spin.spinning': 'SORTEANDO...',
+    'spin.winner': 'VENCEDOR!',
+    'spin.again': 'Sortear novamente',
+
+    // Settings
+    'settings.sound': 'Som',
+    'settings.duplicates': 'Remover duplicados',
+    'settings.suplentes': 'Suplentes',
+    'settings.theme': 'Tema',
+    'settings.fullscreen': 'Tela cheia',
+
+    // Instagram
+    'ig.connect': 'Conectar Instagram',
+    'ig.disconnect': 'Desconectar',
+    'ig.selectPost': 'Selecionar post',
+    'ig.loadComments': 'Carregar comentarios',
+
+    // URL import
+    'url.placeholder': 'Cole a URL do post do Instagram, YouTube ou TikTok',
+    'url.load': 'Carregar',
+    'url.loading': 'Carregando...',
+
+    // Tabs
+    'tab.manual': 'Manual',
+    'tab.url': 'Por URL',
+    'tab.instagram': 'Instagram',
+
+    // Plan limits
+    'plan.limit': 'Limite atingido',
+    'plan.upgrade': 'Atualizar plano',
+    'plan.dailyLimit': 'Voce atingiu o limite diario de sorteios do seu plano',
+    'plan.participantLimit': 'Seu plano permite ate {max} participantes',
+
+    // Auth
+    'auth.login': 'Entrar',
+    'auth.register': 'Criar conta',
+    'auth.email': 'Email',
+    'auth.password': 'Senha',
+    'auth.name': 'Nome (opcional)',
+    'auth.loginBtn': 'Entrar',
+    'auth.registerBtn': 'Cadastrar',
+    'auth.noAccount': 'Nao tem uma conta?',
+    'auth.hasAccount': 'Ja tem uma conta?',
+    'auth.createOne': 'Criar uma',
+    'auth.loginHere': 'Faca login',
+
+    // User menu
+    'user.profile': 'Meu perfil',
+    'user.plans': 'Planos',
+    'user.dashboard': 'Dashboard',
+    'user.admin': 'Admin',
+    'user.logout': 'Sair',
+
+    // Tour
+    'tour.skip': 'Pular',
+    'tour.next': 'Proximo',
+    'tour.finish': 'Comecar',
+    'tour.step1.title': 'Adicione participantes',
+    'tour.step1.text': 'Digite manualmente, importe do Instagram/YouTube/TikTok ou cole uma lista.',
+    'tour.step2.title': 'Escolha o modo',
+    'tour.step2.text': 'Slot Machine, Roleta ou Shuffle. Cada um tem sua animacao unica.',
+    'tour.step3.title': 'Sorteie',
+    'tour.step3.text': 'Clique em SORTEAR ou pressione Espaco. O vencedor e escolhido com criptografia segura.',
+    'tour.step4.title': 'Compartilhe o resultado',
+    'tour.step4.text': 'Gere um certificado de vencedor, exporte em PDF ou compartilhe o link.',
+    'tour.step5.title': 'Atalhos de teclado',
+    'tour.step5.text': 'Pressione ? para ver todos os atalhos. Espaco=Sortear, P=Painel, F=Tela cheia.',
+
+    // Shortcuts
+    'shortcuts.title': 'Atalhos de teclado',
+
+    // Misc
+    'misc.certificate': 'Certificado do vencedor',
+    'misc.download': 'Baixar',
+    'misc.share': 'Compartilhar',
+    'misc.close': 'Fechar',
+    'misc.cancel': 'Cancelar',
+    'misc.save': 'Salvar',
+    'misc.loading': 'Carregando...',
   }
 };
 
@@ -247,8 +350,10 @@ function setLang(lang) {
   // Update lang toggle button
   const langBtn = document.getElementById('langToggle');
   if (langBtn) {
-    langBtn.textContent = lang === 'es' ? 'EN' : 'ES';
-    langBtn.title = lang === 'es' ? 'Switch to English' : 'Cambiar a Español';
+    const nextMap = { es: 'EN', en: 'PT', pt: 'ES' };
+    const titleMap = { es: 'Switch to English', en: 'Mudar para Portugues', pt: 'Cambiar a Espanol' };
+    langBtn.textContent = nextMap[lang] || 'ES';
+    langBtn.title = titleMap[lang] || '';
   }
 
   // Dispatch event for custom handlers
@@ -256,7 +361,8 @@ function setLang(lang) {
 }
 
 function toggleLang() {
-  setLang(currentLang === 'es' ? 'en' : 'es');
+  const cycle = { es: 'en', en: 'pt', pt: 'es' };
+  setLang(cycle[currentLang] || 'es');
 }
 
 function getLang() {
@@ -266,8 +372,8 @@ function getLang() {
 // Auto-detect browser language on first visit
 if (!(() => { try { return localStorage.getItem('rafly-lang'); } catch(e) { return null; } })()) {
   const browserLang = navigator.language?.split('-')[0];
-  if (browserLang === 'en') {
-    currentLang = 'en';
-    try { localStorage.setItem('rafly-lang', 'en'); } catch(e) {}
+  if (browserLang === 'en' || browserLang === 'pt') {
+    currentLang = browserLang;
+    try { localStorage.setItem('rafly-lang', browserLang); } catch(e) {}
   }
 }

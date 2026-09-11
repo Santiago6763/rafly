@@ -803,6 +803,32 @@ header{animation:fadeSlideUp .4s var(--ease-out-expo) both}
 .user-menu-item:hover{background:rgba(0,229,255,.06);color:var(--neon-cyan)}
 .user-menu-item.danger{color:var(--neon-red)}
 .user-menu-item.danger:hover{background:rgba(255,51,85,.06)}
+
+/* Dashboard panel */
+.dashboard-panel{position:fixed;inset:0;z-index:770;background:rgba(3,3,10,.95);backdrop-filter:blur(12px);display:none;align-items:flex-start;justify-content:center;overflow-y:auto;padding:1.5rem}
+.dashboard-panel.active{display:flex}
+.dashboard-inner{background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:1.5rem;max-width:600px;width:100%;box-shadow:0 0 60px rgba(0,229,255,.08);animation:upgrade-pop .3s ease}
+.dashboard-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.2rem}
+.dashboard-header h2{font-family:'Orbitron',monospace;font-size:1.1rem;font-weight:900;color:var(--neon-cyan)}
+.dash-verify-banner{background:rgba(255,215,0,.1);border:1px solid rgba(255,215,0,.25);border-radius:10px;padding:.6rem 1rem;display:flex;align-items:center;justify-content:space-between;gap:.5rem;margin-bottom:1rem;font-size:.78rem;color:var(--neon-gold)}
+.dash-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:.6rem;margin-bottom:1.2rem}
+.dash-stat-card{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:.75rem;text-align:center}
+.dash-stat-label{font-size:.6rem;text-transform:uppercase;letter-spacing:.08em;color:var(--text-dim);margin-bottom:.2rem}
+.dash-stat-value{font-family:'Orbitron',monospace;font-weight:700;font-size:1.3rem;color:var(--neon-cyan)}
+.dash-section{margin-bottom:1.2rem}
+.dash-section h3{font-family:'Orbitron',monospace;font-size:.7rem;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:.1em;margin-bottom:.6rem;padding-bottom:.3rem;border-bottom:1px solid var(--border)}
+.dash-info-row{display:flex;justify-content:space-between;align-items:center;padding:.35rem 0;font-size:.8rem}
+.dash-info-row .dash-info-label{color:var(--text-dim);font-size:.72rem}
+.dash-info-row span:last-child{color:var(--text);font-weight:500}
+.dash-sorteo-item{display:flex;justify-content:space-between;align-items:center;padding:.45rem .5rem;background:var(--bg);border-radius:8px;margin-bottom:.3rem;font-size:.75rem}
+.dash-sorteo-winner{color:var(--neon-green);font-weight:700}
+.dash-sorteo-meta{color:var(--text-dim);font-size:.65rem}
+.dash-api-key{display:flex;justify-content:space-between;align-items:center;padding:.4rem .5rem;background:var(--bg);border-radius:8px;margin-bottom:.3rem;font-size:.75rem}
+.dash-api-key .key-prefix{color:var(--neon-cyan);font-family:monospace}
+
+/* Change password modal */
+.change-pass-modal{position:fixed;inset:0;z-index:780;background:rgba(3,3,10,.9);backdrop-filter:blur(8px);display:none;align-items:center;justify-content:center}
+.change-pass-modal.active{display:flex}
 </style>
 <!-- Google Analytics (loaded dynamically from config) -->
 <script>
@@ -887,6 +913,17 @@ fetch('/api/config').then(r=>r.json()).then(c=>{
         <div id="platformDetected" hidden style="font-size:.65rem;margin-top:.3rem;color:var(--text-muted)"></div>
         <div id="urlResult" hidden></div>
         <div id="urlStatus" class="url-status" hidden></div>
+      </div>
+      <!-- Manual paste section -->
+      <div class="url-or-divider">o pegá los comentarios</div>
+      <div class="url-scrape-box" id="manualPasteBox" style="padding:.6rem">
+        <label style="font-size:.72rem;margin-bottom:.3rem;display:block">Pegar comentarios manualmente</label>
+        <textarea id="manualCommentsInput" rows="4" placeholder="@usuario1 comentario&#10;@usuario2 otro comentario&#10;usuario3: su comentario&#10;&#10;O solo usernames:&#10;@user1, @user2, @user3" style="width:100%;padding:.4rem .5rem;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-family:inherit;font-size:.72rem;resize:vertical;min-height:60px"></textarea>
+        <div style="display:flex;gap:.3rem;margin-top:.3rem">
+          <button class="btn btn-accent" onclick="parseManualComments()" style="flex:1;font-size:.7rem;padding:.35rem">Cargar comentarios</button>
+          <button class="btn" onclick="parseManualUsernames()" style="flex:1;font-size:.7rem;padding:.35rem;background:var(--surface);color:var(--text);border:1px solid var(--border)">Solo usernames</button>
+        </div>
+        <div id="manualPasteStatus" class="url-status" hidden></div>
       </div>
       <div class="url-or-divider">o conectá tu cuenta</div>
       <div id="igDisconnected">
@@ -1228,6 +1265,7 @@ fetch('/api/config').then(r=>r.json()).then(c=>{
       <button class="auth-submit" id="loginBtn">Entrar</button>
       <div class="auth-error" id="loginError"></div>
       <div class="auth-switch">¿No tenés cuenta? <a id="showRegister">Crear cuenta</a></div>
+      <div class="auth-switch"><a id="showForgot" style="font-size:.75rem;color:var(--neon-cyan);opacity:.7">¿Olvidaste tu contraseña?</a></div>
     </div>
     <div id="authRegister" hidden>
       <h3>Crear cuenta</h3>
@@ -1237,6 +1275,32 @@ fetch('/api/config').then(r=>r.json()).then(c=>{
       <button class="auth-submit" id="registerBtn">Crear cuenta</button>
       <div class="auth-error" id="registerError"></div>
       <div class="auth-switch">¿Ya tenés cuenta? <a id="showLogin">Iniciar sesión</a></div>
+    </div>
+    <div id="authVerify" hidden>
+      <h3>Verificá tu email</h3>
+      <p style="color:var(--text-dim);font-size:.8rem;margin-bottom:1rem">Te enviamos un código de 6 dígitos a tu email. Revisá tu bandeja de entrada (y spam).</p>
+      <div class="auth-field"><label>Código de verificación</label><input type="text" id="verifyCode" placeholder="123456" maxlength="6" autocomplete="one-time-code" style="text-align:center;font-size:1.5rem;letter-spacing:.3em"></div>
+      <button class="auth-submit" id="verifyBtn">Verificar</button>
+      <div class="auth-error" id="verifyError"></div>
+      <div class="auth-switch"><a id="resendCode" style="font-size:.8rem">Reenviar código</a></div>
+      <div class="auth-switch"><a id="skipVerify" style="font-size:.75rem;opacity:.6">Verificar después</a></div>
+    </div>
+    <div id="authForgot" hidden>
+      <h3>Recuperar contraseña</h3>
+      <div id="forgotStep1">
+        <p style="color:var(--text-dim);font-size:.8rem;margin-bottom:1rem">Ingresá tu email y te enviaremos un código para restablecer tu contraseña.</p>
+        <div class="auth-field"><label>Email</label><input type="email" id="forgotEmail" placeholder="tu@email.com" autocomplete="email"></div>
+        <button class="auth-submit" id="forgotBtn">Enviar código</button>
+        <div class="auth-error" id="forgotError"></div>
+      </div>
+      <div id="forgotStep2" hidden>
+        <p style="color:var(--text-dim);font-size:.8rem;margin-bottom:1rem">Ingresá el código que te enviamos y tu nueva contraseña.</p>
+        <div class="auth-field"><label>Código</label><input type="text" id="resetCode" placeholder="123456" maxlength="6" autocomplete="one-time-code" style="text-align:center;font-size:1.3rem;letter-spacing:.2em"></div>
+        <div class="auth-field"><label>Nueva contraseña</label><input type="password" id="resetNewPass" placeholder="Mínimo 6 caracteres" autocomplete="new-password"></div>
+        <button class="auth-submit" id="resetBtn">Cambiar contraseña</button>
+        <div class="auth-error" id="resetError"></div>
+      </div>
+      <div class="auth-switch"><a id="backToLogin">Volver a iniciar sesión</a></div>
     </div>
   </div>
 </div>
@@ -1248,9 +1312,154 @@ fetch('/api/config').then(r=>r.json()).then(c=>{
     <div class="um-email" id="umEmail"></div>
   </div>
   <button class="user-menu-item" id="umProfile">👤 Mi perfil</button>
+  <button class="user-menu-item" id="umDashboard">📊 Dashboard</button>
   <button class="user-menu-item" onclick="window.open('pricing.html','_blank')">💎 Planes</button>
-  <button class="user-menu-item" onclick="window.open('dashboard.html','_blank')">📊 Dashboard</button>
+  <button class="user-menu-item" id="umChangePassword">🔑 Cambiar contraseña</button>
   <button class="user-menu-item danger" id="umLogout">🚪 Cerrar sesión</button>
+</div>
+
+<!-- Dashboard panel -->
+<div class="dashboard-panel" id="dashboardPanel">
+  <div class="dashboard-inner">
+    <div class="dashboard-header">
+      <h2>Dashboard</h2>
+      <button class="btn-icon" id="closeDashboard" style="width:28px;height:28px;font-size:1rem">&times;</button>
+    </div>
+
+    <!-- Verification banner -->
+    <div class="dash-verify-banner" id="dashVerifyBanner" hidden>
+      <span>⚠️ Tu email no está verificado.</span>
+      <button class="btn btn-sm" id="dashVerifyBtn" style="background:var(--neon-cyan);color:#000;padding:.25rem .75rem;border-radius:6px;font-size:.7rem;border:none;cursor:pointer">Verificar ahora</button>
+    </div>
+
+    <!-- Stats grid -->
+    <div class="dash-stats">
+      <div class="dash-stat-card">
+        <div class="dash-stat-label">Total sorteos</div>
+        <div class="dash-stat-value" id="dashTotalSorteos">0</div>
+      </div>
+      <div class="dash-stat-card">
+        <div class="dash-stat-label">Hoy</div>
+        <div class="dash-stat-value" id="dashTodaySorteos">0</div>
+      </div>
+      <div class="dash-stat-card">
+        <div class="dash-stat-label">Plan</div>
+        <div class="dash-stat-value" id="dashPlan" style="text-transform:uppercase;font-size:1rem">FREE</div>
+      </div>
+      <div class="dash-stat-card">
+        <div class="dash-stat-label">Miembro desde</div>
+        <div class="dash-stat-value" id="dashSince" style="font-size:.85rem">—</div>
+      </div>
+    </div>
+
+    <!-- Account info -->
+    <div class="dash-section">
+      <h3>Cuenta</h3>
+      <div class="dash-info-row"><span class="dash-info-label">Email</span><span id="dashEmail">—</span></div>
+      <div class="dash-info-row"><span class="dash-info-label">Nombre</span><span id="dashName">—</span></div>
+      <div class="dash-info-row"><span class="dash-info-label">Email verificado</span><span id="dashVerified">—</span></div>
+    </div>
+
+    <!-- Recent sorteos -->
+    <div class="dash-section">
+      <h3>Últimos sorteos</h3>
+      <div id="dashRecentSorteos" style="max-height:300px;overflow-y:auto">
+        <p style="color:var(--text-dim);font-size:.8rem">Cargando...</p>
+      </div>
+    </div>
+
+    <!-- Analytics -->
+    <div class="dash-section" id="dashAnalyticsSection">
+      <h3>Analytics</h3>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.75rem">
+        <div style="background:rgba(108,60,224,.1);border:1px solid rgba(108,60,224,.2);border-radius:8px;padding:.6rem;text-align:center">
+          <div style="font-size:.7rem;color:var(--text-dim)">Total participantes</div>
+          <div id="analyticsTotalPart" style="font-size:1.4rem;font-weight:700;color:var(--neon-cyan)">0</div>
+        </div>
+        <div style="background:rgba(0,229,255,.1);border:1px solid rgba(0,229,255,.2);border-radius:8px;padding:.6rem;text-align:center">
+          <div style="font-size:.7rem;color:var(--text-dim)">Promedio por sorteo</div>
+          <div id="analyticsAvgPart" style="font-size:1.4rem;font-weight:700;color:var(--neon-green)">0</div>
+        </div>
+      </div>
+      <div style="margin-bottom:.6rem">
+        <div style="font-size:.75rem;color:var(--text-dim);margin-bottom:.3rem">Por plataforma</div>
+        <div id="analyticsByPlatform" style="display:flex;gap:.3rem;flex-wrap:wrap"></div>
+      </div>
+      <div style="margin-bottom:.6rem">
+        <div style="font-size:.75rem;color:var(--text-dim);margin-bottom:.3rem">Por modo</div>
+        <div id="analyticsByMode" style="display:flex;gap:.3rem;flex-wrap:wrap"></div>
+      </div>
+      <div>
+        <div style="font-size:.75rem;color:var(--text-dim);margin-bottom:.3rem">Actividad (ultimos 30 dias)</div>
+        <canvas id="analyticsChart" width="500" height="100" style="width:100%;height:80px;border-radius:6px;background:rgba(255,255,255,.02)"></canvas>
+      </div>
+      <div style="margin-top:.6rem">
+        <div style="font-size:.75rem;color:var(--text-dim);margin-bottom:.3rem">Top ganadores</div>
+        <div id="analyticsTopWinners"></div>
+      </div>
+    </div>
+
+    <!-- Billing -->
+    <div class="dash-section" id="dashBillingSection">
+      <h3>Billing</h3>
+      <!-- Payment warning banner -->
+      <div id="dashPaymentWarning" hidden style="background:rgba(255,68,102,.1);border:1px solid rgba(255,68,102,.3);border-radius:8px;padding:.75rem;margin-bottom:.8rem">
+        <p style="color:#ff4466;font-size:.82rem;font-weight:600;margin:0" id="dashPaymentWarningText">⚠️ Problema con tu pago</p>
+        <p style="color:#ff8888;font-size:.75rem;margin:.3rem 0 0" id="dashPaymentWarningDetail"></p>
+      </div>
+      <div class="dash-info-row"><span class="dash-info-label">Plan actual</span><span id="dashBillingPlan" style="text-transform:uppercase;font-weight:600">—</span></div>
+      <div class="dash-info-row" id="dashBillingAmountRow" hidden><span class="dash-info-label">Monto</span><span id="dashBillingAmount">—</span></div>
+      <div class="dash-info-row" id="dashBillingNextRow" hidden><span class="dash-info-label">Próxima factura</span><span id="dashBillingNext">—</span></div>
+      <div class="dash-info-row" id="dashBillingStatusRow" hidden><span class="dash-info-label">Estado</span><span id="dashBillingStatus">—</span></div>
+      <div id="dashBillingCancelNote" hidden style="background:rgba(255,140,0,.1);border:1px solid rgba(255,140,0,.2);border-radius:6px;padding:.5rem .75rem;margin-top:.5rem">
+        <p style="color:#ff8c00;font-size:.75rem;margin:0">⏸ Tu suscripción se cancela al final del período actual</p>
+      </div>
+      <div style="display:flex;gap:.5rem;margin-top:.75rem;flex-wrap:wrap">
+        <button class="btn btn-sm" id="dashManageBilling" hidden style="background:var(--neon-cyan);color:#000;padding:.35rem .75rem;border-radius:6px;font-size:.72rem;border:none;cursor:pointer;font-weight:600">Gestionar suscripción</button>
+        <button class="btn btn-sm" id="dashUpgradeBtn" hidden style="background:linear-gradient(135deg,var(--neon-cyan),#00b8d4);color:#000;padding:.35rem .75rem;border-radius:6px;font-size:.72rem;border:none;cursor:pointer;font-weight:600">Mejorar plan →</button>
+      </div>
+    </div>
+
+    <!-- Connected Platforms -->
+    <div class="dash-section" id="dashPlatformsSection">
+      <h3>Plataformas conectadas</h3>
+      <div id="dashPlatforms">
+        <p style="color:var(--text-dim);font-size:.8rem">Cargando...</p>
+      </div>
+    </div>
+
+    <!-- OBS Overlay -->
+    <div class="dash-section">
+      <h3>OBS Overlay</h3>
+      <p style="color:var(--text-dim);font-size:.8rem;margin-bottom:.5rem">Usa esta URL como Browser Source en OBS para mostrar ganadores en tu stream:</p>
+      <div style="display:flex;gap:.4rem;align-items:center">
+        <code id="obsOverlayUrl" style="background:var(--bg-card);padding:.3rem .6rem;border-radius:6px;font-size:.75rem;color:var(--accent);flex:1;word-break:break-all;border:1px solid var(--border)">Cargando...</code>
+        <button class="btn btn-secondary" style="font-size:.7rem;padding:.3rem .6rem" onclick="copyObsUrl()">Copiar</button>
+      </div>
+      <p style="color:var(--text-dim);font-size:.7rem;margin-top:.4rem">Recomendado: 800x600, sin CSS personalizado. Agrega <code style="color:var(--accent)">&amp;obs=1</code> para ocultar el panel de config.</p>
+      <p style="color:var(--text-dim);font-size:.7rem;margin-top:.2rem">Test: <a id="obsTestLink" href="#" target="_blank" style="color:var(--accent)">Abrir preview con demo</a></p>
+    </div>
+
+    <!-- API Keys -->
+    <div class="dash-section">
+      <h3>API Keys</h3>
+      <div id="dashApiKeys">
+        <p style="color:var(--text-dim);font-size:.8rem">Cargando...</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Change password modal -->
+<div class="change-pass-modal" id="changePassModal">
+  <div class="auth-box" style="position:relative">
+    <button class="auth-close" onclick="document.getElementById('changePassModal').classList.remove('active')">&times;</button>
+    <h3>Cambiar contraseña</h3>
+    <div class="auth-field"><label>Contraseña actual</label><input type="password" id="cpCurrentPass" autocomplete="current-password"></div>
+    <div class="auth-field"><label>Nueva contraseña</label><input type="password" id="cpNewPass" placeholder="Mínimo 6 caracteres" autocomplete="new-password"></div>
+    <button class="auth-submit" id="cpSubmit">Cambiar</button>
+    <div class="auth-error" id="cpError"></div>
+  </div>
 </div>
 
 <div class="winner-overlay" id="winnerOverlay">
@@ -1264,6 +1473,7 @@ fetch('/api/config').then(r=>r.json()).then(c=>{
     <div class="winner-actions">
       <button class="btn btn-gold" id="certBtn">Certificado</button>
       <button class="btn btn-primary" id="spinAgainBtn">Sortear de nuevo</button>
+      <button class="btn btn-secondary" id="obsOverlayBtn" title="Enviar a OBS">OBS</button>
       <button class="btn btn-secondary" id="closeWinnerBtn">Cerrar</button>
     </div>
     <div class="share-actions">
@@ -1288,7 +1498,8 @@ fetch('/api/config').then(r=>r.json()).then(c=>{
     <h3>Certificado de Sorteo</h3>
     <canvas id="certCanvas" width="1200" height="800"></canvas>
     <div style="display:flex;gap:.4rem;justify-content:center">
-      <button class="btn btn-gold" id="downloadCert">Descargar</button>
+      <button class="btn btn-gold" id="downloadCert">PNG</button>
+      <button class="btn btn-primary" id="downloadPdf">PDF</button>
       <button class="btn btn-secondary" id="closeCert">Cerrar</button>
     </div>
   </div>
@@ -1442,7 +1653,10 @@ function updatePostPreview() {
    ═══════════════════════════════════════════════════ */
 async function checkIgConnection() {
   try {
-    const res = await fetch('/api/status');
+    const headers = {};
+    const token = localStorage.getItem('rafly_token');
+    if (token) headers['Authorization'] = 'Bearer ' + token;
+    const res = await fetch('/api/status', { headers });
     const data = await res.json();
     if (data.connected) { showIgConnected(data); fetchIgPosts(); }
   } catch (e) {}
@@ -1451,7 +1665,10 @@ async function checkIgConnection() {
   if (params.get('ig_error')) { showIgError(decodeURIComponent(params.get('ig_error'))); history.replaceState(null, '', '/'); }
 }
 
-function connectInstagram() { window.location.href = '/auth/instagram'; }
+function connectInstagram() {
+  const token = localStorage.getItem('rafly_token');
+  window.location.href = '/auth/instagram' + (token ? '?token=' + encodeURIComponent(token) : '');
+}
 
 async function disconnectInstagram() {
   try { await fetch('/api/disconnect', { method: 'POST' }); } catch (e) {}
@@ -1480,7 +1697,10 @@ async function fetchIgPosts() {
   const container = document.getElementById('igPostsContainer');
   container.innerHTML = '<div class="ig-loading"><div class="spinner"></div><br>Cargando publicaciones...</div>';
   try {
-    const res = await fetch('/api/media?limit=18');
+    const fetchHeaders = {};
+    const tkn = localStorage.getItem('rafly_token');
+    if (tkn) fetchHeaders['Authorization'] = 'Bearer ' + tkn;
+    const res = await fetch('/api/media?limit=18', { headers: fetchHeaders });
     const data = await res.json();
     if (!data.posts || data.posts.length === 0) { container.innerHTML = '<div class="ig-loading">No se encontraron publicaciones.</div>'; return; }
     container.innerHTML = '<div class="ig-posts-grid" id="igPostsGrid"></div>';
@@ -1512,7 +1732,10 @@ async function selectIgPost(post, el) {
   infoEl.hidden = false;
 
   try {
-    const res = await fetch(`/api/media/${post.id}/comments`);
+    const cmtHeaders = {};
+    const cmtTkn = localStorage.getItem('rafly_token');
+    if (cmtTkn) cmtHeaders['Authorization'] = 'Bearer ' + cmtTkn;
+    const res = await fetch(`/api/media/${post.id}/comments`, { headers: cmtHeaders });
     const data = await res.json();
     if (data.error) throw new Error(data.error);
     state.igComments = data.comments || [];
@@ -1567,9 +1790,12 @@ async function scrapeByUrl() {
   state.currentPostUrl = url;
 
   try {
+    const headers = { 'Content-Type': 'application/json' };
+    const token = localStorage.getItem('rafly_token');
+    if (token) headers['Authorization'] = 'Bearer ' + token;
     const res = await fetch('/api/scrape', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({ url, platform: platform || 'instagram' })
     });
     const data = await res.json();
@@ -1667,6 +1893,98 @@ function loadScrapedComments() {
   // Show CSV export button
   document.getElementById('csvExportBtn').hidden = false;
   closePanel();
+}
+
+/* ═══════════════════════════════════════════════════
+   MANUAL COMMENT PASTE
+   ═══════════════════════════════════════════════════ */
+async function parseManualComments() {
+  const textarea = document.getElementById('manualCommentsInput');
+  const text = textarea.value.trim();
+  if (!text) return;
+  const statusEl = document.getElementById('manualPasteStatus');
+  statusEl.hidden = false;
+  statusEl.className = 'url-status';
+  statusEl.innerHTML = '<div class="spinner" style="display:inline-block;width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--neon-cyan);border-radius:50%;animation:spin .8s linear infinite;vertical-align:middle"></div> Procesando...';
+
+  try {
+    const res = await fetch('/api/comments/manual', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, platform: state.currentPlatform || 'manual' })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al procesar');
+
+    if (data.comments && data.comments.length > 0) {
+      state.igComments = data.comments;
+      state.scrapeSource = true;
+      state.currentPlatform = 'manual';
+      const usernames = data.comments.map(c => '@' + c.username);
+      state.rawCommentTexts = data.comments.map(c => c.text || '');
+      state.commentMap = {};
+      data.comments.forEach(c => { state.commentMap['@' + c.username] = c.text || ''; });
+      state.igSource = false;
+      loadParticipants(usernames);
+      const badge = document.getElementById('igSourceBadge');
+      badge.hidden = false;
+      badge.textContent = 'Comentarios manuales';
+      document.getElementById('exampleBadge').hidden = true;
+      document.getElementById('csvExportBtn').hidden = false;
+      statusEl.className = 'url-status';
+      statusEl.innerHTML = `<b style="color:var(--neon-green)">${data.comments.length}</b> comentarios cargados`;
+      closePanel();
+    } else {
+      statusEl.textContent = 'No se encontraron comentarios válidos.';
+    }
+  } catch (e) {
+    statusEl.className = 'url-status error';
+    statusEl.textContent = e.message;
+  }
+}
+
+async function parseManualUsernames() {
+  const textarea = document.getElementById('manualCommentsInput');
+  const text = textarea.value.trim();
+  if (!text) return;
+  const statusEl = document.getElementById('manualPasteStatus');
+  statusEl.hidden = false;
+  statusEl.className = 'url-status';
+  statusEl.innerHTML = '<div class="spinner" style="display:inline-block;width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--neon-cyan);border-radius:50%;animation:spin .8s linear infinite;vertical-align:middle"></div> Procesando...';
+
+  try {
+    const res = await fetch('/api/comments/usernames', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al procesar');
+
+    if (data.comments && data.comments.length > 0) {
+      state.igComments = data.comments;
+      state.scrapeSource = true;
+      state.currentPlatform = 'manual';
+      const usernames = data.comments.map(c => '@' + c.username);
+      state.rawCommentTexts = [];
+      state.commentMap = {};
+      state.igSource = false;
+      loadParticipants(usernames);
+      const badge = document.getElementById('igSourceBadge');
+      badge.hidden = false;
+      badge.textContent = 'Lista de usuarios';
+      document.getElementById('exampleBadge').hidden = true;
+      document.getElementById('csvExportBtn').hidden = false;
+      statusEl.className = 'url-status';
+      statusEl.innerHTML = `<b style="color:var(--neon-green)">${data.comments.length}</b> usuarios cargados`;
+      closePanel();
+    } else {
+      statusEl.textContent = 'No se encontraron usernames válidos. Usá formato: @user1, @user2 o uno por línea.';
+    }
+  } catch (e) {
+    statusEl.className = 'url-status error';
+    statusEl.textContent = e.message;
+  }
 }
 
 /* ═══════════════════════════════════════════════════
@@ -2410,6 +2728,17 @@ function announceWinner() {
   saveSorteoToHistory([winner], []); playWinSound();
 }
 
+function copyObsUrl() {
+  const el = document.getElementById('obsOverlayUrl');
+  if (el) {
+    navigator.clipboard.writeText(el.textContent).then(() => {
+      const orig = el.textContent;
+      el.textContent = 'Copiado!';
+      setTimeout(() => { el.textContent = orig; }, 1500);
+    }).catch(() => {});
+  }
+}
+
 function closeWinner() {
   document.getElementById('winnerOverlay').classList.remove('visible');
   if (state.animMode === 'wheel') renderWheel();
@@ -2564,6 +2893,35 @@ function downloadCertificate() {
   const c = document.getElementById('certCanvas');
   try { const a = document.createElement('a'); a.href = c.toDataURL('image/png'); a.download = `certificado-rafly-${state.drawCount}.png`; a.click(); }
   catch (e) { alert('Hacé una captura de pantalla del certificado para guardarlo.'); }
+}
+
+async function downloadCertificatePdf() {
+  const btn = document.getElementById('downloadPdf');
+  btn.textContent = 'Generando...';
+  btn.disabled = true;
+  try {
+    const body = {
+      winners: state.currentWinners || [state.currentWinner],
+      suplentes: state.currentSuplentes || [],
+      participants: state.rawParticipants.length,
+      ref: `RAFLY-${new Date().getFullYear()}-${String(state.drawCount).padStart(4, '0')}`
+    };
+    const headers = { 'Content-Type': 'application/json' };
+    const token = localStorage.getItem('rafly_token');
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const resp = await fetch('/api/certificate/pdf', { method: 'POST', headers, body: JSON.stringify(body) });
+    if (!resp.ok) throw new Error('Error');
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `certificado-rafly-${state.drawCount}.pdf`; a.click();
+    URL.revokeObjectURL(url);
+  } catch(e) {
+    alert('Error al generar el PDF. Descargá la imagen PNG.');
+  } finally {
+    btn.textContent = 'PDF';
+    btn.disabled = false;
+  }
 }
 
 /* ═══════════════════════════════════════════════════
@@ -3587,7 +3945,31 @@ function init() {
   document.getElementById('spinAgainBtn').addEventListener('click', () => { closeWinner(); setTimeout(spin, 400); });
   document.getElementById('certBtn').addEventListener('click', async () => { await drawCertificate(); document.getElementById('certModal').classList.add('visible'); });
   document.getElementById('downloadCert').addEventListener('click', downloadCertificate);
+  document.getElementById('downloadPdf').addEventListener('click', downloadCertificatePdf);
   document.getElementById('closeCert').addEventListener('click', () => document.getElementById('certModal').classList.remove('visible'));
+
+  // OBS Overlay trigger
+  document.getElementById('obsOverlayBtn').addEventListener('click', async () => {
+    const winnerEl = document.getElementById('winnerName');
+    const winner = winnerEl ? winnerEl.textContent : '';
+    if (!winner) return;
+    try {
+      const resp = await authFetch('/api/overlay/trigger', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          winner,
+          participants: state.participants ? state.participants.length : 0,
+          animation: 'slot'
+        })
+      });
+      if (resp.ok) {
+        const btn = document.getElementById('obsOverlayBtn');
+        btn.textContent = 'Enviado!';
+        setTimeout(() => { btn.textContent = 'OBS'; }, 2000);
+      }
+    } catch(e) { console.warn('OBS overlay trigger error', e); }
+  });
 
   // History bar
   document.getElementById('historyToggle').addEventListener('click', () => document.getElementById('historyBar').classList.toggle('visible'));
@@ -4132,8 +4514,13 @@ function showAuthModal(mode = 'login') {
   document.getElementById('authModal').classList.add('active');
   document.getElementById('authLogin').hidden = mode !== 'login';
   document.getElementById('authRegister').hidden = mode !== 'register';
+  document.getElementById('authVerify').hidden = mode !== 'verify';
+  document.getElementById('authForgot').hidden = mode !== 'forgot';
   document.getElementById('loginError').textContent = '';
   document.getElementById('registerError').textContent = '';
+  document.getElementById('verifyError').textContent = '';
+  document.getElementById('forgotError').textContent = '';
+  document.getElementById('resetError').textContent = '';
 }
 
 function closeAuthModal() {
@@ -4252,14 +4639,385 @@ async function doRegister() {
     setAuthToken(data.token);
     currentUser = data.user;
     updateAuthUI();
-    closeAuthModal();
-    showToast('Cuenta creada', 'success');
+    if (data.needsVerification) {
+      showAuthModal('verify');
+      showToast('Cuenta creada — verificá tu email', 'info');
+    } else {
+      closeAuthModal();
+      showToast('Cuenta creada', 'success');
+    }
   } catch(e) {
     errEl.textContent = 'Error de conexión';
   } finally {
     btn.disabled = false;
     btn.textContent = 'Crear cuenta';
   }
+}
+
+// ── Verify email ──
+async function doVerifyEmail() {
+  const code = document.getElementById('verifyCode').value.trim();
+  const errEl = document.getElementById('verifyError');
+  const btn = document.getElementById('verifyBtn');
+
+  if (!code || code.length < 6) { errEl.textContent = 'Ingresá el código de 6 dígitos'; return; }
+
+  btn.disabled = true;
+  btn.textContent = 'Verificando...';
+  errEl.textContent = '';
+
+  try {
+    const res = await authFetch('/api/auth/verify-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code })
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Error'; return; }
+
+    if (currentUser) currentUser.email_verified = 1;
+    updateAuthUI();
+    closeAuthModal();
+    showToast('Email verificado ✓', 'success');
+  } catch(e) {
+    errEl.textContent = 'Error de conexión';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Verificar';
+  }
+}
+
+async function doResendCode() {
+  try {
+    const res = await authFetch('/api/auth/resend-verification', { method: 'POST' });
+    const data = await res.json();
+    showToast(data.message || 'Código reenviado', 'info');
+  } catch(e) {
+    showToast('Error al reenviar', 'error');
+  }
+}
+
+// ── Forgot password ──
+let forgotEmailValue = '';
+
+async function doForgotPassword() {
+  const email = document.getElementById('forgotEmail').value.trim();
+  const errEl = document.getElementById('forgotError');
+  const btn = document.getElementById('forgotBtn');
+
+  if (!email) { errEl.textContent = 'Ingresá tu email'; return; }
+
+  btn.disabled = true;
+  btn.textContent = 'Enviando...';
+  errEl.textContent = '';
+
+  try {
+    const res = await fetch('/api/auth/forgot-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email })
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Error'; return; }
+
+    forgotEmailValue = email;
+    document.getElementById('forgotStep1').hidden = true;
+    document.getElementById('forgotStep2').hidden = false;
+    showToast('Código enviado a tu email', 'info');
+  } catch(e) {
+    errEl.textContent = 'Error de conexión';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Enviar código';
+  }
+}
+
+async function doResetPassword() {
+  const code = document.getElementById('resetCode').value.trim();
+  const newPassword = document.getElementById('resetNewPass').value;
+  const errEl = document.getElementById('resetError');
+  const btn = document.getElementById('resetBtn');
+
+  if (!code || !newPassword) { errEl.textContent = 'Completá todos los campos'; return; }
+  if (newPassword.length < 6) { errEl.textContent = 'Mínimo 6 caracteres'; return; }
+
+  btn.disabled = true;
+  btn.textContent = 'Cambiando...';
+  errEl.textContent = '';
+
+  try {
+    const res = await fetch('/api/auth/reset-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: forgotEmailValue, code, newPassword })
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Error'; return; }
+
+    showAuthModal('login');
+    showToast('Contraseña actualizada — iniciá sesión', 'success');
+  } catch(e) {
+    errEl.textContent = 'Error de conexión';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Cambiar contraseña';
+  }
+}
+
+// ── Change password (authenticated) ──
+async function doChangePassword() {
+  const currentPass = document.getElementById('cpCurrentPass').value;
+  const newPass = document.getElementById('cpNewPass').value;
+  const errEl = document.getElementById('cpError');
+  const btn = document.getElementById('cpSubmit');
+
+  if (!currentPass || !newPass) { errEl.textContent = 'Completá ambos campos'; return; }
+  if (newPass.length < 6) { errEl.textContent = 'Mínimo 6 caracteres'; return; }
+
+  btn.disabled = true;
+  btn.textContent = 'Cambiando...';
+  errEl.textContent = '';
+
+  try {
+    const res = await authFetch('/api/auth/change-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ currentPassword: currentPass, newPassword: newPass })
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Error'; return; }
+
+    document.getElementById('changePassModal').classList.remove('active');
+    document.getElementById('cpCurrentPass').value = '';
+    document.getElementById('cpNewPass').value = '';
+    showToast('Contraseña actualizada', 'success');
+  } catch(e) {
+    errEl.textContent = 'Error de conexión';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Cambiar';
+  }
+}
+
+// ── Dashboard ──
+async function openDashboard() {
+  document.getElementById('userMenu').classList.remove('open');
+  document.getElementById('dashboardPanel').classList.add('active');
+
+  // Populate account info
+  if (currentUser) {
+    document.getElementById('dashEmail').textContent = currentUser.email;
+    document.getElementById('dashName').textContent = currentUser.name || '—';
+    document.getElementById('dashPlan').textContent = (currentUser.plan || 'free').toUpperCase();
+    document.getElementById('dashVerified').textContent = currentUser.email_verified ? '✓ Sí' : '✗ No';
+    document.getElementById('dashVerified').style.color = currentUser.email_verified ? 'var(--neon-green)' : 'var(--neon-red)';
+
+    const banner = document.getElementById('dashVerifyBanner');
+    banner.hidden = !!currentUser.email_verified;
+
+    if (currentUser.created_at) {
+      const d = new Date(currentUser.created_at);
+      document.getElementById('dashSince').textContent = d.toLocaleDateString('es-AR', { month: 'short', year: 'numeric' });
+    }
+  }
+
+  // Load stats
+  try {
+    const res = await authFetch('/api/auth/me');
+    if (res.ok) {
+      const data = await res.json();
+      document.getElementById('dashTotalSorteos').textContent = data.stats?.totalSorteos || 0;
+      document.getElementById('dashTodaySorteos').textContent = data.stats?.todaySorteos || 0;
+    }
+  } catch(e) {}
+
+  // Load recent sorteos
+  try {
+    const res = await authFetch('/api/sorteos?limit=10');
+    if (res.ok) {
+      const data = await res.json();
+      const container = document.getElementById('dashRecentSorteos');
+      if (!data.sorteos || data.sorteos.length === 0) {
+        container.innerHTML = '<p style="color:var(--text-dim);font-size:.8rem;text-align:center;padding:.5rem">Todavía no hiciste sorteos</p>';
+      } else {
+        container.innerHTML = data.sorteos.map(s => {
+          const date = new Date(s.created_at).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' });
+          return `<div class="dash-sorteo-item"><span class="dash-sorteo-winner">${s.winner}</span><span class="dash-sorteo-meta">${s.platform} · ${date}</span></div>`;
+        }).join('');
+      }
+    }
+  } catch(e) {}
+
+  // Load API keys
+  try {
+    const res = await authFetch('/api/keys');
+    if (res.ok) {
+      const data = await res.json();
+      const container = document.getElementById('dashApiKeys');
+      if (!data.keys || data.keys.length === 0) {
+        container.innerHTML = '<p style="color:var(--text-dim);font-size:.8rem;text-align:center;padding:.5rem">No tenés API keys</p>';
+      } else {
+        container.innerHTML = data.keys.map(k =>
+          `<div class="dash-api-key"><span><span class="key-prefix">${k.key_prefix}</span> · ${k.name}</span><span style="color:var(--text-dim);font-size:.65rem">${k.requests_total} requests</span></div>`
+        ).join('');
+      }
+    }
+  } catch(e) {}
+
+  // Load connected platforms
+  try {
+    const res = await authFetch('/api/platforms');
+    if (res.ok) {
+      const data = await res.json();
+      const container = document.getElementById('dashPlatforms');
+      let html = '';
+
+      if (data.platforms && data.platforms.length > 0) {
+        html += data.platforms.map(p => {
+          const icons = { instagram: '📸', youtube: '▶️', tiktok: '🎵' };
+          const names = { instagram: 'Instagram', youtube: 'YouTube', tiktok: 'TikTok' };
+          const expiry = p.expiresAt ? new Date(p.expiresAt) : null;
+          const isExpired = expiry && expiry < new Date();
+          const expiryText = expiry ? (isExpired ? '<span style="color:#ff4466">Expirado</span>' : `Expira ${expiry.toLocaleDateString('es-AR', { day: '2-digit', month: 'short' })}`) : '';
+          return `<div class="dash-info-row" style="align-items:center">
+            <span>${icons[p.platform] || '🔗'} <b>${names[p.platform] || p.platform}</b> · @${p.username || '?'}</span>
+            <span style="font-size:.65rem;color:var(--text-dim)">${expiryText}</span>
+          </div>`;
+        }).join('');
+      } else {
+        html += '<p style="color:var(--text-dim);font-size:.8rem">Ninguna plataforma conectada</p>';
+      }
+
+      // YouTube API status
+      html += `<div class="dash-info-row" style="margin-top:.4rem;align-items:center">
+        <span>▶️ <b>YouTube API</b></span>
+        <span style="font-size:.65rem;color:${data.youtubeApiConfigured ? 'var(--neon-green)' : 'var(--text-dim)'}">
+          ${data.youtubeApiConfigured ? '✓ Configurado' : '✗ Sin API Key'}
+        </span>
+      </div>`;
+
+      container.innerHTML = html;
+    }
+  } catch(e) {}
+
+  // Set OBS overlay URL
+  try {
+    const res = await authFetch('/api/overlay/config');
+    if (res.ok) {
+      const cfg = await res.json();
+      const obsUrl = `${window.location.origin}/overlay.html?uid=${cfg.userId}&obs=1`;
+      const obsUrlEl = document.getElementById('obsOverlayUrl');
+      if (obsUrlEl) obsUrlEl.textContent = obsUrl;
+      const testLink = document.getElementById('obsTestLink');
+      if (testLink) testLink.href = `/overlay.html?uid=${cfg.userId}&test=1`;
+    }
+  } catch(e) {}
+
+  // Load analytics
+  try {
+    const res = await authFetch('/api/analytics');
+    if (res.ok) {
+      const a = await res.json();
+      document.getElementById('analyticsTotalPart').textContent = a.totalParticipants.toLocaleString();
+      document.getElementById('analyticsAvgPart').textContent = a.avgParticipants.toLocaleString();
+
+      // By platform
+      const platIcons = { manual: '📝', instagram: '📸', youtube: '▶️', tiktok: '🎵', url: '🔗' };
+      document.getElementById('analyticsByPlatform').innerHTML = a.byPlatform.map(p =>
+        `<span style="background:rgba(108,60,224,.15);padding:.2rem .5rem;border-radius:12px;font-size:.7rem;color:var(--text)">${platIcons[p.platform]||'📊'} ${p.platform}: ${p.count}</span>`
+      ).join('') || '<span style="font-size:.7rem;color:var(--text-dim)">Sin datos</span>';
+
+      // By mode
+      const modeIcons = { slot: '🎰', wheel: '🎡', shuffle: '🔀', roulette: '🎯' };
+      document.getElementById('analyticsByMode').innerHTML = a.byMode.map(m =>
+        `<span style="background:rgba(0,229,255,.1);padding:.2rem .5rem;border-radius:12px;font-size:.7rem;color:var(--text)">${modeIcons[m.mode]||'📊'} ${m.mode}: ${m.count}</span>`
+      ).join('') || '<span style="font-size:.7rem;color:var(--text-dim)">Sin datos</span>';
+
+      // Activity chart (mini bar chart on canvas)
+      const canvas = document.getElementById('analyticsChart');
+      if (canvas && a.dailyActivity.length > 0) {
+        const ctx = canvas.getContext('2d');
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = canvas.offsetWidth * dpr;
+        canvas.height = 80 * dpr;
+        ctx.scale(dpr, dpr);
+        const cw = canvas.offsetWidth, ch = 80;
+        const maxVal = Math.max(...a.dailyActivity.map(d => d.count), 1);
+        const barW = Math.max(2, (cw - 10) / 30 - 1);
+        const today = new Date();
+        for (let i = 0; i < 30; i++) {
+          const d = new Date(today - (29 - i) * 86400000).toISOString().slice(0, 10);
+          const entry = a.dailyActivity.find(e => e.date === d);
+          const val = entry ? entry.count : 0;
+          const barH = Math.max(1, (val / maxVal) * (ch - 10));
+          const x = 5 + i * ((cw - 10) / 30);
+          ctx.fillStyle = val > 0 ? 'rgba(0,229,255,0.6)' : 'rgba(255,255,255,0.05)';
+          ctx.fillRect(x, ch - barH - 5, barW, barH);
+        }
+      }
+
+      // Top winners
+      document.getElementById('analyticsTopWinners').innerHTML = a.topWinners.map((w, i) =>
+        `<div style="display:flex;justify-content:space-between;align-items:center;padding:.2rem 0;font-size:.75rem;border-bottom:1px solid rgba(255,255,255,.05)">
+          <span style="color:var(--text)">${i+1}. ${w.winner}</span>
+          <span style="color:var(--text-dim)">${w.count}x</span>
+        </div>`
+      ).join('') || '<p style="font-size:.7rem;color:var(--text-dim)">Sin datos</p>';
+    }
+  } catch(e) {}
+
+  // Load billing info
+  try {
+    const res = await authFetch('/api/billing/info');
+    if (res.ok) {
+      const b = await res.json();
+      const planColors = { free: 'var(--neon-green)', pro: 'var(--neon-cyan)', enterprise: 'var(--neon-gold)' };
+      document.getElementById('dashBillingPlan').textContent = (b.plan || 'free').toUpperCase();
+      document.getElementById('dashBillingPlan').style.color = planColors[b.plan] || 'var(--text)';
+
+      // Payment warning
+      const warning = document.getElementById('dashPaymentWarning');
+      if (b.paymentFailed && b.graceUntil) {
+        warning.hidden = false;
+        const daysLeft = Math.max(0, Math.ceil((new Date(b.graceUntil) - Date.now()) / (1000*60*60*24)));
+        document.getElementById('dashPaymentWarningDetail').textContent =
+          daysLeft > 0 ? `Tu plan se mantiene por ${daysLeft} día${daysLeft !== 1 ? 's' : ''} más. Actualizá tu método de pago.`
+                       : 'Tu período de gracia expiró. Actualizá tu pago para reactivar tu plan.';
+      } else {
+        warning.hidden = true;
+      }
+
+      // Subscription details
+      if (b.hasSubscription && b.plan !== 'free') {
+        if (b.amount != null) {
+          document.getElementById('dashBillingAmountRow').hidden = false;
+          const currency = (b.currency || 'usd').toUpperCase();
+          const interval = b.interval === 'year' ? '/año' : '/mes';
+          document.getElementById('dashBillingAmount').textContent = `${currency} $${b.amount}${interval}`;
+        }
+        if (b.currentPeriodEnd) {
+          document.getElementById('dashBillingNextRow').hidden = false;
+          document.getElementById('dashBillingNext').textContent = new Date(b.currentPeriodEnd).toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' });
+        }
+        if (b.subscriptionStatus) {
+          document.getElementById('dashBillingStatusRow').hidden = false;
+          const statusMap = { active: ['Activo','var(--neon-green)'], past_due: ['Pago pendiente','#ff4466'], canceled: ['Cancelado','#ff8c00'], trialing: ['Prueba','var(--neon-cyan)'] };
+          const [label, color] = statusMap[b.subscriptionStatus] || [b.subscriptionStatus, 'var(--text)'];
+          document.getElementById('dashBillingStatus').innerHTML = `<span style="color:${color};font-weight:600">${label}</span>`;
+        }
+        document.getElementById('dashBillingCancelNote').hidden = !b.cancelAtPeriodEnd;
+      } else {
+        document.getElementById('dashBillingAmountRow').hidden = true;
+        document.getElementById('dashBillingNextRow').hidden = true;
+        document.getElementById('dashBillingStatusRow').hidden = true;
+        document.getElementById('dashBillingCancelNote').hidden = true;
+      }
+
+      // Buttons
+      document.getElementById('dashManageBilling').hidden = !b.canManage || b.plan === 'free';
+      document.getElementById('dashUpgradeBtn').hidden = b.plan !== 'free';
+    }
+  } catch(e) {}
 }
 
 function doLogout() {
@@ -4308,6 +5066,43 @@ document.getElementById('showLogin').addEventListener('click', () => showAuthMod
 document.getElementById('loginBtn').addEventListener('click', doLogin);
 document.getElementById('registerBtn').addEventListener('click', doRegister);
 document.getElementById('umLogout').addEventListener('click', doLogout);
+
+// Phase 2: Auth flow listeners
+document.getElementById('showForgot').addEventListener('click', () => showAuthModal('forgot'));
+document.getElementById('verifyBtn').addEventListener('click', doVerifyEmail);
+document.getElementById('resendCode').addEventListener('click', doResendCode);
+document.getElementById('skipVerify').addEventListener('click', closeAuthModal);
+document.getElementById('forgotBtn').addEventListener('click', doForgotPassword);
+document.getElementById('resetBtn').addEventListener('click', doResetPassword);
+document.getElementById('backToLogin').addEventListener('click', () => showAuthModal('login'));
+
+// Phase 2: Dashboard & change password listeners
+document.getElementById('umDashboard').addEventListener('click', () => { document.getElementById('userMenu').style.display='none'; openDashboard(); });
+document.getElementById('umChangePassword').addEventListener('click', () => { document.getElementById('userMenu').style.display='none'; document.getElementById('changePassModal').style.display='flex'; });
+document.getElementById('closeDashboard').addEventListener('click', () => { document.getElementById('dashboardPanel').style.display='none'; });
+document.getElementById('dashVerifyBtn').addEventListener('click', () => { document.getElementById('dashboardPanel').style.display='none'; showAuthModal('verify'); });
+document.getElementById('cpSubmit').addEventListener('click', doChangePassword);
+document.getElementById('changePassModal').addEventListener('click', (e) => { if(e.target.id==='changePassModal') e.target.style.display='none'; });
+
+// Billing buttons
+document.getElementById('dashManageBilling').addEventListener('click', async () => {
+  const btn = document.getElementById('dashManageBilling');
+  btn.textContent = 'Abriendo...'; btn.disabled = true;
+  try {
+    const res = await authFetch('/api/stripe/portal', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+    const data = await res.json();
+    if (data.url) window.open(data.url, '_blank');
+    else showToast(data.error || 'Error', 'error');
+  } catch(e) { showToast('Error de conexión', 'error'); }
+  btn.textContent = 'Gestionar suscripción'; btn.disabled = false;
+});
+document.getElementById('dashUpgradeBtn').addEventListener('click', () => {
+  document.getElementById('dashboardPanel').classList.remove('active');
+  window.open('pricing.html', '_blank');
+});
+
+// Enter key on verify code
+document.getElementById('verifyCode').addEventListener('keydown', (e) => { if (e.key === 'Enter') doVerifyEmail(); });
 
 // Enter key on auth fields
 document.getElementById('loginPass').addEventListener('keydown', (e) => { if (e.key === 'Enter') doLogin(); });

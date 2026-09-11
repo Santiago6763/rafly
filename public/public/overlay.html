@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RAFLY - OBS Overlay</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: transparent;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  #overlay-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* ── Slot Machine ── */
+  .slot-machine {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+  }
+  .slot-machine.active { display: flex; }
+
+  .slot-frame {
+    background: rgba(10, 10, 30, 0.92);
+    border: 3px solid #6c3ce0;
+    border-radius: 20px;
+    padding: 20px 40px;
+    box-shadow: 0 0 40px rgba(108, 60, 224, 0.5), inset 0 0 30px rgba(108, 60, 224, 0.1);
+    min-width: 400px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .slot-frame::before {
+    content: '';
+    position: absolute;
+    top: -2px; left: -2px; right: -2px; bottom: -2px;
+    background: linear-gradient(45deg, #6c3ce0, #00d4ff, #ff006e, #6c3ce0);
+    background-size: 400% 400%;
+    border-radius: 22px;
+    z-index: -1;
+    animation: borderGlow 3s ease infinite;
+  }
+  @keyframes borderGlow {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+  }
+
+  .slot-label {
+    color: #aaa;
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 3px;
+    margin-bottom: 8px;
+  }
+
+  .slot-window {
+    height: 80px;
+    overflow: hidden;
+    position: relative;
+  }
+  .slot-window::before, .slot-window::after {
+    content: '';
+    position: absolute;
+    left: 0; right: 0;
+    height: 20px;
+    z-index: 2;
+    pointer-events: none;
+  }
+  .slot-window::before {
+    top: 0;
+    background: linear-gradient(to bottom, rgba(10,10,30,0.95), transparent);
+  }
+  .slot-window::after {
+    bottom: 0;
+    background: linear-gradient(to top, rgba(10,10,30,0.95), transparent);
+  }
+
+  .slot-reel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    transition: none;
+  }
+  .slot-reel .slot-name {
+    height: 80px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 32px;
+    font-weight: 700;
+    color: #fff;
+    white-space: nowrap;
+    padding: 0 20px;
+  }
+
+  .slot-participants {
+    color: #888;
+    font-size: 13px;
+    margin-top: 4px;
+  }
+
+  /* ── Winner Reveal ── */
+  .winner-reveal {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    animation: revealPop 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .winner-reveal.active { display: flex; }
+
+  @keyframes revealPop {
+    0% { transform: scale(0.3); opacity: 0; }
+    60% { transform: scale(1.1); }
+    100% { transform: scale(1); opacity: 1; }
+  }
+
+  .winner-badge {
+    background: linear-gradient(135deg, #6c3ce0 0%, #00d4ff 100%);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 4px;
+    padding: 8px 24px;
+    border-radius: 30px;
+  }
+
+  .winner-name {
+    font-size: 52px;
+    font-weight: 800;
+    color: #fff;
+    text-shadow: 0 0 30px rgba(108, 60, 224, 0.8), 0 0 60px rgba(0, 212, 255, 0.4);
+    text-align: center;
+    max-width: 90vw;
+    word-break: break-word;
+  }
+
+  .winner-meta {
+    color: #aaa;
+    font-size: 14px;
+  }
+
+  .rafly-watermark {
+    position: fixed;
+    bottom: 12px;
+    right: 16px;
+    color: rgba(255,255,255,0.25);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  /* ── Confetti ── */
+  .confetti-piece {
+    position: fixed;
+    width: 10px;
+    height: 10px;
+    top: -20px;
+    z-index: 100;
+    opacity: 0;
+  }
+  @keyframes confettiFall {
+    0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+    100% { transform: translateY(110vh) rotate(720deg); opacity: 0; }
+  }
+
+  /* ── Wheel ── */
+  .wheel-container {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+  }
+  .wheel-container.active { display: flex; }
+
+  .wheel-wrapper {
+    position: relative;
+    width: 420px;
+    height: 420px;
+  }
+  .wheel-pointer {
+    position: absolute;
+    top: -18px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0; height: 0;
+    border-left: 16px solid transparent;
+    border-right: 16px solid transparent;
+    border-top: 30px solid #ff006e;
+    z-index: 10;
+    filter: drop-shadow(0 0 8px rgba(255,0,110,0.6));
+  }
+  .wheel-canvas {
+    width: 420px;
+    height: 420px;
+    border-radius: 50%;
+    box-shadow: 0 0 40px rgba(108, 60, 224, 0.4);
+  }
+
+  /* ── Config panel (only visible outside OBS) ── */
+  .config-panel {
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    background: rgba(20,20,40,0.95);
+    border: 1px solid #333;
+    border-radius: 12px;
+    padding: 16px;
+    color: #ccc;
+    font-size: 13px;
+    max-width: 280px;
+    z-index: 999;
+  }
+  .config-panel h3 {
+    color: #fff;
+    margin-bottom: 8px;
+    font-size: 14px;
+  }
+  .config-panel code {
+    background: #1a1a3e;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 12px;
+    color: #00d4ff;
+    word-break: break-all;
+  }
+  .config-panel .status {
+    margin-top: 8px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+  }
+  .config-panel .status.waiting {
+    background: rgba(255,165,0,0.15);
+    color: #ffa500;
+  }
+  .config-panel .status.connected {
+    background: rgba(0,200,0,0.15);
+    color: #0c0;
+  }
+  .config-panel .hide-btn {
+    margin-top: 8px;
+    background: none;
+    border: 1px solid #555;
+    color: #aaa;
+    padding: 4px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 11px;
+  }
+  .config-panel .hide-btn:hover { border-color: #888; color: #fff; }
+  body.obs-mode .config-panel { display: none; }
+</style>
+</head>
+<body>
+<div id="overlay-container">
+  <!-- Slot Machine animation -->
+  <div class="slot-machine" id="slotMachine">
+    <div class="slot-frame">
+      <div class="slot-label">Seleccionando ganador...</div>
+      <div class="slot-window">
+        <div class="slot-reel" id="slotReel"></div>
+      </div>
+    </div>
+    <div class="slot-participants" id="slotParticipants"></div>
+  </div>
+
+  <!-- Wheel animation -->
+  <div class="wheel-container" id="wheelContainer">
+    <div class="wheel-wrapper">
+      <div class="wheel-pointer"></div>
+      <canvas class="wheel-canvas" id="wheelCanvas" width="420" height="420"></canvas>
+    </div>
+  </div>
+
+  <!-- Winner reveal (after animation) -->
+  <div class="winner-reveal" id="winnerReveal">
+    <div class="winner-badge">Ganador</div>
+    <div class="winner-name" id="winnerName"></div>
+    <div class="winner-meta" id="winnerMeta"></div>
+  </div>
+</div>
+
+<div class="rafly-watermark">RAFLY</div>
+
+<!-- Config panel (hidden in OBS) -->
+<div class="config-panel" id="configPanel">
+  <h3>RAFLY OBS Overlay</h3>
+  <p style="margin-bottom:6px;">URL para OBS Browser Source:</p>
+  <code id="overlayUrl">Cargando...</code>
+  <div class="status waiting" id="statusIndicator">Esperando sorteo...</div>
+  <button class="hide-btn" onclick="document.getElementById('configPanel').style.display='none'">Ocultar panel</button>
+</div>
+
+<div id="confettiContainer"></div>
+
+<script>
+(function() {
+  // ── Parse URL params ──
+  const params = new URLSearchParams(window.location.search);
+  const userId = parseInt(params.get('uid')) || 0;
+  const obsMode = params.get('obs') === '1';
+  const accentColor = params.get('color') || '#6c3ce0';
+
+  if (obsMode) document.body.classList.add('obs-mode');
+
+  // Apply custom accent
+  if (accentColor !== '#6c3ce0') {
+    document.querySelectorAll('.slot-frame').forEach(el => {
+      el.style.borderColor = accentColor;
+      el.style.boxShadow = `0 0 40px ${accentColor}80, inset 0 0 30px ${accentColor}15`;
+    });
+  }
+
+  // Set overlay URL display
+  const baseUrl = window.location.origin;
+  const overlayUrlEl = document.getElementById('overlayUrl');
+  if (userId) {
+    overlayUrlEl.textContent = `${baseUrl}/overlay.html?uid=${userId}&obs=1`;
+  } else {
+    overlayUrlEl.textContent = 'Necesitas iniciar sesion primero';
+  }
+
+  let lastTimestamp = 0;
+  let polling = null;
+
+  // ── Confetti ──
+  function spawnConfetti(count = 60) {
+    const container = document.getElementById('confettiContainer');
+    const colors = ['#6c3ce0','#00d4ff','#ff006e','#ffd700','#00ff88','#ff6b35'];
+    for (let i = 0; i < count; i++) {
+      const piece = document.createElement('div');
+      piece.className = 'confetti-piece';
+      const c = colors[Math.floor(Math.random() * colors.length)];
+      const size = 6 + Math.random() * 8;
+      const shape = Math.random() > 0.5 ? '50%' : '0';
+      piece.style.cssText = `
+        left: ${Math.random() * 100}vw;
+        width: ${size}px; height: ${size}px;
+        background: ${c};
+        border-radius: ${shape};
+        animation: confettiFall ${2 + Math.random() * 2}s ease-in forwards;
+        animation-delay: ${Math.random() * 0.8}s;
+      `;
+      container.appendChild(piece);
+    }
+    setTimeout(() => { container.innerHTML = ''; }, 5000);
+  }
+
+  // ── Slot Machine Animation ──
+  function runSlotAnimation(winner, namePool, onDone) {
+    const slotMachine = document.getElementById('slotMachine');
+    const reel = document.getElementById('slotReel');
+    slotMachine.classList.add('active');
+
+    // Build reel: ~40 random names then the winner at the end
+    const pool = namePool.length > 1 ? namePool : [winner, 'Player1', 'Player2', 'Player3', 'Player4'];
+    const names = [];
+    for (let i = 0; i < 40; i++) {
+      names.push(pool[Math.floor(Math.random() * pool.length)]);
+    }
+    names.push(winner);
+
+    reel.innerHTML = names.map(n => `<div class="slot-name">${escHtml(n)}</div>`).join('');
+    reel.style.transition = 'none';
+    reel.style.transform = 'translateY(0)';
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const targetY = -(names.length - 1) * 80;
+        reel.style.transition = 'transform 4s cubic-bezier(0.15, 0.85, 0.35, 1)';
+        reel.style.transform = `translateY(${targetY}px)`;
+      });
+    });
+
+    setTimeout(() => {
+      slotMachine.classList.remove('active');
+      onDone();
+    }, 4500);
+  }
+
+  // ── Wheel Animation ──
+  function runWheelAnimation(winner, namePool, onDone) {
+    const container = document.getElementById('wheelContainer');
+    const canvas = document.getElementById('wheelCanvas');
+    const ctx = canvas.getContext('2d');
+    container.classList.add('active');
+
+    const pool = namePool.length >= 2 ? namePool.slice(0, 12) : [winner, 'Player1', 'Player2', 'Player3'];
+    const winnerIdx = pool.indexOf(winner);
+    if (winnerIdx === -1) pool[0] = winner;
+    const actualWinnerIdx = pool.indexOf(winner);
+
+    const segAngle = (2 * Math.PI) / pool.length;
+    const colors = ['#6c3ce0','#1a1a3e','#3a1a6e','#0a0a2e','#2a0a5e','#4a2a8e','#1e1e4e','#0e0e3e','#3e1e7e','#2e0e6e','#5a3a9e','#4e2e8e'];
+
+    function drawWheel(rotation) {
+      ctx.clearRect(0, 0, 420, 420);
+      ctx.save();
+      ctx.translate(210, 210);
+      ctx.rotate(rotation);
+
+      for (let i = 0; i < pool.length; i++) {
+        const startAngle = i * segAngle;
+        const endAngle = (i + 1) * segAngle;
+
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.arc(0, 0, 200, startAngle, endAngle);
+        ctx.closePath();
+        ctx.fillStyle = colors[i % colors.length];
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        // Name
+        ctx.save();
+        ctx.rotate(startAngle + segAngle / 2);
+        ctx.textAlign = 'right';
+        ctx.fillStyle = '#fff';
+        ctx.font = `bold ${pool.length > 8 ? 11 : 14}px 'Segoe UI', sans-serif`;
+        const label = pool[i].length > 14 ? pool[i].substring(0, 12) + '..' : pool[i];
+        ctx.fillText(label, 185, 5);
+        ctx.restore();
+      }
+
+      // Center circle
+      ctx.beginPath();
+      ctx.arc(0, 0, 30, 0, 2 * Math.PI);
+      ctx.fillStyle = '#1a1a3e';
+      ctx.fill();
+      ctx.strokeStyle = '#6c3ce0';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+
+      ctx.restore();
+    }
+
+    // Calculate final rotation: winner segment at top (pointer position = -PI/2)
+    const targetSegCenter = actualWinnerIdx * segAngle + segAngle / 2;
+    const targetRotation = (2 * Math.PI * 6) + (2 * Math.PI - targetSegCenter) - Math.PI / 2;
+
+    let startTime = null;
+    const duration = 4000;
+
+    function animate(time) {
+      if (!startTime) startTime = time;
+      const elapsed = time - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 4);
+      const currentRotation = eased * targetRotation;
+      drawWheel(currentRotation);
+
+      if (progress < 1) {
+        requestAnimationFrame(animate);
+      } else {
+        setTimeout(() => {
+          container.classList.remove('active');
+          onDone();
+        }, 500);
+      }
+    }
+
+    drawWheel(0);
+    requestAnimationFrame(animate);
+  }
+
+  // ── Winner Reveal ──
+  function showWinner(winner, participants) {
+    const reveal = document.getElementById('winnerReveal');
+    document.getElementById('winnerName').textContent = winner;
+    document.getElementById('winnerMeta').textContent = participants > 0 ? `De ${participants} participantes` : '';
+    reveal.classList.add('active');
+    spawnConfetti(80);
+
+    // Auto-hide after 12 seconds
+    setTimeout(() => {
+      reveal.classList.remove('active');
+    }, 12000);
+  }
+
+  // ── Process new state ──
+  function processState(state) {
+    const statusEl = document.getElementById('statusIndicator');
+    if (statusEl) {
+      statusEl.className = 'status connected';
+      statusEl.textContent = 'Sorteo recibido!';
+    }
+
+    lastTimestamp = state.timestamp;
+
+    // Generate a dummy name pool for animations
+    const namePool = [];
+    const fakeNames = ['@usuario1','@maria_g','@carlos99','@luna_star','@pedro_m','@ana_beat','@juanito','@sofi_art','@diego_dj','@vale_fit','@nico_pro','@cami_luz'];
+    const poolSize = Math.min(state.participants || 12, 12);
+    for (let i = 0; i < poolSize; i++) {
+      namePool.push(fakeNames[i % fakeNames.length]);
+    }
+    // Ensure winner is in pool
+    const wIdx = Math.floor(Math.random() * namePool.length);
+    namePool[wIdx] = state.winner;
+
+    const animType = state.animation || state.config?.animation || 'slot';
+
+    if (animType === 'wheel') {
+      runWheelAnimation(state.winner, namePool, () => showWinner(state.winner, state.participants));
+    } else {
+      runSlotAnimation(state.winner, namePool, () => showWinner(state.winner, state.participants));
+    }
+
+    // Reset status after animation
+    setTimeout(() => {
+      if (statusEl) {
+        statusEl.className = 'status waiting';
+        statusEl.textContent = 'Esperando sorteo...';
+      }
+    }, 6000);
+  }
+
+  // ── Polling ──
+  function startPolling() {
+    if (!userId) return;
+    polling = setInterval(async () => {
+      try {
+        const resp = await fetch(`/api/overlay/state/${userId}?since=${lastTimestamp}`);
+        if (!resp.ok) return;
+        const data = await resp.json();
+        if (data.pending) {
+          processState(data);
+        }
+      } catch (e) { /* silent */ }
+    }, 1500);
+  }
+
+  // ── Escape HTML ──
+  function escHtml(s) {
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  // ── Test mode (for previewing without backend) ──
+  if (params.get('test') === '1') {
+    setTimeout(() => {
+      processState({
+        winner: '@ganador_demo',
+        participants: 1247,
+        animation: params.get('anim') || 'slot',
+        timestamp: Date.now()
+      });
+    }, 1500);
+  }
+
+  // Start polling
+  startPolling();
+})();
+</script>
+</body>
+</html>

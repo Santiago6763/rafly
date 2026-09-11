@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RAFLY — Sin conexion</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    min-height: 100vh;
+    background: #060614;
+    color: #e0e0ee;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 20px;
+    padding: 20px;
+    text-align: center;
+  }
+  .icon {
+    font-size: 64px;
+    opacity: 0.5;
+  }
+  h1 {
+    font-size: 28px;
+    color: #00e5ff;
+    font-weight: 800;
+  }
+  p {
+    color: #888;
+    max-width: 400px;
+    line-height: 1.6;
+  }
+  .retry-btn {
+    margin-top: 12px;
+    padding: 12px 32px;
+    background: linear-gradient(135deg, #6c3ce0, #00d4ff);
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.2s;
+  }
+  .retry-btn:hover { transform: scale(1.05); }
+  .tip {
+    margin-top: 20px;
+    padding: 16px 24px;
+    background: rgba(108,60,224,0.1);
+    border: 1px solid rgba(108,60,224,0.2);
+    border-radius: 12px;
+    max-width: 400px;
+  }
+  .tip h3 {
+    color: #6c3ce0;
+    font-size: 14px;
+    margin-bottom: 6px;
+  }
+  .tip p {
+    font-size: 13px;
+    color: #aaa;
+  }
+</style>
+</head>
+<body>
+  <div class="icon">📡</div>
+  <h1>Sin conexion</h1>
+  <p>No hay conexion a internet. Algunas funciones de RAFLY necesitan estar online para funcionar.</p>
+  <button class="retry-btn" onclick="window.location.reload()">Reintentar</button>
+  <div class="tip">
+    <h3>Mientras tanto...</h3>
+    <p>Podes preparar tu lista de participantes offline y pegarla cuando vuelvas a conectarte.</p>
+  </div>
+</body>
+</html>

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'rafly-v7';
+const CACHE_NAME = 'rafly-v8';
 const ASSETS = [
   '/',
   '/index.html',
@@ -11,7 +11,11 @@ const ASSETS = [
   '/qr.html',
   '/dashboard.html',
   '/admin.html',
-  '/manifest.json'
+  '/overlay.html',
+  '/countdown.html',
+  '/api-docs.html',
+  '/manifest.json',
+  '/offline.html'
 ];
 
 // Install — cache core assets
@@ -34,7 +38,7 @@ self.addEventListener('activate', event => {
 
 // Push — show notification
 self.addEventListener('push', event => {
-  let data = { title: 'RAFLY', body: 'Tenés una notificación', icon: '/manifest.json' };
+  let data = { title: 'RAFLY', body: 'Tenes una notificacion', icon: '/manifest.json' };
   try {
     data = Object.assign(data, event.data.json());
   } catch(e) {}
@@ -63,16 +67,41 @@ self.addEventListener('notificationclick', event => {
   );
 });
 
-// Fetch — network first, cache fallback
+// Fetch — network first, cache fallback, offline page for navigations
 self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') return;
+
+  // API requests: network only, no caching
+  if (event.request.url.includes('/api/')) {
+    event.respondWith(
+      fetch(event.request).catch(() =>
+        new Response(JSON.stringify({ error: 'Sin conexion' }), {
+          status: 503,
+          headers: { 'Content-Type': 'application/json' }
+        })
+      )
+    );
+    return;
+  }
+
   event.respondWith(
     fetch(event.request)
       .then(response => {
-        const clone = response.clone();
-        caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+        if (response.ok) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+        }
         return response;
       })
-      .catch(() => caches.match(event.request))
+      .catch(() =>
+        caches.match(event.request).then(cached => {
+          if (cached) return cached;
+          // If it's a navigation, show offline page
+          if (event.request.mode === 'navigate') {
+            return caches.match('/offline.html');
+          }
+          return new Response('', { status: 503 });
+        })
+      )
   );
 });
