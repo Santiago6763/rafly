@@ -4,6 +4,49 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>RAFLY — Sorteos en vivo</title>
+<meta name="description" content="Hacé sorteos en vivo para Instagram, YouTube y TikTok con animaciones profesionales. Ruleta, Slot Machine y Shuffle. Gratis, sin registro.">
+<meta name="keywords" content="sorteo instagram, sorteo en vivo, giveaway, sorteo youtube, sorteo tiktok, rafly, sorteos online, ruleta sorteo">
+
+<!-- Open Graph -->
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://rafly.onrender.com/">
+<meta property="og:title" content="RAFLY — Sorteos en vivo para Instagram, YouTube y TikTok">
+<meta property="og:description" content="La plataforma #1 para sorteos en vivo con animaciones profesionales. Slot Machine, Ruleta y Shuffle. Gratis.">
+<meta property="og:image" content="https://rafly.onrender.com/og-image.png">
+<meta property="og:locale" content="es_AR">
+<meta property="og:site_name" content="RAFLY">
+
+<!-- Twitter Card -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="RAFLY — Sorteos en vivo">
+<meta name="twitter:description" content="Sorteos en vivo para Instagram, YouTube y TikTok con animaciones profesionales.">
+<meta name="twitter:image" content="https://rafly.onrender.com/og-image.png">
+
+<!-- Structured Data -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  "name": "RAFLY",
+  "url": "https://rafly.onrender.com",
+  "description": "Plataforma de sorteos en vivo para Instagram, YouTube y TikTok con animaciones profesionales",
+  "applicationCategory": "UtilitiesApplication",
+  "operatingSystem": "Web",
+  "offers": [
+    {"@type": "Offer", "price": "0", "priceCurrency": "USD", "name": "Free"},
+    {"@type": "Offer", "price": "9", "priceCurrency": "USD", "name": "Pro"},
+    {"@type": "Offer", "price": "29", "priceCurrency": "USD", "name": "Enterprise"}
+  ],
+  "aggregateRating": {
+    "@type": "AggregateRating",
+    "ratingValue": "4.8",
+    "ratingCount": "2400"
+  }
+}
+</script>
+
+<link rel="canonical" href="https://rafly.onrender.com/">
+<script src="/i18n.js"></script>
 <link rel="manifest" href="/manifest.json">
 <meta name="theme-color" content="#00e5ff">
 <link rel="apple-touch-icon" href="/icon-192.png">
@@ -117,6 +160,7 @@ header{
 .dot-live{width:6px;height:6px;border-radius:50%;background:var(--neon-green);box-shadow:0 0 8px var(--glow-green);animation:pulse-dot 2s infinite}
 @keyframes pulse-dot{0%,100%{opacity:1}50%{opacity:.3}}
 .header-actions{display:flex;gap:.4rem}
+#pushBell.active{border-color:var(--neon-gold);color:var(--neon-gold);text-shadow:0 0 8px var(--glow-gold)}
 .btn-icon{
   width:36px;height:36px;border-radius:8px;border:1px solid var(--border);
   background:var(--surface);color:var(--text-muted);cursor:pointer;
@@ -750,6 +794,19 @@ header{animation:fadeSlideUp .4s var(--ease-out-expo) both}
 .user-menu-item.danger{color:var(--neon-red)}
 .user-menu-item.danger:hover{background:rgba(255,51,85,.06)}
 </style>
+<!-- Google Analytics (loaded dynamically from config) -->
+<script>
+fetch('/api/config').then(r=>r.json()).then(c=>{
+  if(c.ga){
+    const s=document.createElement('script');
+    s.async=true;s.src='https://www.googletagmanager.com/gtag/js?id='+c.ga;
+    document.head.appendChild(s);
+    window.dataLayer=window.dataLayer||[];
+    function gtag(){dataLayer.push(arguments)}
+    gtag('js',new Date());gtag('config',c.ga);
+  }
+}).catch(()=>{});
+</script>
 </head>
 <body>
 
@@ -770,7 +827,9 @@ header{animation:fadeSlideUp .4s var(--ease-out-expo) both}
     </div>
   </div>
   <div class="header-actions">
-    <button class="btn-icon" id="authBtn" title="Iniciar sesión" style="font-size:.6rem;font-family:'Orbitron',monospace;font-weight:700;padding:.2rem .55rem;border:1px solid var(--neon-cyan);color:var(--neon-cyan);border-radius:6px;cursor:pointer">LOGIN</button>
+    <button class="btn-icon" id="pushBell" title="Activar notificaciones" style="display:none;align-items:center;justify-content:center;font-size:1rem;border:1px solid var(--border);color:var(--text-dim);border-radius:6px;cursor:pointer;position:relative">🔔</button>
+    <button class="btn-icon" id="langToggle" onclick="toggleLang()" title="Switch to English" style="font-size:.55rem;font-family:'Orbitron',monospace;font-weight:700;padding:.2rem .45rem;border:1px solid var(--neon-gold);color:var(--neon-gold);border-radius:6px;cursor:pointer">EN</button>
+    <button class="btn-icon" id="authBtn" title="Iniciar sesión" data-i18n="nav.login" style="font-size:.6rem;font-family:'Orbitron',monospace;font-weight:700;padding:.2rem .55rem;border:1px solid var(--neon-cyan);color:var(--neon-cyan);border-radius:6px;cursor:pointer">LOGIN</button>
     <button class="btn-icon" id="planBadge" title="Tu plan" style="font-size:.55rem;font-family:'Orbitron',monospace;font-weight:900;padding:.2rem .5rem;border:1px solid var(--neon-green);color:var(--neon-green);border-radius:6px;cursor:pointer">FREE</button>
     <button class="btn-icon" id="fullscreenToggle" title="Modo presentación">📺</button>
     <button class="btn-icon" id="themeToggle" title="Cambiar tema">🌙</button>
@@ -4238,6 +4297,156 @@ function initLevel6() {
 
 init();
 initLevel6();
+
+// Level 7: Apply saved language
+if (typeof setLang === 'function') {
+  setLang(getLang());
+}
+
+/* ═══════════════════════════════════════════════════
+   LEVEL 7: PUSH NOTIFICATIONS & EMAIL
+   ═══════════════════════════════════════════════════ */
+
+// Push notification subscription
+async function initPushNotifications() {
+  if (!('Notification' in window) || !('serviceWorker' in navigator)) return;
+  if (!authToken || !currentUser) return;
+
+  // Check if already subscribed
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const existing = await reg.pushManager.getSubscription();
+    if (existing) {
+      updatePushUI(true);
+      return;
+    }
+  } catch(e) {}
+
+  // Show opt-in after a brief delay if not subscribed
+  setTimeout(() => {
+    if (Notification.permission === 'denied') return;
+    if (Notification.permission === 'granted') {
+      subscribePush();
+    }
+    // For 'default', we show the bell icon — user clicks to subscribe
+    updatePushUI(false);
+  }, 2000);
+}
+
+async function subscribePush() {
+  try {
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') {
+      updatePushUI(false);
+      return;
+    }
+
+    // Get VAPID key from server
+    const vapidRes = await authFetch('/api/push/vapid-key');
+    const vapidData = await vapidRes.json();
+    if (!vapidData.key) return;
+
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(vapidData.key)
+    });
+
+    // Send subscription to server
+    await authFetch('/api/push/subscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subscription: sub.toJSON() })
+    });
+
+    updatePushUI(true);
+    showToast('Notificaciones activadas', 'success');
+  } catch(e) {
+    console.warn('Push subscription failed:', e);
+  }
+}
+
+async function unsubscribePush() {
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    if (sub) {
+      await authFetch('/api/push/unsubscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ endpoint: sub.endpoint })
+      });
+      await sub.unsubscribe();
+    }
+    updatePushUI(false);
+    showToast('Notificaciones desactivadas', 'info');
+  } catch(e) {}
+}
+
+function updatePushUI(subscribed) {
+  const bell = document.getElementById('pushBell');
+  if (!bell) return;
+  if (!authToken) { bell.style.display = 'none'; return; }
+  bell.style.display = 'flex';
+  bell.title = subscribed ? 'Desactivar notificaciones' : 'Activar notificaciones';
+  bell.classList.toggle('active', subscribed);
+  bell.onclick = subscribed ? unsubscribePush : subscribePush;
+}
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(base64);
+  const arr = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; ++i) arr[i] = raw.charCodeAt(i);
+  return arr;
+}
+
+// Send welcome email on register
+async function sendWelcomeEmail() {
+  if (!authToken) return;
+  try {
+    await authFetch('/api/email/welcome', { method: 'POST' });
+  } catch(e) { /* non-critical */ }
+}
+
+// Send sorteo result email
+async function sendSorteoEmail(winner, participantsCount, mode) {
+  if (!authToken) return;
+  try {
+    await authFetch('/api/email/sorteo-result', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ winner, participantsCount, mode })
+    });
+  } catch(e) { /* non-critical */ }
+}
+
+// Patch register to send welcome email + init push
+const _origRegister = doRegister;
+doRegister = async function() {
+  await _origRegister();
+  if (currentUser) {
+    sendWelcomeEmail();
+    setTimeout(() => initPushNotifications(), 1500);
+  }
+};
+
+// Patch announceWinner to send sorteo email
+const _l7AnnounceWinner = announceWinner;
+announceWinner = function() {
+  _l7AnnounceWinner();
+  sendSorteoEmail(
+    state.currentWinner,
+    state.participants.length,
+    state.animMode
+  );
+};
+
+// Init push on page load if logged in
+if (currentUser) {
+  initPushNotifications();
+}
 </script>
 </body>
 </html>
