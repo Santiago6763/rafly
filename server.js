@@ -1006,6 +1006,392 @@ app.get('/api/stripe/status', (req, res) => {
   });
 });
 
+// ══════════════════════════════════════════════════════════════
+//   LEVEL 7: EMAIL & PUSH NOTIFICATIONS
+// ══════════════════════════════════════════════════════════════
+
+const nodemailer = require('nodemailer');
+const webpush = require('web-push');
+
+// ── Email config ──
+const EMAIL_FROM = process.env.EMAIL_FROM || 'RAFLY <noreply@rafly.app>';
+let emailTransporter = null;
+
+if (process.env.SMTP_HOST) {
+  emailTransporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port: parseInt(process.env.SMTP_PORT) || 587,
+    secure: (process.env.SMTP_PORT || '587') === '465',
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS,
+    },
+  });
+}
+
+async function sendEmail(to, subject, html) {
+  if (!emailTransporter) return { sent: false, reason: 'SMTP not configured' };
+  try {
+    await emailTransporter.sendMail({ from: EMAIL_FROM, to, subject, html });
+    return { sent: true };
+  } catch (err) {
+    console.error('Email error:', err.message);
+    return { sent: false, reason: err.message };
+  }
+}
+
+function welcomeEmailHTML(name) {
+  return `
+    <div style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;background:#060614;color:#e0e0f8;padding:2rem;border-radius:12px">
+      <h1 style="color:#00e5ff;font-size:1.8rem;margin-bottom:.5rem">¡Bienvenido a RAFLY! 🎰</h1>
+      <p style="color:#8b8fa3;margin-bottom:1.5rem">Hola ${name || 'ahí'},</p>
+      <p>Tu cuenta está lista. Ahora podés hacer sorteos en vivo con animaciones profesionales para Instagram, YouTube y TikTok.</p>
+      <div style="margin:1.5rem 0">
+        <a href="https://rafly.onrender.com" style="display:inline-block;background:#00e5ff;color:#060614;padding:.6rem 1.5rem;border-radius:8px;text-decoration:none;font-weight:bold">Ir a RAFLY →</a>
+      </div>
+      <p style="color:#6a6a8a;font-size:.8rem">Si no creaste esta cuenta, podés ignorar este email.</p>
+      <hr style="border:none;border-top:1px solid rgba(0,229,255,.12);margin:1.5rem 0">
+      <p style="color:#3a3a55;font-size:.7rem;text-align:center">RAFLY — Sorteos en vivo</p>
+    </div>`;
+}
+
+function sorteoEmailHTML(winner, participantsCount, mode) {
+  return `
+    <div style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;background:#060614;color:#e0e0f8;padding:2rem;border-radius:12px">
+      <h1 style="color:#00ff88;font-size:1.5rem;margin-bottom:1rem">🎉 Resultado del sorteo</h1>
+      <div style="background:#0c0c24;border:1px solid rgba(0,255,136,.2);border-radius:10px;padding:1.2rem;text-align:center;margin-bottom:1rem">
+        <p style="color:#6a6a8a;font-size:.75rem;text-transform:uppercase;letter-spacing:1px;margin-bottom:.3rem">Ganador</p>
+        <p style="color:#00ff88;font-size:1.8rem;font-weight:bold;margin:0">${winner}</p>
+      </div>
+      <p style="color:#8b8fa3;font-size:.85rem">Participantes: ${participantsCount} · Modo: ${mode}</p>
+      <div style="margin:1.5rem 0">
+        <a href="https://rafly.onrender.com/dashboard.html" style="display:inline-block;background:#00e5ff;color:#060614;padding:.5rem 1.2rem;border-radius:8px;text-decoration:none;font-weight:bold;font-size:.85rem">Ver en Dashboard →</a>
+      </div>
+      <hr style="border:none;border-top:1px solid rgba(0,229,255,.12);margin:1.5rem 0">
+      <p style="color:#3a3a55;font-size:.7rem;text-align:center">RAFLY — Sorteos en vivo</p>
+    </div>`;
+}
+
+// Hook: send welcome email on register
+const originalRegisterHandler = app._router.stack;
+// We'll add email sending to the existing register route via a post-register hook
+
+// ── Send welcome email endpoint (called by frontend after register) ──
+app.post('/api/email/welcome', authMiddleware, async (req, res) => {
+  const user = stmts.findUserById.get(req.userId);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+
+  const result = await sendEmail(
+    user.email,
+    '¡Bienvenido a RAFLY! 🎰',
+    welcomeEmailHTML(user.name)
+  );
+  res.json(result);
+});
+
+// ── Send sorteo result email ──
+app.post('/api/email/sorteo-result', authMiddleware, async (req, res) => {
+  const user = stmts.findUserById.get(req.userId);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+
+  const { winner, participantsCount, mode } = req.body;
+  const result = await sendEmail(
+    user.email,
+    `🎉 Ganador: ${winner} — RAFLY`,
+    sorteoEmailHTML(winner, participantsCount || 0, mode || 'slot')
+  );
+  res.json(result);
+});
+
+// ── Web Push Notifications ──
+const VAPID_PUBLIC = process.env.VAPID_PUBLIC_KEY || null;
+const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY || null;
+const VAPID_EMAIL = process.env.VAPID_EMAIL || 'mailto:admin@rafly.app';
+
+if (VAPID_PUBLIC && VAPID_PRIVATE) {
+  webpush.setVapidDetails(VAPID_EMAIL, VAPID_PUBLIC, VAPID_PRIVATE);
+}
+
+// Create push_subscriptions table
+db.exec(`
+  CREATE TABLE IF NOT EXISTS push_subscriptions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    endpoint TEXT UNIQUE NOT NULL,
+    keys_p256dh TEXT NOT NULL,
+    keys_auth TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id)
+  );
+`);
+
+const stmtSavePushSub = db.prepare('INSERT OR REPLACE INTO push_subscriptions (user_id, endpoint, keys_p256dh, keys_auth) VALUES (?, ?, ?, ?)');
+const stmtGetPushSubs = db.prepare('SELECT * FROM push_subscriptions WHERE user_id = ?');
+const stmtDeletePushSub = db.prepare('DELETE FROM push_subscriptions WHERE endpoint = ?');
+
+// Subscribe to push
+app.post('/api/push/subscribe', authMiddleware, (req, res) => {
+  if (!VAPID_PUBLIC) return res.status(503).json({ error: 'Push not configured' });
+
+  const { subscription } = req.body;
+  if (!subscription?.endpoint || !subscription?.keys?.p256dh || !subscription?.keys?.auth) {
+    return res.status(400).json({ error: 'Invalid subscription' });
+  }
+
+  stmtSavePushSub.run(req.userId, subscription.endpoint, subscription.keys.p256dh, subscription.keys.auth);
+  res.json({ ok: true });
+});
+
+// Unsubscribe
+app.post('/api/push/unsubscribe', authMiddleware, (req, res) => {
+  const { endpoint } = req.body;
+  if (endpoint) stmtDeletePushSub.run(endpoint);
+  res.json({ ok: true });
+});
+
+// Get VAPID public key
+app.get('/api/push/vapid-key', (req, res) => {
+  res.json({ key: VAPID_PUBLIC || null });
+});
+
+// Send push notification to a user
+async function sendPushToUser(userId, payload) {
+  if (!VAPID_PUBLIC) return;
+  const subs = stmtGetPushSubs.all(userId);
+  for (const sub of subs) {
+    try {
+      await webpush.sendNotification({
+        endpoint: sub.endpoint,
+        keys: { p256dh: sub.keys_p256dh, auth: sub.keys_auth }
+      }, JSON.stringify(payload));
+    } catch (err) {
+      if (err.statusCode === 410 || err.statusCode === 404) {
+        // Subscription expired — remove it
+        stmtDeletePushSub.run(sub.endpoint);
+      }
+    }
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//   LEVEL 7: ANALYTICS CONFIG
+// ══════════════════════════════════════════════════════════════
+
+const GA_MEASUREMENT_ID = process.env.GA_MEASUREMENT_ID || null;
+
+// Endpoint to get analytics config (avoids hardcoding GA ID in frontend)
+app.get('/api/config', (req, res) => {
+  res.json({
+    ga: GA_MEASUREMENT_ID,
+    stripeConfigured: !!stripe,
+  });
+});
+
+// ══════════════════════════════════════════════════════════════
+//   LEVEL 7: PUBLIC API
+// ══════════════════════════════════════════════════════════════
+
+const crypto = require('crypto');
+
+// API keys table
+db.exec(`
+  CREATE TABLE IF NOT EXISTS api_keys (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    key_hash TEXT UNIQUE NOT NULL,
+    key_prefix TEXT NOT NULL,
+    name TEXT DEFAULT 'default',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    last_used DATETIME,
+    requests_today INTEGER DEFAULT 0,
+    requests_total INTEGER DEFAULT 0,
+    FOREIGN KEY (user_id) REFERENCES users(id)
+  );
+`);
+
+const stmtCreateApiKey = db.prepare('INSERT INTO api_keys (user_id, key_hash, key_prefix, name) VALUES (?, ?, ?, ?)');
+const stmtGetApiKeyByHash = db.prepare('SELECT ak.*, u.email, u.plan FROM api_keys ak JOIN users u ON ak.user_id = u.id WHERE ak.key_hash = ?');
+const stmtGetApiKeysByUser = db.prepare('SELECT id, key_prefix, name, created_at, last_used, requests_today, requests_total FROM api_keys WHERE user_id = ?');
+const stmtDeleteApiKey = db.prepare('DELETE FROM api_keys WHERE id = ? AND user_id = ?');
+const stmtUpdateApiKeyUsage = db.prepare('UPDATE api_keys SET last_used = CURRENT_TIMESTAMP, requests_today = requests_today + 1, requests_total = requests_total + 1 WHERE id = ?');
+const stmtResetDailyApiUsage = db.prepare('UPDATE api_keys SET requests_today = 0');
+
+// Reset daily API usage at midnight (simple approach)
+let lastResetDate = new Date().toDateString();
+function checkDailyReset() {
+  const today = new Date().toDateString();
+  if (today !== lastResetDate) {
+    stmtResetDailyApiUsage.run();
+    lastResetDate = today;
+  }
+}
+
+// Rate limits per plan for API
+const API_RATE_LIMITS = {
+  free: { daily: 50, perMinute: 10 },
+  pro: { daily: 1000, perMinute: 60 },
+  enterprise: { daily: 10000, perMinute: 200 }
+};
+
+// In-memory rate limiter (per-minute)
+const apiMinuteCounters = new Map();
+setInterval(() => apiMinuteCounters.clear(), 60000);
+
+// API key auth middleware
+function apiKeyAuth(req, res, next) {
+  checkDailyReset();
+
+  const apiKey = req.headers['x-api-key'] || req.query.api_key;
+  if (!apiKey) {
+    return res.status(401).json({ error: 'Missing API key. Pass it via X-API-Key header or api_key query param.' });
+  }
+
+  const hash = crypto.createHash('sha256').update(apiKey).digest('hex');
+  const keyRow = stmtGetApiKeyByHash.get(hash);
+  if (!keyRow) {
+    return res.status(401).json({ error: 'Invalid API key' });
+  }
+
+  const plan = keyRow.plan || 'free';
+  const limits = API_RATE_LIMITS[plan] || API_RATE_LIMITS.free;
+
+  // Check daily limit
+  if (keyRow.requests_today >= limits.daily) {
+    return res.status(429).json({ error: 'Daily API limit reached', limit: limits.daily, plan });
+  }
+
+  // Check per-minute limit
+  const minuteKey = `api:${keyRow.id}`;
+  const minuteCount = (apiMinuteCounters.get(minuteKey) || 0) + 1;
+  apiMinuteCounters.set(minuteKey, minuteCount);
+  if (minuteCount > limits.perMinute) {
+    return res.status(429).json({ error: 'Rate limit exceeded. Try again in a minute.', limit: limits.perMinute });
+  }
+
+  // Update usage
+  stmtUpdateApiKeyUsage.run(keyRow.id);
+
+  req.apiUser = { id: keyRow.user_id, email: keyRow.email, plan };
+  req.apiLimits = limits;
+  next();
+}
+
+// ── API Key Management (requires JWT auth) ──
+
+// Create API key
+app.post('/api/keys', authMiddleware, (req, res) => {
+  const { name } = req.body || {};
+  const existing = stmtGetApiKeysByUser.all(req.userId);
+  if (existing.length >= 5) {
+    return res.status(400).json({ error: 'Max 5 API keys per account' });
+  }
+
+  const rawKey = `rfly_${crypto.randomBytes(24).toString('hex')}`;
+  const hash = crypto.createHash('sha256').update(rawKey).digest('hex');
+  const prefix = rawKey.substring(0, 12) + '...';
+
+  stmtCreateApiKey.run(req.userId, hash, prefix, name || 'default');
+  res.json({ key: rawKey, prefix, name: name || 'default', message: 'Save this key — it won\'t be shown again.' });
+});
+
+// List API keys
+app.get('/api/keys', authMiddleware, (req, res) => {
+  const keys = stmtGetApiKeysByUser.all(req.userId);
+  res.json({ keys });
+});
+
+// Delete API key
+app.delete('/api/keys/:id', authMiddleware, (req, res) => {
+  const result = stmtDeleteApiKey.run(req.params.id, req.userId);
+  if (result.changes === 0) return res.status(404).json({ error: 'Key not found' });
+  res.json({ ok: true });
+});
+
+// ── Public API Endpoints (require API key) ──
+
+// GET /api/v1/sorteo/random — pick random winner(s) from a list
+app.post('/api/v1/sorteo/random', apiKeyAuth, (req, res) => {
+  const { participants, count, removeDuplicates } = req.body || {};
+
+  if (!Array.isArray(participants) || participants.length === 0) {
+    return res.status(400).json({ error: 'participants must be a non-empty array of strings' });
+  }
+  if (participants.length > 10000) {
+    return res.status(400).json({ error: 'Max 10,000 participants per request' });
+  }
+
+  let list = participants.map(p => String(p).trim()).filter(Boolean);
+  if (removeDuplicates) list = [...new Set(list)];
+
+  const winnerCount = Math.min(Math.max(1, parseInt(count) || 1), list.length);
+  const winners = [];
+  const pool = [...list];
+
+  for (let i = 0; i < winnerCount; i++) {
+    const idx = crypto.randomInt(pool.length);
+    winners.push(pool.splice(idx, 1)[0]);
+  }
+
+  res.json({
+    winners,
+    total_participants: list.length,
+    draw_time: new Date().toISOString(),
+    method: 'crypto.randomInt'
+  });
+});
+
+// GET /api/v1/sorteos — list user's sorteo history
+app.get('/api/v1/sorteos', apiKeyAuth, (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit) || 20, 100);
+  const offset = parseInt(req.query.offset) || 0;
+
+  const sorteos = db.prepare('SELECT * FROM sorteos WHERE user_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?')
+    .all(req.apiUser.id, limit, offset);
+  const total = db.prepare('SELECT COUNT(*) as count FROM sorteos WHERE user_id = ?').get(req.apiUser.id);
+
+  res.json({ sorteos, total: total.count, limit, offset });
+});
+
+// GET /api/v1/account — account info + usage
+app.get('/api/v1/account', apiKeyAuth, (req, res) => {
+  res.json({
+    email: req.apiUser.email,
+    plan: req.apiUser.plan,
+    api_limits: req.apiLimits
+  });
+});
+
+// API docs endpoint (returns OpenAPI-style spec)
+app.get('/api/v1/spec', (req, res) => {
+  res.json({
+    openapi: '3.0.0',
+    info: { title: 'RAFLY API', version: '1.0.0', description: 'API pública para sorteos y giveaways' },
+    servers: [{ url: `${BASE_URL}/api/v1` }],
+    paths: {
+      '/sorteo/random': {
+        post: {
+          summary: 'Sortear ganador(es) de una lista',
+          security: [{ apiKey: [] }],
+          requestBody: {
+            content: { 'application/json': { schema: {
+              type: 'object',
+              required: ['participants'],
+              properties: {
+                participants: { type: 'array', items: { type: 'string' }, description: 'Lista de participantes' },
+                count: { type: 'integer', default: 1, description: 'Cantidad de ganadores' },
+                removeDuplicates: { type: 'boolean', default: false }
+              }
+            }}}
+          }
+        }
+      },
+      '/sorteos': { get: { summary: 'Historial de sorteos', security: [{ apiKey: [] }] } },
+      '/account': { get: { summary: 'Info de cuenta y uso', security: [{ apiKey: [] }] } }
+    },
+    components: { securitySchemes: { apiKey: { type: 'apiKey', in: 'header', name: 'X-API-Key' } } }
+  });
+});
+
 // ── Iniciar servidor ───────────────────────────────────────────
 app.listen(PORT, () => {
   console.log(`\n  ✦ RAFLY corriendo en ${BASE_URL}\n`);
