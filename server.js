@@ -677,6 +677,48 @@ const IG_SCRAPERS = [
     },
     paginationToken: (data) => data.paging_info?.next_max_id || data.data?.next_cursor || data.next_cursor || null
   },
+  {
+    name: 'scraper2',
+    host: 'instagram-scraper2.p.rapidapi.com',
+    posts: { url: '/medias', method: 'GET' },
+    comments: { url: '/media_comments', method: 'GET' },
+    usesMediaId: true,
+    needsUserId: true, // requires user_id instead of username for posts
+    getUserId: async (host, username, apiKey) => {
+      try {
+        const res = await fetch(`https://${host}/getUserDataByUsername?username=${encodeURIComponent(username)}`, {
+          headers: { 'x-rapidapi-host': host, 'x-rapidapi-key': apiKey, 'Content-Type': 'application/json' }
+        });
+        if (res.status === 429 || res.status === 503) return null;
+        const data = await res.json();
+        return data?.data?.user?.pk || data?.data?.id || data?.user?.pk || data?.pk || data?.id || null;
+      } catch { return null; }
+    },
+    buildPostsUrl: (host, userId) =>
+      `https://${host}/medias?user_id=${encodeURIComponent(userId)}`,
+    buildCommentsUrl: (host, mediaId) =>
+      `https://${host}/media_comments?media_id=${encodeURIComponent(mediaId)}`,
+    parsePosts: (data) => {
+      const edges = data?.data?.user?.edge_owner_to_timeline_media?.edges || [];
+      return edges.map(edge => {
+        const item = edge.node || edge;
+        return {
+          shortcode: item.shortcode || item.code || '',
+          media_id: item.id || item.pk || '',
+          thumbnail: item.display_url || item.thumbnail_src || item.thumbnail_resources?.[0]?.src || '',
+          caption: item.edge_media_to_caption?.edges?.[0]?.node?.text || (typeof item.caption === 'object' ? item.caption?.text : item.caption) || '',
+          likes: item.edge_media_preview_like?.count || item.like_count || 0,
+          comments_count: item.edge_media_to_comment?.count || item.comment_count || 0,
+          timestamp: item.taken_at_timestamp || item.taken_at || null,
+          type: item.__typename === 'GraphVideo' ? 'video' : item.__typename === 'GraphSidecar' ? 'carousel' : 'image'
+        };
+      });
+    },
+    paginationToken: (data) => {
+      const pageInfo = data?.data?.user?.edge_owner_to_timeline_media?.page_info;
+      return pageInfo?.has_next_page ? pageInfo.end_cursor : null;
+    }
+  },
 ];
  
 // Generic function to try all scrapers for posts
@@ -695,6 +737,20 @@ async function scrapeIgPosts(cleanUser, amount, pagination_token) {
             'x-rapidapi-key': RAPIDAPI_KEY
           },
           body: scraper.buildPostsBody(cleanUser, amount, pagination_token)
+        });
+      } else if (scraper.needsUserId) {
+        // Two-step: first get user_id from username, then fetch posts
+        const userId = await scraper.getUserId(scraper.host, cleanUser, RAPIDAPI_KEY);
+        if (!userId) {
+          console.log(`IG [${scraper.name}]: could not resolve user_id for "${cleanUser}", trying next...`);
+          continue;
+        }
+        const url = scraper.buildPostsUrl(scraper.host, userId);
+        response = await fetch(url, {
+          headers: {
+            'x-rapidapi-host': scraper.host,
+            'x-rapidapi-key': RAPIDAPI_KEY
+          }
         });
       } else {
         const url = scraper.buildPostsUrl(scraper.host, cleanUser);
