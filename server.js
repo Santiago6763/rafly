@@ -634,34 +634,11 @@ const IG_SCRAPERS = [
       `https://${host}/get_post_comments.php?media_code=${encodeURIComponent(code)}&sort_order=${sort}`,
     parsePosts: (data) => {
       const rawItems = data.posts || data.collector || data.items || data.data || data.medias || [];
-      // Log first raw item keys to debug field names
-      if (rawItems.length > 0) {
-        const sample = rawItems[0].node || rawItems[0];
-        console.log(`IG [stable-api] sample keys: ${Object.keys(sample).join(', ')}`);
-        console.log(`IG [stable-api] shortcode/code: ${sample.shortcode || sample.code || sample.media_id || sample.pk || sample.id || 'NONE'}`);
-        console.log(`IG [stable-api] thumb fields: thumbnail_url=${!!sample.thumbnail_url} display_url=${!!sample.display_url} thumbnail_src=${!!sample.thumbnail_src} image_versions2=${!!sample.image_versions2}`);
-      }
       return rawItems.map(raw => {
         const item = raw.node || raw;
-        // Extract shortcode from link/url if not directly available
-        let sc = item.shortcode || item.code || '';
-        if (!sc && item.link) {
-          const m = item.link.match(/\/p\/([^/?]+)/);
-          if (m) sc = m[1];
-        }
-        if (!sc && item.url) {
-          const m = item.url.match(/\/p\/([^/?]+)/);
-          if (m) sc = m[1];
-        }
-        if (!sc && item.permalink) {
-          const m = item.permalink.match(/\/p\/([^/?]+)/);
-          if (m) sc = m[1];
-        }
-        // Use media_id or pk as last resort
-        if (!sc) sc = item.media_id || item.pk || item.id || '';
         return {
-          shortcode: sc,
-          thumbnail: item.thumbnail_url || item.display_url || item.thumbnail_src || item.image_versions2?.candidates?.[0]?.url || item.thumbnail || '',
+          shortcode: item.shortcode || item.code || '',
+          thumbnail: item.thumbnail_url || item.display_url || item.thumbnail_src || item.image_versions2?.candidates?.[0]?.url || '',
           caption: (typeof item.caption === 'object' ? item.caption?.text : item.caption) || item.description || item.edge_media_to_caption?.edges?.[0]?.node?.text || '',
           likes: item.like_count || item.likes?.count || item.edge_media_preview_like?.count || 0,
           comments_count: item.comment_count || item.comments?.count || item.edge_media_to_comment?.count || 0,
@@ -682,21 +659,12 @@ const IG_SCRAPERS = [
     buildCommentsUrl: (host, code) =>
       `https://${host}/post/comments/?code=${encodeURIComponent(code)}`,
     parsePosts: (data) => {
-      const items = data.data?.items || data.items || data.data || [];
-      if (items.length > 0) {
-        const s = items[0];
-        console.log(`IG [scraper-ai] sample keys: ${Object.keys(s).join(', ')}`);
-        console.log(`IG [scraper-ai] code/shortcode: ${s.code || s.shortcode || s.media_id || s.pk || s.id || 'NONE'}`);
-      }
-      return items.map(item => {
-        let sc = item.code || item.shortcode || '';
-        if (!sc && item.link) { const m = item.link.match(/\/p\/([^/?]+)/); if (m) sc = m[1]; }
-        if (!sc && item.url) { const m = item.url.match(/\/p\/([^/?]+)/); if (m) sc = m[1]; }
-        if (!sc && item.permalink) { const m = item.permalink.match(/\/p\/([^/?]+)/); if (m) sc = m[1]; }
-        if (!sc) sc = item.media_id || item.pk || item.id || '';
+      const rawItems = data.data?.items || data.items || data.data || [];
+      return rawItems.map(raw => {
+        const item = raw.node || raw; // unwrap node wrapper
         return {
-          shortcode: sc,
-          thumbnail: item.thumbnail_url || item.image_versions2?.candidates?.[0]?.url || item.display_url || item.thumbnail || '',
+          shortcode: item.code || item.shortcode || '',
+          thumbnail: item.image_versions2?.candidates?.[0]?.url || item.thumbnail_url || item.display_url || '',
           caption: (typeof item.caption === 'object' ? item.caption?.text : item.caption) || '',
           likes: item.like_count || item.likes_count || 0,
           comments_count: item.comment_count || item.comments_count || 0,
@@ -705,7 +673,7 @@ const IG_SCRAPERS = [
         };
       });
     },
-    paginationToken: (data) => data.data?.next_cursor || data.next_cursor || null
+    paginationToken: (data) => data.paging_info?.next_max_id || data.data?.next_cursor || data.next_cursor || null
   },
 ];
  
@@ -744,10 +712,7 @@ async function scrapeIgPosts(cleanUser, amount, pagination_token) {
  
       let data;
       try { data = JSON.parse(rawText); } catch { continue; }
-
-      // Log top-level keys for debugging
-      console.log(`IG [${scraper.name}]: response status=${response.status}, top keys: ${Object.keys(data).join(', ')}`);
-
+ 
       // Check for error messages (quota exceeded, etc)
       const errMsg = data.error || data.message || '';
       if (typeof errMsg === 'string' && (errMsg.includes('exceeded') || errMsg.includes('quota') || errMsg.includes('limit') || errMsg.includes('subscribe'))) {
