@@ -827,6 +827,42 @@ app.post('/api/ig/posts', optionalAuth, async (req, res) => {
   }
 });
  
+// Proxy Instagram images (Instagram CDN blocks direct hotlinking)
+app.get('/api/ig/proxy-image', async (req, res) => {
+  const { url } = req.query;
+  if (!url) return res.status(400).send('URL requerida');
+ 
+  // Only allow Instagram CDN domains
+  try {
+    const parsed = new URL(url);
+    if (!parsed.hostname.includes('cdninstagram.com') && !parsed.hostname.includes('fbcdn.net') && !parsed.hostname.includes('instagram.com')) {
+      return res.status(403).send('Dominio no permitido');
+    }
+  } catch { return res.status(400).send('URL inválida'); }
+ 
+  try {
+    const imgRes = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Referer': 'https://www.instagram.com/',
+        'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'
+      }
+    });
+    if (!imgRes.ok) return res.status(imgRes.status).send('Error fetching image');
+ 
+    const contentType = imgRes.headers.get('content-type') || 'image/jpeg';
+    res.set('Content-Type', contentType);
+    res.set('Cache-Control', 'public, max-age=86400'); // Cache 24h
+    res.set('Access-Control-Allow-Origin', '*');
+ 
+    const buffer = Buffer.from(await imgRes.arrayBuffer());
+    res.send(buffer);
+  } catch (err) {
+    console.error('Image proxy error:', err.message);
+    res.status(500).send('Error proxy imagen');
+  }
+});
+ 
 // Get post comments by shortcode
 app.get('/api/ig/comments', optionalAuth, async (req, res) => {
   const { code, sort = 'popular' } = req.query;
