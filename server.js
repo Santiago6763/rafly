@@ -640,15 +640,17 @@ app.post('/api/ig/posts', optionalAuth, async (req, res) => {
     if (data.error) return res.status(400).json({ error: data.error });
     if (data.message) return res.status(400).json({ error: data.message });
  
-    // Normalize the response — log keys to debug structure
+    // Normalize the response
     console.log('RapidAPI data keys:', Object.keys(data));
     const posts = [];
-    const items = data.collector || data.items || data.data || data.medias || [];
-    for (const item of items) {
+    const rawItems = data.posts || data.collector || data.items || data.data || data.medias || [];
+    for (const rawItem of rawItems) {
+      // API returns { node: { ... } } wrapper — unwrap it
+      const item = rawItem.node || rawItem;
       posts.push({
         shortcode: item.shortcode || item.code || '',
         thumbnail: item.thumbnail_url || item.display_url || item.thumbnail_src || item.image_versions2?.candidates?.[0]?.url || '',
-        caption: item.caption?.text || item.description || item.edge_media_to_caption?.edges?.[0]?.node?.text || '',
+        caption: (typeof item.caption === 'object' ? item.caption?.text : item.caption) || item.description || item.edge_media_to_caption?.edges?.[0]?.node?.text || '',
         likes: item.like_count || item.likes?.count || item.edge_media_preview_like?.count || 0,
         comments_count: item.comment_count || item.comments?.count || item.edge_media_to_comment?.count || 0,
         timestamp: item.taken_at || item.taken_at_timestamp || item.timestamp || null,
@@ -3413,4 +3415,3 @@ initDB().then(() => {
   console.error('  ✗ Error al inicializar base de datos:', err.message);
   process.exit(1);
 });
- 
