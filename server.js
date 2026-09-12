@@ -831,7 +831,7 @@ app.post('/api/ig/posts', optionalAuth, async (req, res) => {
 app.get('/api/ig/proxy-image', async (req, res) => {
   const { url } = req.query;
   if (!url) return res.status(400).send('URL requerida');
- 
+
   // Only allow Instagram CDN domains
   try {
     const parsed = new URL(url);
@@ -839,7 +839,7 @@ app.get('/api/ig/proxy-image', async (req, res) => {
       return res.status(403).send('Dominio no permitido');
     }
   } catch { return res.status(400).send('URL inválida'); }
- 
+
   try {
     const imgRes = await fetch(url, {
       headers: {
@@ -849,12 +849,12 @@ app.get('/api/ig/proxy-image', async (req, res) => {
       }
     });
     if (!imgRes.ok) return res.status(imgRes.status).send('Error fetching image');
- 
+
     const contentType = imgRes.headers.get('content-type') || 'image/jpeg';
     res.set('Content-Type', contentType);
     res.set('Cache-Control', 'public, max-age=86400'); // Cache 24h
     res.set('Access-Control-Allow-Origin', '*');
- 
+
     const buffer = Buffer.from(await imgRes.arrayBuffer());
     res.send(buffer);
   } catch (err) {
@@ -862,7 +862,7 @@ app.get('/api/ig/proxy-image', async (req, res) => {
     res.status(500).send('Error proxy imagen');
   }
 });
- 
+
 // Get post comments by shortcode
 app.get('/api/ig/comments', optionalAuth, async (req, res) => {
   const { code, sort = 'popular' } = req.query;
