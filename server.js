@@ -683,41 +683,131 @@ const IG_SCRAPERS = [
     posts: { url: '/medias', method: 'GET' },
     comments: { url: '/media_comments', method: 'GET' },
     usesMediaId: true,
-    needsUserId: true, // requires user_id instead of username for posts
+    needsUserId: true,
     getUserId: async (host, username, apiKey) => {
       try {
         const res = await fetch(`https://${host}/getUserDataByUsername?username=${encodeURIComponent(username)}`, {
           headers: { 'x-rapidapi-host': host, 'x-rapidapi-key': apiKey, 'Content-Type': 'application/json' }
         });
-        if (res.status === 429 || res.status === 503) return null;
-        const data = await res.json();
-        return data?.data?.user?.pk || data?.data?.id || data?.user?.pk || data?.pk || data?.id || null;
-      } catch { return null; }
+        console.log(`IG [scraper2] getUserId status: ${res.status}`);
+        if (res.status === 429 || res.status === 503) {
+          console.log(`IG [scraper2] getUserId rate-limited (${res.status})`);
+          return null;
+        }
+        const raw = await res.text();
+        console.log(`IG [scraper2] getUserId response (first 300): ${raw.substring(0, 300)}`);
+        let data;
+        try { data = JSON.parse(raw); } catch { return null; }
+        const uid = data?.data?.user?.pk || data?.data?.user?.id
+          || data?.data?.id || data?.data?.pk
+          || data?.user?.pk || data?.user?.id
+          || data?.pk || data?.id
+          || data?.result?.user?.pk || data?.result?.pk
+          || null;
+        console.log(`IG [scraper2] resolved user_id: ${uid}`);
+        return uid;
+      } catch (err) {
+        console.log(`IG [scraper2] getUserId exception: ${err.message}`);
+        return null;
+      }
     },
     buildPostsUrl: (host, userId) =>
       `https://${host}/medias?user_id=${encodeURIComponent(userId)}`,
     buildCommentsUrl: (host, mediaId) =>
       `https://${host}/media_comments?media_id=${encodeURIComponent(mediaId)}`,
     parsePosts: (data) => {
+      // Try GraphQL edges format first
       const edges = data?.data?.user?.edge_owner_to_timeline_media?.edges || [];
-      return edges.map(edge => {
-        const item = edge.node || edge;
-        return {
-          shortcode: item.shortcode || item.code || '',
-          media_id: item.id || item.pk || '',
-          thumbnail: item.display_url || item.thumbnail_src || item.thumbnail_resources?.[0]?.src || '',
-          caption: item.edge_media_to_caption?.edges?.[0]?.node?.text || (typeof item.caption === 'object' ? item.caption?.text : item.caption) || '',
-          likes: item.edge_media_preview_like?.count || item.like_count || 0,
-          comments_count: item.edge_media_to_comment?.count || item.comment_count || 0,
-          timestamp: item.taken_at_timestamp || item.taken_at || null,
-          type: item.__typename === 'GraphVideo' ? 'video' : item.__typename === 'GraphSidecar' ? 'carousel' : 'image'
-        };
-      });
+      if (edges.length > 0) {
+        return edges.map(edge => {
+          const item = edge.node || edge;
+          return {
+            shortcode: item.shortcode || item.code || '',
+            media_id: item.id || item.pk || '',
+            thumbnail: item.display_url || item.thumbnail_src || item.thumbnail_resources?.[0]?.src || '',
+            caption: item.edge_media_to_caption?.edges?.[0]?.node?.text || (typeof item.caption === 'object' ? item.caption?.text : item.caption) || '',
+            likes: item.edge_media_preview_like?.count || item.like_count || 0,
+            comments_count: item.edge_media_to_comment?.count || item.comment_count || 0,
+            timestamp: item.taken_at_timestamp || item.taken_at || null,
+            type: item.__typename === 'GraphVideo' ? 'video' : item.__typename === 'GraphSidecar' ? 'carousel' : 'image'
+          };
+        });
+      }
+      // Fallback: flat array format (data.items, data.medias, data.data)
+      const items = data?.data?.items || data?.items || data?.medias || data?.data || [];
+      if (Array.isArray(items)) {
+        return items.map(item => ({
+          shortcode: item.code || item.shortcode || '',
+          media_id: item.pk || item.id || '',
+          thumbnail: item.image_versions2?.candidates?.[0]?.url || item.thumbnail_url || item.display_url || '',
+          caption: (typeof item.caption === 'object' ? item.caption?.text : item.caption) || '',
+          likes: item.like_count || 0,
+          comments_count: item.comment_count || 0,
+          timestamp: item.taken_at || null,
+          type: item.media_type === 2 ? 'video' : item.media_type === 8 ? 'carousel' : 'image'
+        }));
+      }
+      return [];
     },
     paginationToken: (data) => {
       const pageInfo = data?.data?.user?.edge_owner_to_timeline_media?.page_info;
-      return pageInfo?.has_next_page ? pageInfo.end_cursor : null;
+      if (pageInfo?.has_next_page) return pageInfo.end_cursor;
+      return data?.next_max_id || data?.paging_info?.next_max_id || null;
     }
+  },
+  // ---- Additional fallback APIs ----
+  {
+    name: 'scraper-api2',
+    host: 'instagram-scraper-api2.p.rapidapi.com',
+    posts: { url: '/v1/posts', method: 'GET' },
+    comments: { url: '/v1/comments', method: 'GET' },
+    buildPostsUrl: (host, user) =>
+      `https://${host}/v1/posts?username_or_id_or_url=${encodeURIComponent(user)}`,
+    buildCommentsUrl: (host, code) =>
+      `https://${host}/v1/comments?code_or_id_or_url=${encodeURIComponent(code)}`,
+    parsePosts: (data) => {
+      const items = data?.data?.items || data?.items || data?.data || [];
+      if (!Array.isArray(items)) return [];
+      return items.map(item => ({
+        shortcode: item.code || item.shortcode || '',
+        media_id: item.pk || item.id || '',
+        thumbnail: item.image_versions2?.candidates?.[0]?.url || item.thumbnail_url || item.display_url || '',
+        caption: (typeof item.caption === 'object' ? item.caption?.text : item.caption) || '',
+        likes: item.like_count || item.likes_count || 0,
+        comments_count: item.comment_count || item.comments_count || 0,
+        timestamp: item.taken_at || null,
+        type: item.media_type === 2 ? 'video' : item.media_type === 8 ? 'carousel' : 'image'
+      }));
+    },
+    paginationToken: (data) => data?.pagination_token || data?.data?.next_cursor || data?.next_cursor || null
+  },
+  {
+    name: 'looter2',
+    host: 'instagram-looter2.p.rapidapi.com',
+    posts: { url: '/user-posts', method: 'GET' },
+    comments: { url: '/post-comments', method: 'GET' },
+    buildPostsUrl: (host, user) =>
+      `https://${host}/user-posts?username=${encodeURIComponent(user)}`,
+    buildCommentsUrl: (host, code) =>
+      `https://${host}/post-comments?code=${encodeURIComponent(code)}`,
+    parsePosts: (data) => {
+      const items = data?.data?.items || data?.items || data?.edges || data?.data || [];
+      if (!Array.isArray(items)) return [];
+      return items.map(raw => {
+        const item = raw.node || raw;
+        return {
+          shortcode: item.code || item.shortcode || '',
+          media_id: item.pk || item.id || '',
+          thumbnail: item.image_versions2?.candidates?.[0]?.url || item.thumbnail_url || item.display_url || item.thumbnail_src || '',
+          caption: (typeof item.caption === 'object' ? item.caption?.text : item.caption) || item.edge_media_to_caption?.edges?.[0]?.node?.text || '',
+          likes: item.like_count || item.edge_media_preview_like?.count || 0,
+          comments_count: item.comment_count || item.edge_media_to_comment?.count || 0,
+          timestamp: item.taken_at || item.taken_at_timestamp || null,
+          type: item.media_type === 2 ? 'video' : item.media_type === 8 ? 'carousel' : 'image'
+        };
+      });
+    },
+    paginationToken: (data) => data?.pagination_token || data?.next_max_id || data?.end_cursor || null
   },
 ];
  
@@ -780,7 +870,10 @@ async function scrapeIgPosts(cleanUser, amount, pagination_token) {
       if (data.error || (data.message && !data.data)) continue;
  
       const posts = scraper.parsePosts(data);
-      if (posts.length === 0) continue;
+      if (posts.length === 0) {
+        console.log(`IG [${scraper.name}]: 0 posts parsed. Response keys: ${Object.keys(data).join(',')}, first 200: ${rawText.substring(0, 200)}`);
+        continue;
+      }
  
       console.log(`IG [${scraper.name}]: OK — ${posts.length} posts`);
       return {
