@@ -1873,14 +1873,23 @@ async function loadMoreIgPosts() {
   btn.textContent = 'Cargar más';
 }
 
+// Proxy Instagram CDN images to avoid hotlink blocking
+function proxyIgImg(url) {
+  if (!url) return '';
+  if (url.includes('cdninstagram.com') || url.includes('fbcdn.net') || url.includes('instagram.com')) {
+    return '/api/ig/proxy-image?url=' + encodeURIComponent(url);
+  }
+  return url;
+}
+
 function renderIgSearchPosts(posts, append) {
   const grid = document.getElementById('igSearchPostsGrid');
   if (!append) grid.innerHTML = '';
   for (const post of posts) {
     const div = document.createElement('div');
     div.className = 'ig-post';
-    div.dataset.shortcode = post.shortcode;
-    const thumb = post.thumbnail || '';
+    div.dataset.shortcode = post.shortcode || post.code || '';
+    const thumb = proxyIgImg(post.thumbnail || '');
     const typeBadge = post.type === 'video' ? '<span class="ig-post-type">VIDEO</span>'
       : post.type === 'carousel' ? '<span class="ig-post-type">ALBUM</span>' : '';
     div.innerHTML = `<img src="${thumb}" alt="" loading="lazy" onerror="this.style.background='var(--surface)'">
