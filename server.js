@@ -9,7 +9,7 @@
  * 5. Se obtiene el perfil de Instagram del usuario
  * 6. El frontend puede pedir posts y comentarios via /api/*
  */
-
+ 
 require('dotenv').config();
 const express = require('express');
 const bcrypt = require('bcryptjs');
@@ -18,7 +18,7 @@ const { Pool } = require('pg');
 const path = require('path');
 const rateLimit = require('express-rate-limit');
 const app = express();
-
+ 
 // ── Configuración ──────────────────────────────────────────────
 const {
   FB_APP_ID,
@@ -26,7 +26,7 @@ const {
   BASE_URL = 'http://localhost:3000',
   PORT = 3000
 } = process.env;
-
+ 
 const REDIRECT_URI = `${BASE_URL}/auth/callback`;
 const GRAPH_VERSION = 'v20.0';
 const GRAPH_BASE = `https://graph.instagram.com/${GRAPH_VERSION}`;
@@ -34,10 +34,10 @@ const SCOPES = [
   'instagram_business_basic',
   'instagram_business_manage_comments'
 ].join(',');
-
+ 
 // ── YouTube Data API ──────────────────────────────────────────
 const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY || null;
-
+ 
 // ── User-Agent pool for scraping fallbacks ────────────────────
 const USER_AGENTS = [
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
@@ -47,7 +47,7 @@ const USER_AGENTS = [
   'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1'
 ];
 function randomUA() { return USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)]; }
-
+ 
 // Estado en memoria — legacy fallback (se usa platform_tokens para usuarios autenticados)
 let session = {
   accessToken: null,
@@ -55,11 +55,11 @@ let session = {
   username: null,
   profilePic: null
 };
-
+ 
 // ── JWT Secret ────────────────────────────────────────────────
 const JWT_SECRET = process.env.JWT_SECRET || 'rafly-secret-change-in-production-' + Date.now();
 const JWT_EXPIRES = '30d';
-
+ 
 // ── PostgreSQL Database ──────────────────────────────────────
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -67,7 +67,7 @@ const pool = new Pool({
     ? { rejectUnauthorized: false }
     : undefined
 });
-
+ 
 // Helper functions for cleaner DB access
 const db = {
   async get(text, params = []) {
@@ -82,7 +82,7 @@ const db = {
     return await pool.query(text, params);
   }
 };
-
+ 
 // Initialize all tables
 async function initDB() {
   await pool.query(`
@@ -106,7 +106,7 @@ async function initDB() {
       created_at TIMESTAMP DEFAULT NOW(),
       updated_at TIMESTAMP DEFAULT NOW()
     );
-
+ 
     CREATE TABLE IF NOT EXISTS sorteo_history (
       id SERIAL PRIMARY KEY,
       user_id INTEGER NOT NULL REFERENCES users(id),
@@ -118,7 +118,7 @@ async function initDB() {
       post_url TEXT DEFAULT NULL,
       created_at TIMESTAMP DEFAULT NOW()
     );
-
+ 
     CREATE TABLE IF NOT EXISTS daily_counts (
       id SERIAL PRIMARY KEY,
       user_id INTEGER NOT NULL REFERENCES users(id),
@@ -126,7 +126,7 @@ async function initDB() {
       count INTEGER DEFAULT 0,
       UNIQUE(user_id, date)
     );
-
+ 
     CREATE TABLE IF NOT EXISTS push_subscriptions (
       id SERIAL PRIMARY KEY,
       user_id INTEGER NOT NULL REFERENCES users(id),
@@ -135,7 +135,7 @@ async function initDB() {
       keys_auth TEXT NOT NULL,
       created_at TIMESTAMP DEFAULT NOW()
     );
-
+ 
     CREATE TABLE IF NOT EXISTS api_keys (
       id SERIAL PRIMARY KEY,
       user_id INTEGER NOT NULL REFERENCES users(id),
@@ -147,7 +147,7 @@ async function initDB() {
       requests_today INTEGER DEFAULT 0,
       requests_total INTEGER DEFAULT 0
     );
-
+ 
     CREATE TABLE IF NOT EXISTS scheduled_sorteos (
       id SERIAL PRIMARY KEY,
       user_id INTEGER NOT NULL REFERENCES users(id),
@@ -164,14 +164,14 @@ async function initDB() {
       share_url TEXT DEFAULT NULL,
       created_at TIMESTAMP DEFAULT NOW()
     );
-
+ 
     CREATE TABLE IF NOT EXISTS teams (
       id SERIAL PRIMARY KEY,
       name TEXT NOT NULL,
       owner_id INTEGER NOT NULL REFERENCES users(id),
       created_at TIMESTAMP DEFAULT NOW()
     );
-
+ 
     CREATE TABLE IF NOT EXISTS team_members (
       id SERIAL PRIMARY KEY,
       team_id INTEGER NOT NULL REFERENCES teams(id),
@@ -183,7 +183,7 @@ async function initDB() {
       joined_at TIMESTAMP DEFAULT NULL,
       UNIQUE(team_id, email)
     );
-
+ 
     CREATE TABLE IF NOT EXISTS sorteo_shares (
       id SERIAL PRIMARY KEY,
       sorteo_id INTEGER NOT NULL,
@@ -191,7 +191,7 @@ async function initDB() {
       shared_by INTEGER NOT NULL REFERENCES users(id),
       created_at TIMESTAMP DEFAULT NOW()
     );
-
+ 
     CREATE TABLE IF NOT EXISTS webhooks (
       id SERIAL PRIMARY KEY,
       user_id INTEGER NOT NULL REFERENCES users(id),
@@ -203,7 +203,7 @@ async function initDB() {
       last_triggered TIMESTAMP DEFAULT NULL,
       fail_count INTEGER DEFAULT 0
     );
-
+ 
     CREATE TABLE IF NOT EXISTS webhook_logs (
       id SERIAL PRIMARY KEY,
       webhook_id INTEGER NOT NULL REFERENCES webhooks(id),
@@ -213,7 +213,7 @@ async function initDB() {
       response TEXT,
       created_at TIMESTAMP DEFAULT NOW()
     );
-
+ 
     CREATE TABLE IF NOT EXISTS widgets (
       id SERIAL PRIMARY KEY,
       user_id INTEGER NOT NULL REFERENCES users(id),
@@ -223,7 +223,7 @@ async function initDB() {
       active INTEGER DEFAULT 1,
       created_at TIMESTAMP DEFAULT NOW()
     );
-
+ 
     CREATE TABLE IF NOT EXISTS platform_tokens (
       id SERIAL PRIMARY KEY,
       user_id INTEGER NOT NULL REFERENCES users(id),
@@ -240,10 +240,10 @@ async function initDB() {
       UNIQUE(user_id, platform)
     );
   `);
-
+ 
   console.log('  ✦ Database tables initialized');
 }
-
+ 
 // ── Auth Middleware ────────────────────────────────────────────
 function authMiddleware(req, res, next) {
   const authHeader = req.headers.authorization;
@@ -259,7 +259,7 @@ function authMiddleware(req, res, next) {
     return res.status(401).json({ error: 'Token inválido o expirado' });
   }
 }
-
+ 
 // Optional auth — sets req.userId if token present, doesn't block
 function optionalAuth(req, res, next) {
   const authHeader = req.headers.authorization;
@@ -272,7 +272,7 @@ function optionalAuth(req, res, next) {
   }
   next();
 }
-
+ 
 // ── Middleware ──────────────────────────────────────────────────
 app.use(express.static('public'));
 // Stripe webhook needs raw body — must come before express.json()
@@ -283,7 +283,7 @@ app.use((req, res, next) => {
     express.json()(req, res, next);
   }
 });
-
+ 
 // ── Utilidades ─────────────────────────────────────────────────
 async function graphGet(path, params = {}, accessToken = null) {
   params.access_token = accessToken || session.accessToken;
@@ -299,7 +299,7 @@ async function graphGet(path, params = {}, accessToken = null) {
   }
   return data;
 }
-
+ 
 // Helper: get user's platform token from DB
 async function getUserPlatformToken(userId, platform) {
   const row = await db.get(
@@ -313,7 +313,7 @@ async function getUserPlatformToken(userId, platform) {
   }
   return row;
 }
-
+ 
 // Helper: save/update platform token
 async function savePlatformToken(userId, platform, tokenData) {
   await db.run(`
@@ -333,13 +333,13 @@ async function savePlatformToken(userId, platform, tokenData) {
       tokenData.profilePic || null, tokenData.expiresAt || null,
       tokenData.scopes || null]);
 }
-
+ 
 // ── Auth: Iniciar flujo OAuth ──────────────────────────────────
 app.get('/auth/instagram', (req, res) => {
   // Pass JWT token as state so we can link to authenticated user on callback
   const jwtToken = req.query.token || '';
   const state = jwtToken ? Buffer.from(JSON.stringify({ jwt: jwtToken })).toString('base64url') : '';
-
+ 
   const url = `https://api.instagram.com/oauth/authorize`
     + `?client_id=${FB_APP_ID}`
     + `&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`
@@ -349,15 +349,15 @@ app.get('/auth/instagram', (req, res) => {
     + (state ? `&state=${state}` : '');
   res.redirect(url);
 });
-
+ 
 // ── Auth: Callback de Instagram ───────────────────────────────
 app.get('/auth/callback', async (req, res) => {
   const { code, error, state } = req.query;
-
+ 
   if (error || !code) {
     return res.redirect('/?ig_error=auth_denied');
   }
-
+ 
   // Try to extract authenticated user from state
   let authUserId = null;
   if (state) {
@@ -369,7 +369,7 @@ app.get('/auth/callback', async (req, res) => {
       }
     } catch (e) { /* invalid state, proceed without auth */ }
   }
-
+ 
   try {
     // 1. Intercambiar código por token de corta duración + user_id
     const tokenRes = await fetch('https://api.instagram.com/oauth/access_token', {
@@ -386,25 +386,25 @@ app.get('/auth/callback', async (req, res) => {
     const tokenData = await tokenRes.json();
     if (tokenData.error_message) throw new Error(tokenData.error_message);
     if (!tokenData.access_token) throw new Error('No se recibió access token');
-
+ 
     const igUserId = String(tokenData.user_id);
-
+ 
     // 2. Intercambiar por token de larga duración (~60 días)
     const longTokenUrl = `https://graph.instagram.com/access_token`
       + `?grant_type=ig_exchange_token`
       + `&client_secret=${FB_APP_SECRET}`
       + `&access_token=${tokenData.access_token}`;
-
+ 
     const longRes = await fetch(longTokenUrl);
     const longData = await longRes.json();
     const finalToken = longData.access_token || tokenData.access_token;
     const expiresIn = longData.expires_in || 5184000; // ~60 days
-
+ 
     // 3. Obtener perfil de Instagram
     const profile = await graphGet('/me', {
       fields: 'id,username,account_type,profile_picture_url'
     }, finalToken);
-
+ 
     // 4. Save to platform_tokens if user is authenticated
     if (authUserId) {
       await savePlatformToken(authUserId, 'instagram', {
@@ -416,21 +416,21 @@ app.get('/auth/callback', async (req, res) => {
         scopes: SCOPES
       });
     }
-
+ 
     // 5. Also update legacy session for backward compat
     session.accessToken = finalToken;
     session.igUserId = profile.id;
     session.username = profile.username;
     session.profilePic = profile.profile_picture_url;
-
+ 
     res.redirect('/?ig_connected=true');
-
+ 
   } catch (err) {
     console.error('Auth error:', err.message);
     res.redirect(`/?ig_error=${encodeURIComponent(err.message)}`);
   }
 });
-
+ 
 // ── API: Estado de conexión ────────────────────────────────────
 app.get('/api/status', optionalAuth, async (req, res) => {
   // Check per-user token first
@@ -453,12 +453,12 @@ app.get('/api/status', optionalAuth, async (req, res) => {
     tokenSource: session.accessToken ? 'session' : null
   });
 });
-
+ 
 // ── API: Posts del usuario ─────────────────────────────────────
 app.get('/api/media', optionalAuth, async (req, res) => {
   let token = null;
   let igUserId = null;
-
+ 
   // Try per-user token first
   if (req.userId) {
     const igToken = await getUserPlatformToken(req.userId, 'instagram');
@@ -467,54 +467,54 @@ app.get('/api/media', optionalAuth, async (req, res) => {
       igUserId = igToken.platform_user_id;
     }
   }
-
+ 
   // Fallback to legacy session
   if (!token) {
     token = session.accessToken;
     igUserId = session.igUserId;
   }
-
+ 
   if (!token || !igUserId) {
     return res.status(401).json({ error: 'No conectado a Instagram' });
   }
-
+ 
   try {
     const limit = Math.min(parseInt(req.query.limit) || 12, 50);
     const data = await graphGet(`/${igUserId}/media`, {
       fields: 'id,caption,media_type,media_url,thumbnail_url,timestamp,permalink,comments_count',
       limit
     }, token);
-
+ 
     // Filtrar: solo posts que pueden tener comentarios (no stories)
     const posts = (data.data || []).filter(
       p => ['IMAGE', 'VIDEO', 'CAROUSEL_ALBUM'].includes(p.media_type)
     );
-
+ 
     res.json({ posts, paging: data.paging });
-
+ 
   } catch (err) {
     console.error('Media error:', err.message);
     res.status(err.status || 500).json({ error: err.message });
   }
 });
-
+ 
 // ── API: Comentarios de un post ────────────────────────────────
 app.get('/api/media/:id/comments', optionalAuth, async (req, res) => {
   let token = null;
-
+ 
   // Try per-user token first
   if (req.userId) {
     const igToken = await getUserPlatformToken(req.userId, 'instagram');
     if (igToken) token = igToken.access_token;
   }
-
+ 
   // Fallback to legacy session
   if (!token) token = session.accessToken;
-
+ 
   if (!token) {
     return res.status(401).json({ error: 'No conectado a Instagram' });
   }
-
+ 
   try {
     const { id } = req.params;
     let allComments = [];
@@ -522,7 +522,7 @@ app.get('/api/media/:id/comments', optionalAuth, async (req, res) => {
       + `?fields=id,text,username,from,timestamp`
       + `&limit=100`
       + `&access_token=${token}`;
-
+ 
     // Paginar hasta obtener todos los comentarios
     let pages = 0;
     const maxPages = 50; // Límite de seguridad (5000 comentarios)
@@ -530,47 +530,47 @@ app.get('/api/media/:id/comments', optionalAuth, async (req, res) => {
       const commentsRes = await fetch(url);
       const commentsData = await commentsRes.json();
       if (commentsData.error) throw new Error(commentsData.error.message);
-
+ 
       allComments = allComments.concat(commentsData.data || []);
       url = commentsData.paging?.next || null;
       pages++;
     }
-
+ 
     // Normalizar: extraer username de 'from' si no viene directo
     const normalized = allComments.map(c => ({
       ...c,
       username: c.username || c.from?.username || 'usuario_' + (c.id || '').slice(-4)
     }));
-
+ 
     res.json({
       comments: normalized,
       total: normalized.length,
       truncated: pages >= maxPages
     });
-
+ 
   } catch (err) {
     console.error('Comments error:', err.message);
     res.status(err.status || 500).json({ error: err.message });
   }
 });
-
+ 
 // ── API: Desconectar plataforma ────────────────────────────────
 app.post('/api/disconnect', optionalAuth, async (req, res) => {
   const { platform } = req.body;
-
+ 
   // If authenticated user, remove from DB
   if (req.userId && platform) {
     await db.run('DELETE FROM platform_tokens WHERE user_id = $1 AND platform = $2', [req.userId, platform]);
   }
-
+ 
   // Also clear legacy session for Instagram
   if (!platform || platform === 'instagram') {
     session = { accessToken: null, igUserId: null, username: null, profilePic: null };
   }
-
+ 
   res.json({ ok: true });
 });
-
+ 
 // ── API: Connected platforms for user ─────────────────────────
 app.get('/api/platforms', authMiddleware, async (req, res) => {
   try {
@@ -592,30 +592,30 @@ app.get('/api/platforms', authMiddleware, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-
+ 
 // ── API: RapidAPI Instagram Scraper (sin OAuth) ────────────
 const RAPIDAPI_KEY = process.env.RAPIDAPI_KEY;
 const RAPIDAPI_HOST = 'instagram-scraper-stable-api.p.rapidapi.com';
-
+ 
 // Get user posts by username
 app.post('/api/ig/posts', optionalAuth, async (req, res) => {
   if (!RAPIDAPI_KEY) return res.status(503).json({ error: 'RapidAPI no configurada. Agregá RAPIDAPI_KEY en las variables de entorno.' });
   const { username, amount = 12, pagination_token = '' } = req.body;
   if (!username) return res.status(400).json({ error: 'Username requerido' });
-
+ 
   // Clean username (remove @ and URL parts)
   let cleanUser = username.trim().replace(/^@/, '');
   if (cleanUser.includes('instagram.com/')) {
     const match = cleanUser.match(/instagram\.com\/([^/?]+)/);
     if (match) cleanUser = match[1];
   }
-
+ 
   try {
     const params = new URLSearchParams();
     params.append('username_or_url', `https://www.instagram.com/${cleanUser}/`);
     params.append('pagination_token', pagination_token);
     params.append('amount', String(amount));
-
+ 
     const response = await fetch(`https://${RAPIDAPI_HOST}/get_ig_user_posts.php`, {
       method: 'POST',
       headers: {
@@ -625,13 +625,25 @@ app.post('/api/ig/posts', optionalAuth, async (req, res) => {
       },
       body: params.toString()
     });
-
-    const data = await response.json();
+ 
+    const rawText = await response.text();
+    console.log('RapidAPI response status:', response.status);
+    console.log('RapidAPI response (first 500 chars):', rawText.substring(0, 500));
+ 
+    let data;
+    try {
+      data = JSON.parse(rawText);
+    } catch (parseErr) {
+      return res.status(502).json({ error: 'RapidAPI devolvió respuesta no válida. Status: ' + response.status });
+    }
+ 
     if (data.error) return res.status(400).json({ error: data.error });
-
-    // Normalize the response
+    if (data.message) return res.status(400).json({ error: data.message });
+ 
+    // Normalize the response — log keys to debug structure
+    console.log('RapidAPI data keys:', Object.keys(data));
     const posts = [];
-    const items = data.collector || data.items || data.data || [];
+    const items = data.collector || data.items || data.data || data.medias || [];
     for (const item of items) {
       posts.push({
         shortcode: item.shortcode || item.code || '',
@@ -643,7 +655,7 @@ app.post('/api/ig/posts', optionalAuth, async (req, res) => {
         type: item.media_type === 2 ? 'video' : item.media_type === 8 ? 'carousel' : 'image'
       });
     }
-
+ 
     res.json({
       success: true,
       username: cleanUser,
@@ -656,13 +668,13 @@ app.post('/api/ig/posts', optionalAuth, async (req, res) => {
     res.status(500).json({ error: 'Error al obtener posts: ' + err.message });
   }
 });
-
+ 
 // Get post comments by shortcode
 app.get('/api/ig/comments', optionalAuth, async (req, res) => {
   if (!RAPIDAPI_KEY) return res.status(503).json({ error: 'RapidAPI no configurada. Agregá RAPIDAPI_KEY en las variables de entorno.' });
   const { code, sort = 'popular' } = req.query;
   if (!code) return res.status(400).json({ error: 'Media code requerido' });
-
+ 
   try {
     const url = `https://${RAPIDAPI_HOST}/get_post_comments.php?media_code=${encodeURIComponent(code)}&sort_order=${sort}`;
     const response = await fetch(url, {
@@ -673,10 +685,10 @@ app.get('/api/ig/comments', optionalAuth, async (req, res) => {
         'x-rapidapi-key': RAPIDAPI_KEY
       }
     });
-
+ 
     const data = await response.json();
     if (data.error) return res.status(400).json({ error: data.error });
-
+ 
     // Normalize comments
     const comments = [];
     const items = data.collector || data.comments || data.data || [];
@@ -689,7 +701,7 @@ app.get('/api/ig/comments', optionalAuth, async (req, res) => {
         timestamp: c.created_at || c.timestamp || c.created_at_utc || null,
         likes: c.like_count || c.likes?.count || c.comment_like_count || 0
       });
-
+ 
       // Also include replies if available
       const replies = c.replies || c.child_comments || c.edge_threaded_comments?.edges || [];
       for (const r of replies) {
@@ -703,7 +715,7 @@ app.get('/api/ig/comments', optionalAuth, async (req, res) => {
         });
       }
     }
-
+ 
     res.json({
       success: true,
       shortcode: code,
@@ -716,7 +728,7 @@ app.get('/api/ig/comments', optionalAuth, async (req, res) => {
     res.status(500).json({ error: 'Error al obtener comentarios: ' + err.message });
   }
 });
-
+ 
 // ── API: Scrape comentarios por URL (multi-plataforma) ─────
 function extractShortcode(url) {
   const patterns = [
@@ -729,7 +741,7 @@ function extractShortcode(url) {
   }
   return null;
 }
-
+ 
 function extractYouTubeId(url) {
   const patterns = [
     /youtube\.com\/watch\?v=([A-Za-z0-9_-]{11})/,
@@ -743,28 +755,28 @@ function extractYouTubeId(url) {
   }
   return null;
 }
-
+ 
 function extractTikTokId(url) {
   const m = url.match(/tiktok\.com\/@[^/]+\/video\/(\d+)/);
   return m ? m[1] : null;
 }
-
+ 
 function detectPlatform(url) {
   if (/youtube\.com|youtu\.be/i.test(url)) return 'youtube';
   if (/tiktok\.com/i.test(url)) return 'tiktok';
   if (/instagram\.com|instagr\.am/i.test(url)) return 'instagram';
   return null;
 }
-
+ 
 // ── YouTube: Data API v3 + scraping fallback ──
 async function fetchYouTubeCommentsAPI(videoId) {
   if (!YOUTUBE_API_KEY) return null;
-
+ 
   const comments = [];
   let nextPageToken = null;
   const maxPages = 10; // Up to ~1000 comments
   let pages = 0;
-
+ 
   try {
     do {
       const params = new URLSearchParams({
@@ -776,7 +788,7 @@ async function fetchYouTubeCommentsAPI(videoId) {
         key: YOUTUBE_API_KEY
       });
       if (nextPageToken) params.set('pageToken', nextPageToken);
-
+ 
       const apiRes = await fetch(`https://www.googleapis.com/youtube/v3/commentThreads?${params}`);
       if (!apiRes.ok) {
         const errData = await apiRes.json().catch(() => ({}));
@@ -784,7 +796,7 @@ async function fetchYouTubeCommentsAPI(videoId) {
         if (apiRes.status === 403) return null; // quota exceeded or comments disabled
         return null;
       }
-
+ 
       const data = await apiRes.json();
       for (const item of (data.items || [])) {
         const snippet = item.snippet?.topLevelComment?.snippet;
@@ -797,18 +809,18 @@ async function fetchYouTubeCommentsAPI(videoId) {
           });
         }
       }
-
+ 
       nextPageToken = data.nextPageToken || null;
       pages++;
     } while (nextPageToken && pages < maxPages);
-
+ 
     return comments;
   } catch (e) {
     console.error('YouTube API fetch error:', e.message);
     return null;
   }
 }
-
+ 
 async function scrapeYouTubeCommentsFallback(videoId) {
   const comments = [];
   try {
@@ -847,10 +859,10 @@ async function scrapeYouTubeCommentsFallback(videoId) {
   } catch (e) { /* page fetch failed */ }
   return comments;
 }
-
+ 
 async function scrapeYouTubeComments(videoId) {
   let postInfo = null;
-
+ 
   // Always get post info from oEmbed (free, no quota)
   try {
     const oembedRes = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`);
@@ -863,33 +875,33 @@ async function scrapeYouTubeComments(videoId) {
       };
     }
   } catch (e) { /* oEmbed failed */ }
-
+ 
   if (!postInfo) {
     postInfo = { thumbnail: `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`, author: null, title: null };
   }
-
+ 
   // Try YouTube Data API v3 first
   let comments = await fetchYouTubeCommentsAPI(videoId);
   let method = 'youtube_api';
-
+ 
   // Fallback to scraping if API unavailable or returned nothing
   if (!comments || comments.length === 0) {
     comments = await scrapeYouTubeCommentsFallback(videoId);
     method = comments.length > 0 ? 'youtube_scrape' : 'none';
   }
-
+ 
   return { comments: comments || [], post: postInfo, method };
 }
-
+ 
 // ── TikTok comment scraping (multiple methods) ──
 async function scrapeTikTokComments(url) {
   let postInfo = null;
   let comments = [];
   let method = 'none';
-
+ 
   // Extract video ID
   const videoId = extractTikTokId(url);
-
+ 
   // 1. oEmbed for post info (always works)
   try {
     const oembedRes = await fetch(`https://www.tiktok.com/oembed?url=${encodeURIComponent(url)}`);
@@ -902,7 +914,7 @@ async function scrapeTikTokComments(url) {
       };
     }
   } catch (e) { /* oEmbed failed */ }
-
+ 
   // 2. Try TikTok web API endpoint for comments
   if (videoId) {
     try {
@@ -929,7 +941,7 @@ async function scrapeTikTokComments(url) {
       }
     } catch (e) { /* web API failed */ }
   }
-
+ 
   // 3. Try page fetch with embedded data extraction
   if (comments.length === 0) {
     try {
@@ -962,7 +974,7 @@ async function scrapeTikTokComments(url) {
             }
           } catch (pe) { /* parse error */ }
         }
-
+ 
         // Extract post info from page if oEmbed failed
         if (!postInfo) {
           const titleMatch = html.match(/<title[^>]*>(.*?)<\/title>/i);
@@ -973,16 +985,16 @@ async function scrapeTikTokComments(url) {
       }
     } catch (e) { /* page fetch failed */ }
   }
-
+ 
   return { comments, post: postInfo, method };
 }
-
+ 
 app.post('/api/scrape', optionalAuth, async (req, res) => {
   const { url, platform: clientPlatform } = req.body;
   if (!url) return res.status(400).json({ error: 'URL requerida' });
-
+ 
   const platform = clientPlatform || detectPlatform(url) || 'instagram';
-
+ 
   // ── YouTube ──
   if (platform === 'youtube') {
     const videoId = extractYouTubeId(url);
@@ -999,7 +1011,7 @@ app.post('/api/scrape', optionalAuth, async (req, res) => {
       return res.status(500).json({ error: 'Error al procesar video de YouTube: ' + err.message });
     }
   }
-
+ 
   // ── TikTok ──
   if (platform === 'tiktok') {
     try {
@@ -1013,12 +1025,12 @@ app.post('/api/scrape', optionalAuth, async (req, res) => {
       return res.status(500).json({ error: 'Error al procesar video de TikTok: ' + err.message });
     }
   }
-
+ 
   // ── Instagram (original flow) ──
-
+ 
   const shortcode = extractShortcode(url);
   if (!shortcode) return res.status(400).json({ error: 'URL de Instagram no válida. Usá un link de post, reel o carrusel.' });
-
+ 
   try {
     // 1. Obtener info del post via oEmbed
     let postInfo = null;
@@ -1032,11 +1044,11 @@ app.post('/api/scrape', optionalAuth, async (req, res) => {
         postInfo = await oRes.json();
       }
     } catch (e) { /* oEmbed failed, continue */ }
-
+ 
     // 2. Intentar obtener comentarios via la API pública de Instagram
     let comments = [];
     let method = 'none';
-
+ 
     // Método A: Instagram GraphQL endpoint
     try {
       const graphqlUrl = `https://www.instagram.com/graphql/query/`
@@ -1060,7 +1072,7 @@ app.post('/api/scrape', optionalAuth, async (req, res) => {
           timestamp: e.node?.created_at ? new Date(e.node.created_at * 1000).toISOString() : null
         }));
         if (comments.length > 0) method = 'graphql';
-
+ 
         if (!postInfo) {
           const media = gData?.data?.shortcode_media;
           if (media) {
@@ -1072,7 +1084,7 @@ app.post('/api/scrape', optionalAuth, async (req, res) => {
         }
       }
     } catch (e) { /* GraphQL failed */ }
-
+ 
     // Método B: Fetch de la página del post y parsear JSON embebido
     if (comments.length === 0) {
       try {
@@ -1111,7 +1123,7 @@ app.post('/api/scrape', optionalAuth, async (req, res) => {
         }
       } catch (e) { /* page fetch failed */ }
     }
-
+ 
     // Método C: Si tenemos sesión activa de Instagram, usar la API oficial
     if (comments.length === 0 && postInfo?.media_id) {
       let igToken = null;
@@ -1122,7 +1134,7 @@ app.post('/api/scrape', optionalAuth, async (req, res) => {
       }
       // Fallback to legacy session
       if (!igToken) igToken = session.accessToken;
-
+ 
       if (igToken) {
         try {
           const data = await graphGet(`/${postInfo.media_id}/comments`, {
@@ -1138,7 +1150,7 @@ app.post('/api/scrape', optionalAuth, async (req, res) => {
         } catch (e) { /* API fallback failed */ }
       }
     }
-
+ 
     res.json({
       success: true,
       shortcode,
@@ -1153,20 +1165,20 @@ app.post('/api/scrape', optionalAuth, async (req, res) => {
         ? 'No se pudieron extraer comentarios automáticamente. Instagram bloquea el acceso público a comentarios. Podés conectar tu cuenta de Instagram o pegar los comentarios manualmente.'
         : null
     });
-
+ 
   } catch (err) {
     console.error('Scrape error:', err.message);
     res.status(500).json({ error: 'Error al procesar la URL: ' + err.message });
   }
 });
-
+ 
 // ── API: Manual comment input (paste from any platform) ──────
 app.post('/api/comments/manual', (req, res) => {
   const { text, platform, postUrl } = req.body;
   if (!text || !text.trim()) {
     return res.status(400).json({ error: 'Texto de comentarios requerido' });
   }
-
+ 
   // Parse comments from pasted text — one per line
   // Supports formats:
   //   @username comment text
@@ -1176,11 +1188,11 @@ app.post('/api/comments/manual', (req, res) => {
   const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
   const comments = [];
   const seen = new Set();
-
+ 
   for (const line of lines) {
     let username = null;
     let commentText = line;
-
+ 
     // Try @username format
     const atMatch = line.match(/^@([A-Za-z0-9._]+)\s+(.*)/);
     if (atMatch) {
@@ -1201,19 +1213,19 @@ app.post('/api/comments/manual', (req, res) => {
         }
       }
     }
-
+ 
     if (!username) {
       username = `participante_${comments.length + 1}`;
       commentText = line;
     }
-
+ 
     // For giveaways, extract just usernames if text is just a username
     const entry = {
       username: username.replace(/^@/, ''),
       text: commentText || '',
       timestamp: new Date().toISOString()
     };
-
+ 
     // Dedup key
     const key = `${entry.username}::${entry.text}`.toLowerCase();
     if (!seen.has(key)) {
@@ -1221,7 +1233,7 @@ app.post('/api/comments/manual', (req, res) => {
       comments.push(entry);
     }
   }
-
+ 
   res.json({
     success: true,
     comments,
@@ -1232,14 +1244,14 @@ app.post('/api/comments/manual', (req, res) => {
     note: null
   });
 });
-
+ 
 // ── API: Parse usernames list (for sorteos that only need usernames) ──
 app.post('/api/comments/usernames', (req, res) => {
   const { text } = req.body;
   if (!text || !text.trim()) {
     return res.status(400).json({ error: 'Lista de usuarios requerida' });
   }
-
+ 
   // Parse usernames — one per line, or comma/space separated
   // Handles: @user1, @user2, user3
   const raw = text
@@ -1247,7 +1259,7 @@ app.post('/api/comments/usernames', (req, res) => {
     .split('\n')
     .map(l => l.trim().replace(/^@/, ''))
     .filter(l => l.length > 0 && /^[A-Za-z0-9._]+$/.test(l));
-
+ 
   // Dedup
   const unique = [...new Set(raw.map(u => u.toLowerCase()))];
   const comments = unique.map(username => ({
@@ -1255,7 +1267,7 @@ app.post('/api/comments/usernames', (req, res) => {
     text: '',
     timestamp: new Date().toISOString()
   }));
-
+ 
   res.json({
     success: true,
     comments,
@@ -1264,11 +1276,11 @@ app.post('/api/comments/usernames', (req, res) => {
     note: null
   });
 });
-
+ 
 // ══════════════════════════════════════════════════════════════
 //   LEVEL 6: AUTH API
 // ══════════════════════════════════════════════════════════════
-
+ 
 // ── Verification email HTML ──
 function verificationEmailHTML(name, code) {
   return `
@@ -1284,7 +1296,7 @@ function verificationEmailHTML(name, code) {
       <p style="color:#3a3a55;font-size:.7rem;text-align:center">RAFLY — Sorteos en vivo</p>
     </div>`;
 }
-
+ 
 // ── Password reset email HTML ──
 function resetPasswordEmailHTML(name, code) {
   return `
@@ -1300,7 +1312,7 @@ function resetPasswordEmailHTML(name, code) {
       <p style="color:#3a3a55;font-size:.7rem;text-align:center">RAFLY — Sorteos en vivo</p>
     </div>`;
 }
-
+ 
 // ── Billing email templates ──
 function upgradeEmailHTML(name, plan) {
   const planName = plan === 'enterprise' ? 'Enterprise' : 'Pro';
@@ -1331,7 +1343,7 @@ function upgradeEmailHTML(name, plan) {
       <p style="color:#3a3a55;font-size:.7rem;text-align:center">RAFLY — Sorteos en vivo</p>
     </div>`;
 }
-
+ 
 function paymentFailedEmailHTML(name, daysLeft) {
   return `
     <div style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;background:#060614;color:#e0e0f8;padding:2rem;border-radius:12px">
@@ -1350,7 +1362,7 @@ function paymentFailedEmailHTML(name, daysLeft) {
       <p style="color:#3a3a55;font-size:.7rem;text-align:center">RAFLY — Sorteos en vivo</p>
     </div>`;
 }
-
+ 
 function downgradeEmailHTML(name) {
   return `
     <div style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;background:#060614;color:#e0e0f8;padding:2rem;border-radius:12px">
@@ -1366,7 +1378,7 @@ function downgradeEmailHTML(name) {
       <p style="color:#3a3a55;font-size:.7rem;text-align:center">RAFLY — Sorteos en vivo</p>
     </div>`;
 }
-
+ 
 // ── Rate Limiters (must be before auth routes) ──
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -1376,7 +1388,7 @@ const globalLimiter = rateLimit({
   message: { error: 'Demasiadas solicitudes. Intentá de nuevo en unos minutos.' }
 });
 app.use('/api/', globalLimiter);
-
+ 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 15,
@@ -1384,19 +1396,19 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: 'Demasiados intentos. Esperá 15 minutos.' }
 });
-
+ 
 // ── Register ──
 app.post('/api/auth/register', authLimiter, async (req, res) => {
   const { email, password, name } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Email y contraseña requeridos' });
   if (password.length < 6) return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
-
+ 
   const normalizedEmail = email.trim().toLowerCase();
-
+ 
   try {
     const existing = await db.get('SELECT * FROM users WHERE email = $1', [normalizedEmail]);
     if (existing) return res.status(409).json({ error: 'Ya existe una cuenta con ese email' });
-
+ 
     const hashed = await bcrypt.hash(password, 10);
     const verificationCode = String(crypto.randomInt(100000, 999999));
     const result = await db.get(
@@ -1404,188 +1416,188 @@ app.post('/api/auth/register', authLimiter, async (req, res) => {
       [normalizedEmail, hashed, name || '', verificationCode]
     );
     const userId = result.id;
-
+ 
     // Send verification email
     sendEmail(normalizedEmail, 'Verificá tu email — RAFLY', verificationEmailHTML(name, verificationCode)).catch(() => {});
-
+ 
     const token = jwt.sign({ userId }, JWT_SECRET, { expiresIn: JWT_EXPIRES });
     const user = await db.get(
       'SELECT id, email, name, plan, brand_settings, email_verified, created_at FROM users WHERE id = $1',
       [userId]
     );
-
+ 
     res.status(201).json({ token, user, needsVerification: true });
   } catch (err) {
     console.error('Register error:', err.message);
     res.status(500).json({ error: 'Error al crear cuenta' });
   }
 });
-
+ 
 // ── Verify email ──
 app.post('/api/auth/verify-email', authMiddleware, async (req, res) => {
   const { code } = req.body;
   if (!code) return res.status(400).json({ error: 'Código requerido' });
-
+ 
   try {
     const user = await db.get('SELECT * FROM users WHERE id = $1', [req.userId]);
     if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
     if (user.email_verified) return res.json({ ok: true, message: 'Email ya verificado' });
-
+ 
     if (user.verification_token !== String(code).trim()) {
       return res.status(400).json({ error: 'Código incorrecto' });
     }
-
+ 
     await db.run(
       'UPDATE users SET email_verified = 1, verification_token = NULL, updated_at = NOW() WHERE id = $1',
       [req.userId]
     );
-
+ 
     // Send welcome email
     sendEmail(user.email, '¡Bienvenido a RAFLY! 🎰', welcomeEmailHTML(user.name)).catch(() => {});
-
+ 
     res.json({ ok: true, message: 'Email verificado exitosamente' });
   } catch (err) {
     console.error('Verify email error:', err.message);
     res.status(500).json({ error: 'Error al verificar email' });
   }
 });
-
+ 
 // ── Resend verification code ──
 app.post('/api/auth/resend-verification', authLimiter, authMiddleware, async (req, res) => {
   try {
     const user = await db.get('SELECT * FROM users WHERE id = $1', [req.userId]);
     if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
     if (user.email_verified) return res.json({ ok: true, message: 'Email ya verificado' });
-
+ 
     const newCode = String(crypto.randomInt(100000, 999999));
     await db.run('UPDATE users SET verification_token = $1 WHERE id = $2', [newCode, req.userId]);
-
+ 
     await sendEmail(user.email, 'Tu nuevo código — RAFLY', verificationEmailHTML(user.name, newCode));
-
+ 
     res.json({ ok: true, message: 'Código reenviado' });
   } catch (err) {
     res.status(500).json({ error: 'Error al reenviar código' });
   }
 });
-
+ 
 // ── Request password reset ──
 app.post('/api/auth/forgot-password', authLimiter, async (req, res) => {
   const { email } = req.body;
   if (!email) return res.status(400).json({ error: 'Email requerido' });
-
+ 
   const normalizedEmail = email.trim().toLowerCase();
-
+ 
   try {
     const user = await db.get('SELECT * FROM users WHERE email = $1', [normalizedEmail]);
     // Always return success to prevent email enumeration
     if (!user) return res.json({ ok: true, message: 'Si el email existe, recibirás un código para restablecer tu contraseña.' });
-
+ 
     const resetCode = String(crypto.randomInt(100000, 999999));
     const expires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
-
+ 
     await db.run(
       'UPDATE users SET reset_token = $1, reset_token_expires = $2 WHERE id = $3',
       [resetCode, expires.toISOString(), user.id]
     );
-
+ 
     await sendEmail(normalizedEmail, 'Restablecer contraseña — RAFLY', resetPasswordEmailHTML(user.name, resetCode));
-
+ 
     res.json({ ok: true, message: 'Si el email existe, recibirás un código para restablecer tu contraseña.' });
   } catch (err) {
     console.error('Forgot password error:', err.message);
     res.status(500).json({ error: 'Error al procesar solicitud' });
   }
 });
-
+ 
 // ── Reset password with code ──
 app.post('/api/auth/reset-password', authLimiter, async (req, res) => {
   const { email, code, newPassword } = req.body;
   if (!email || !code || !newPassword) return res.status(400).json({ error: 'Email, código y nueva contraseña requeridos' });
   if (newPassword.length < 6) return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
-
+ 
   const normalizedEmail = email.trim().toLowerCase();
-
+ 
   try {
     const user = await db.get('SELECT * FROM users WHERE email = $1', [normalizedEmail]);
     if (!user || !user.reset_token) {
       return res.status(400).json({ error: 'Código inválido o expirado' });
     }
-
+ 
     // Check expiration
     if (user.reset_token_expires && new Date(user.reset_token_expires) < new Date()) {
       await db.run('UPDATE users SET reset_token = NULL, reset_token_expires = NULL WHERE id = $1', [user.id]);
       return res.status(400).json({ error: 'Código expirado. Solicitá uno nuevo.' });
     }
-
+ 
     if (user.reset_token !== String(code).trim()) {
       return res.status(400).json({ error: 'Código incorrecto' });
     }
-
+ 
     const hashed = await bcrypt.hash(newPassword, 10);
     await db.run(
       'UPDATE users SET password = $1, reset_token = NULL, reset_token_expires = NULL, updated_at = NOW() WHERE id = $2',
       [hashed, user.id]
     );
-
+ 
     res.json({ ok: true, message: 'Contraseña actualizada. Ya podés iniciar sesión.' });
   } catch (err) {
     console.error('Reset password error:', err.message);
     res.status(500).json({ error: 'Error al restablecer contraseña' });
   }
 });
-
+ 
 // ── Change password (authenticated) ──
 app.post('/api/auth/change-password', authMiddleware, async (req, res) => {
   const { currentPassword, newPassword } = req.body;
   if (!currentPassword || !newPassword) return res.status(400).json({ error: 'Contraseña actual y nueva requeridas' });
   if (newPassword.length < 6) return res.status(400).json({ error: 'La nueva contraseña debe tener al menos 6 caracteres' });
-
+ 
   try {
     const user = await db.get('SELECT * FROM users WHERE id = $1', [req.userId]);
     if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
-
+ 
     const valid = await bcrypt.compare(currentPassword, user.password);
     if (!valid) return res.status(400).json({ error: 'Contraseña actual incorrecta' });
-
+ 
     const hashed = await bcrypt.hash(newPassword, 10);
     await db.run('UPDATE users SET password = $1, updated_at = NOW() WHERE id = $2', [hashed, req.userId]);
-
+ 
     res.json({ ok: true, message: 'Contraseña actualizada exitosamente' });
   } catch (err) {
     res.status(500).json({ error: 'Error al cambiar contraseña' });
   }
 });
-
+ 
 // ── Login ──
 app.post('/api/auth/login', authLimiter, async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Email y contraseña requeridos' });
-
+ 
   const normalizedEmail = email.trim().toLowerCase();
-
+ 
   try {
     const user = await db.get('SELECT * FROM users WHERE email = $1', [normalizedEmail]);
     if (!user) return res.status(401).json({ error: 'Credenciales inválidas' });
-
+ 
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) return res.status(401).json({ error: 'Credenciales inválidas' });
-
+ 
     const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: JWT_EXPIRES });
     const safeUser = await db.get(
       'SELECT id, email, name, plan, brand_settings, email_verified, created_at FROM users WHERE id = $1',
       [user.id]
     );
-
+ 
     // Auto-accept pending team invitations
     try { await autoAcceptInvitations(user.id, normalizedEmail); } catch(e) {}
-
+ 
     res.json({ token, user: safeUser });
   } catch (err) {
     console.error('Login error:', err.message);
     res.status(500).json({ error: 'Error al iniciar sesión' });
   }
 });
-
+ 
 // ── Get current user ──
 app.get('/api/auth/me', authMiddleware, async (req, res) => {
   try {
@@ -1594,7 +1606,7 @@ app.get('/api/auth/me', authMiddleware, async (req, res) => {
       [req.userId]
     );
     if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
-
+ 
     const sorteoCount = await db.get(
       'SELECT COUNT(*) as total FROM sorteo_history WHERE user_id = $1',
       [req.userId]
@@ -1604,7 +1616,7 @@ app.get('/api/auth/me', authMiddleware, async (req, res) => {
       'SELECT count FROM daily_counts WHERE user_id = $1 AND date = $2',
       [req.userId, today]
     );
-
+ 
     res.json({
       user,
       stats: {
@@ -1617,7 +1629,7 @@ app.get('/api/auth/me', authMiddleware, async (req, res) => {
     res.status(500).json({ error: 'Error al obtener usuario' });
   }
 });
-
+ 
 // ── Update profile ──
 app.put('/api/auth/profile', authMiddleware, async (req, res) => {
   try {
@@ -1632,7 +1644,7 @@ app.put('/api/auth/profile', authMiddleware, async (req, res) => {
     res.status(500).json({ error: 'Error al actualizar perfil' });
   }
 });
-
+ 
 // ── Update plan ──
 app.put('/api/auth/plan', authMiddleware, async (req, res) => {
   try {
@@ -1650,7 +1662,7 @@ app.put('/api/auth/plan', authMiddleware, async (req, res) => {
     res.status(500).json({ error: 'Error al actualizar plan' });
   }
 });
-
+ 
 // ── Save brand settings ──
 app.put('/api/auth/brand', authMiddleware, async (req, res) => {
   try {
@@ -1661,39 +1673,39 @@ app.put('/api/auth/brand', authMiddleware, async (req, res) => {
     res.status(500).json({ error: 'Error al guardar marca' });
   }
 });
-
+ 
 // ── Save sorteo result ──
 app.post('/api/sorteos', authMiddleware, async (req, res) => {
   try {
     const { winner, suplentes, participantsCount, platform, mode, postUrl } = req.body;
     if (!winner) return res.status(400).json({ error: 'Winner requerido' });
-
+ 
     await db.run(
       'INSERT INTO sorteo_history (user_id, winner, suplentes, participants_count, platform, mode, post_url) VALUES ($1, $2, $3, $4, $5, $6, $7)',
       [req.userId, winner, JSON.stringify(suplentes || []), participantsCount || 0, platform || 'manual', mode || 'slot', postUrl || null]
     );
-
+ 
     // Increment daily count
     const today = new Date().toISOString().split('T')[0];
     await db.run(
       'INSERT INTO daily_counts (user_id, date, count) VALUES ($1, $2, 1) ON CONFLICT(user_id, date) DO UPDATE SET count = daily_counts.count + 1',
       [req.userId, today]
     );
-
+ 
     // Fire webhooks
     fireWebhooks(req.userId, 'sorteo.completed', {
       winner, suplentes: suplentes || [],
       participants_count: participantsCount || 0,
       platform: platform || 'manual', mode: mode || 'slot', post_url: postUrl || null
     }).catch(() => {});
-
+ 
     res.json({ ok: true });
   } catch (err) {
     console.error('Save sorteo error:', err.message);
     res.status(500).json({ error: 'Error al guardar sorteo' });
   }
 });
-
+ 
 // ── Get sorteo history ──
 app.get('/api/sorteos', authMiddleware, async (req, res) => {
   try {
@@ -1710,11 +1722,11 @@ app.get('/api/sorteos', authMiddleware, async (req, res) => {
     res.status(500).json({ error: 'Error al obtener historial' });
   }
 });
-
+ 
 // ══════════════════════════════════════════════════════════════
 //   LEVEL 6: ADMIN API
 // ══════════════════════════════════════════════════════════════
-
+ 
 // Admin middleware
 async function adminMiddleware(req, res, next) {
   try {
@@ -1731,7 +1743,7 @@ async function adminMiddleware(req, res, next) {
     res.status(500).json({ error: 'Error de autenticación admin' });
   }
 }
-
+ 
 app.get('/api/admin/users', authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const users = await db.all(`
@@ -1745,7 +1757,7 @@ app.get('/api/admin/users', authMiddleware, adminMiddleware, async (req, res) =>
     res.status(500).json({ error: 'Error al obtener usuarios' });
   }
 });
-
+ 
 app.get('/api/admin/stats', authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const totalUsers = await db.get('SELECT COUNT(*) as c FROM users');
@@ -1757,7 +1769,7 @@ app.get('/api/admin/stats', authMiddleware, adminMiddleware, async (req, res) =>
       FROM sorteo_history sh JOIN users u ON sh.user_id = u.id
       ORDER BY sh.created_at DESC LIMIT 20
     `);
-
+ 
     res.json({
       totalUsers: parseInt(totalUsers.c),
       totalSorteos: parseInt(totalSorteos.c),
@@ -1769,7 +1781,7 @@ app.get('/api/admin/stats', authMiddleware, adminMiddleware, async (req, res) =>
     res.status(500).json({ error: 'Error al obtener estadísticas' });
   }
 });
-
+ 
 app.put('/api/admin/users/:id/plan', authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const { plan } = req.body;
@@ -1782,18 +1794,18 @@ app.put('/api/admin/users/:id/plan', authMiddleware, adminMiddleware, async (req
     res.status(500).json({ error: 'Error al actualizar plan' });
   }
 });
-
+ 
 // ══════════════════════════════════════════════════════════════
 //   LEVEL 6: STRIPE PAYMENTS
 // ══════════════════════════════════════════════════════════════
-
+ 
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
 let stripe = null;
 if (STRIPE_SECRET_KEY) {
   stripe = require('stripe')(STRIPE_SECRET_KEY);
 }
-
+ 
 // Stripe price IDs
 const STRIPE_PRICES = {
   pro_monthly: process.env.STRIPE_PRICE_PRO_MONTHLY || null,
@@ -1801,11 +1813,11 @@ const STRIPE_PRICES = {
   enterprise_monthly: process.env.STRIPE_PRICE_ENT_MONTHLY || null,
   enterprise_annual: process.env.STRIPE_PRICE_ENT_ANNUAL || null,
 };
-
+ 
 // ── Create Checkout Session ──
 app.post('/api/stripe/checkout', authMiddleware, async (req, res) => {
   if (!stripe) return res.status(503).json({ error: 'Stripe no configurado. Contactá al administrador.' });
-
+ 
   const { plan, billing } = req.body;
   if (!['pro', 'enterprise'].includes(plan)) {
     return res.status(400).json({ error: 'Plan inválido' });
@@ -1813,17 +1825,17 @@ app.post('/api/stripe/checkout', authMiddleware, async (req, res) => {
   if (!['monthly', 'annual'].includes(billing)) {
     return res.status(400).json({ error: 'Período de facturación inválido' });
   }
-
+ 
   const priceKey = `${plan}_${billing}`;
   const priceId = STRIPE_PRICES[priceKey];
   if (!priceId) {
     return res.status(400).json({ error: `Precio no configurado para ${plan} ${billing}. Contactá al administrador.` });
   }
-
+ 
   try {
     const user = await db.get('SELECT * FROM users WHERE id = $1', [req.userId]);
     if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
-
+ 
     // Get or create Stripe customer
     let customerId = user.stripe_customer_id;
     if (!customerId) {
@@ -1834,7 +1846,7 @@ app.post('/api/stripe/checkout', authMiddleware, async (req, res) => {
       customerId = customer.id;
       await db.run('UPDATE users SET stripe_customer_id = $1 WHERE id = $2', [customerId, req.userId]);
     }
-
+ 
     // If user already has an active subscription, redirect to portal
     if (user.stripe_subscription_id) {
       try {
@@ -1848,7 +1860,7 @@ app.post('/api/stripe/checkout', authMiddleware, async (req, res) => {
         }
       } catch (e) { /* subscription not found or inactive */ }
     }
-
+ 
     // Create checkout session
     const checkoutSession = await stripe.checkout.sessions.create({
       customer: customerId,
@@ -1863,40 +1875,40 @@ app.post('/api/stripe/checkout', authMiddleware, async (req, res) => {
       },
       allow_promotion_codes: true,
     });
-
+ 
     res.json({ url: checkoutSession.url, type: 'checkout' });
   } catch (err) {
     console.error('Stripe checkout error:', err.message);
     res.status(500).json({ error: 'Error al crear sesión de pago' });
   }
 });
-
+ 
 // ── Stripe Customer Portal ──
 app.post('/api/stripe/portal', authMiddleware, async (req, res) => {
   if (!stripe) return res.status(503).json({ error: 'Stripe no configurado' });
-
+ 
   try {
     const user = await db.get('SELECT stripe_customer_id FROM users WHERE id = $1', [req.userId]);
     if (!user?.stripe_customer_id) {
       return res.status(400).json({ error: 'No tenés una suscripción activa' });
     }
-
+ 
     const portalSession = await stripe.billingPortal.sessions.create({
       customer: user.stripe_customer_id,
       return_url: `${BASE_URL}/pricing.html`,
     });
-
+ 
     res.json({ url: portalSession.url });
   } catch (err) {
     console.error('Portal error:', err.message);
     res.status(500).json({ error: 'Error al abrir portal de facturación' });
   }
 });
-
+ 
 // ── Stripe Webhook ──
 app.post('/api/stripe/webhook', async (req, res) => {
   if (!stripe) return res.status(503).send('Stripe not configured');
-
+ 
   let event;
   try {
     if (STRIPE_WEBHOOK_SECRET) {
@@ -1909,7 +1921,7 @@ app.post('/api/stripe/webhook', async (req, res) => {
     console.error('Webhook signature verification failed:', err.message);
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
-
+ 
   try {
     switch (event.type) {
       case 'checkout.session.completed': {
@@ -1933,7 +1945,7 @@ app.post('/api/stripe/webhook', async (req, res) => {
         }
         break;
       }
-
+ 
       case 'customer.subscription.updated': {
         const subscription = event.data.object;
         const userId = subscription.metadata?.rafly_user_id;
@@ -1941,7 +1953,7 @@ app.post('/api/stripe/webhook', async (req, res) => {
           const uid = Number(userId);
           await db.run('UPDATE users SET stripe_subscription_status = $1, updated_at = NOW() WHERE id = $2',
             [subscription.status, uid]);
-
+ 
           if (subscription.status === 'active') {
             const plan = subscription.metadata?.plan || 'pro';
             // Payment recovered — clear grace period
@@ -1980,7 +1992,7 @@ app.post('/api/stripe/webhook', async (req, res) => {
         }
         break;
       }
-
+ 
       case 'customer.subscription.deleted': {
         const subscription = event.data.object;
         const userId = subscription.metadata?.rafly_user_id;
@@ -2001,7 +2013,7 @@ app.post('/api/stripe/webhook', async (req, res) => {
         }
         break;
       }
-
+ 
       case 'invoice.payment_failed': {
         const invoice = event.data.object;
         const customerId = invoice.customer;
@@ -2020,7 +2032,7 @@ app.post('/api/stripe/webhook', async (req, res) => {
         }
         break;
       }
-
+ 
       case 'invoice.payment_succeeded': {
         const invoice = event.data.object;
         const customerId = invoice.customer;
@@ -2039,10 +2051,10 @@ app.post('/api/stripe/webhook', async (req, res) => {
   } catch (err) {
     console.error('Webhook processing error:', err.message);
   }
-
+ 
   res.json({ received: true });
 });
-
+ 
 // ── Stripe status ──
 app.get('/api/stripe/status', (req, res) => {
   res.json({
@@ -2055,7 +2067,7 @@ app.get('/api/stripe/status', (req, res) => {
     }
   });
 });
-
+ 
 // ── Billing info endpoint ──
 app.get('/api/billing/info', authMiddleware, async (req, res) => {
   try {
@@ -2065,7 +2077,7 @@ app.get('/api/billing/info', authMiddleware, async (req, res) => {
       [req.userId]
     );
     if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
-
+ 
     const billing = {
       plan: user.plan,
       subscriptionStatus: user.stripe_subscription_status,
@@ -2074,7 +2086,7 @@ app.get('/api/billing/info', authMiddleware, async (req, res) => {
       graceUntil: user.payment_grace_until,
       canManage: !!user.stripe_customer_id && !!stripe,
     };
-
+ 
     // Get subscription details from Stripe if available
     if (stripe && user.stripe_subscription_id) {
       try {
@@ -2086,14 +2098,14 @@ app.get('/api/billing/info', authMiddleware, async (req, res) => {
         billing.currency = sub.items?.data?.[0]?.price?.currency || 'usd';
       } catch (e) { /* subscription may not exist anymore */ }
     }
-
+ 
     res.json(billing);
   } catch (err) {
     console.error('Billing info error:', err.message);
     res.status(500).json({ error: 'Error al obtener info de billing' });
   }
 });
-
+ 
 // ── Grace period checker (runs every hour) ──
 async function checkGracePeriods() {
   try {
@@ -2104,7 +2116,7 @@ async function checkGracePeriods() {
        AND payment_grace_until < NOW()
        AND plan != 'free'`
     );
-
+ 
     for (const user of expiredUsers) {
       await db.run(
         `UPDATE users SET plan = 'free', payment_failed_at = NULL,
@@ -2115,7 +2127,7 @@ async function checkGracePeriods() {
       sendEmail(user.email, 'Tu plan cambió a Free — RAFLY', downgradeEmailHTML(user.name)).catch(() => {});
       console.log(`✦ User ${user.id} auto-downgraded to free (grace period expired)`);
     }
-
+ 
     // Warn users at 2 days remaining who haven't been warned
     const warnUsers = await db.all(
       `SELECT id, email, name, payment_grace_until FROM users
@@ -2125,7 +2137,7 @@ async function checkGracePeriods() {
        AND downgrade_warned = 0
        AND plan != 'free'`
     );
-
+ 
     for (const user of warnUsers) {
       const hoursLeft = Math.max(1, Math.round((new Date(user.payment_grace_until) - Date.now()) / (1000 * 60 * 60)));
       const daysLeft = Math.max(1, Math.ceil(hoursLeft / 24));
@@ -2137,21 +2149,21 @@ async function checkGracePeriods() {
     console.error('Grace period check error:', err.message);
   }
 }
-
+ 
 // Run grace period check every hour
 setInterval(checkGracePeriods, 60 * 60 * 1000);
-
+ 
 // ══════════════════════════════════════════════════════════════
 //   LEVEL 7: EMAIL & PUSH NOTIFICATIONS
 // ══════════════════════════════════════════════════════════════
-
+ 
 const nodemailer = require('nodemailer');
 const webpush = require('web-push');
-
+ 
 // ── Email config ──
 const EMAIL_FROM = process.env.EMAIL_FROM || 'RAFLY <noreply@rafly.app>';
 let emailTransporter = null;
-
+ 
 if (process.env.SMTP_HOST) {
   emailTransporter = nodemailer.createTransport({
     host: process.env.SMTP_HOST,
@@ -2163,7 +2175,7 @@ if (process.env.SMTP_HOST) {
     },
   });
 }
-
+ 
 async function sendEmail(to, subject, html) {
   if (!emailTransporter) return { sent: false, reason: 'SMTP not configured' };
   try {
@@ -2174,7 +2186,7 @@ async function sendEmail(to, subject, html) {
     return { sent: false, reason: err.message };
   }
 }
-
+ 
 function welcomeEmailHTML(name) {
   return `
     <div style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;background:#060614;color:#e0e0f8;padding:2rem;border-radius:12px">
@@ -2189,7 +2201,7 @@ function welcomeEmailHTML(name) {
       <p style="color:#3a3a55;font-size:.7rem;text-align:center">RAFLY — Sorteos en vivo</p>
     </div>`;
 }
-
+ 
 function sorteoEmailHTML(winner, participantsCount, mode) {
   return `
     <div style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;background:#060614;color:#e0e0f8;padding:2rem;border-radius:12px">
@@ -2206,7 +2218,7 @@ function sorteoEmailHTML(winner, participantsCount, mode) {
       <p style="color:#3a3a55;font-size:.7rem;text-align:center">RAFLY — Sorteos en vivo</p>
     </div>`;
 }
-
+ 
 // ── Send welcome email endpoint ──
 app.post('/api/email/welcome', authMiddleware, async (req, res) => {
   try {
@@ -2215,7 +2227,7 @@ app.post('/api/email/welcome', authMiddleware, async (req, res) => {
       [req.userId]
     );
     if (!user) return res.status(404).json({ error: 'User not found' });
-
+ 
     const result = await sendEmail(
       user.email,
       '¡Bienvenido a RAFLY! 🎰',
@@ -2226,7 +2238,7 @@ app.post('/api/email/welcome', authMiddleware, async (req, res) => {
     res.status(500).json({ error: 'Error al enviar email' });
   }
 });
-
+ 
 // ── Send sorteo result email ──
 app.post('/api/email/sorteo-result', authMiddleware, async (req, res) => {
   try {
@@ -2235,7 +2247,7 @@ app.post('/api/email/sorteo-result', authMiddleware, async (req, res) => {
       [req.userId]
     );
     if (!user) return res.status(404).json({ error: 'User not found' });
-
+ 
     const { winner, participantsCount, mode } = req.body;
     const result = await sendEmail(
       user.email,
@@ -2247,25 +2259,25 @@ app.post('/api/email/sorteo-result', authMiddleware, async (req, res) => {
     res.status(500).json({ error: 'Error al enviar email' });
   }
 });
-
+ 
 // ── Web Push Notifications ──
 const VAPID_PUBLIC = process.env.VAPID_PUBLIC_KEY || null;
 const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY || null;
 const VAPID_EMAIL = process.env.VAPID_EMAIL || 'mailto:admin@rafly.app';
-
+ 
 if (VAPID_PUBLIC && VAPID_PRIVATE) {
   webpush.setVapidDetails(VAPID_EMAIL, VAPID_PUBLIC, VAPID_PRIVATE);
 }
-
+ 
 // Subscribe to push
 app.post('/api/push/subscribe', authMiddleware, async (req, res) => {
   if (!VAPID_PUBLIC) return res.status(503).json({ error: 'Push not configured' });
-
+ 
   const { subscription } = req.body;
   if (!subscription?.endpoint || !subscription?.keys?.p256dh || !subscription?.keys?.auth) {
     return res.status(400).json({ error: 'Invalid subscription' });
   }
-
+ 
   try {
     await db.run(
       `INSERT INTO push_subscriptions (user_id, endpoint, keys_p256dh, keys_auth) VALUES ($1, $2, $3, $4)
@@ -2277,7 +2289,7 @@ app.post('/api/push/subscribe', authMiddleware, async (req, res) => {
     res.status(500).json({ error: 'Error al guardar suscripción' });
   }
 });
-
+ 
 // Unsubscribe
 app.post('/api/push/unsubscribe', authMiddleware, async (req, res) => {
   try {
@@ -2288,12 +2300,12 @@ app.post('/api/push/unsubscribe', authMiddleware, async (req, res) => {
     res.status(500).json({ error: 'Error' });
   }
 });
-
+ 
 // Get VAPID public key
 app.get('/api/push/vapid-key', (req, res) => {
   res.json({ key: VAPID_PUBLIC || null });
 });
-
+ 
 // Send push notification to a user
 async function sendPushToUser(userId, payload) {
   if (!VAPID_PUBLIC) return;
@@ -2311,41 +2323,41 @@ async function sendPushToUser(userId, payload) {
     }
   }
 }
-
+ 
 // ══════════════════════════════════════════════════════════════
 //   LEVEL 7: ANALYTICS CONFIG
 // ══════════════════════════════════════════════════════════════
-
+ 
 const GA_MEASUREMENT_ID = process.env.GA_MEASUREMENT_ID || null;
-
+ 
 app.get('/api/config', (req, res) => {
   res.json({
     ga: GA_MEASUREMENT_ID,
     stripeConfigured: !!stripe,
   });
 });
-
+ 
 // ══════════════════════════════════════════════════════════════
 //   LEVEL 7: PUBLIC API
 // ══════════════════════════════════════════════════════════════
-
+ 
 const crypto = require('crypto');
 const PDFDocument = require('pdfkit');
-
+ 
 // ══════════════════════════════════════════════════════════════
 //   PHASE 2: RATE LIMITING & SECURITY HEADERS
 // ══════════════════════════════════════════════════════════════
-
+ 
 const helmet = require('helmet');
-
+ 
 // Security headers
 app.use(helmet({
   contentSecurityPolicy: false, // Allow inline scripts for the app
   crossOriginEmbedderPolicy: false,
 }));
-
+ 
 // (Rate limiters moved above auth routes)
-
+ 
 // Reset daily API usage at midnight
 let lastResetDate = new Date().toDateString();
 async function checkDailyReset() {
@@ -2355,28 +2367,28 @@ async function checkDailyReset() {
     lastResetDate = today;
   }
 }
-
+ 
 // Rate limits per plan for API
 const API_RATE_LIMITS = {
   free: { daily: 50, perMinute: 10 },
   pro: { daily: 1000, perMinute: 60 },
   enterprise: { daily: 10000, perMinute: 200 }
 };
-
+ 
 // In-memory rate limiter (per-minute)
 const apiMinuteCounters = new Map();
 setInterval(() => apiMinuteCounters.clear(), 60000);
-
+ 
 // API key auth middleware
 async function apiKeyAuth(req, res, next) {
   try {
     await checkDailyReset();
-
+ 
     const apiKey = req.headers['x-api-key'] || req.query.api_key;
     if (!apiKey) {
       return res.status(401).json({ error: 'Missing API key. Pass it via X-API-Key header or api_key query param.' });
     }
-
+ 
     const hash = crypto.createHash('sha256').update(apiKey).digest('hex');
     const keyRow = await db.get(
       'SELECT ak.*, u.email, u.plan FROM api_keys ak JOIN users u ON ak.user_id = u.id WHERE ak.key_hash = $1',
@@ -2385,15 +2397,15 @@ async function apiKeyAuth(req, res, next) {
     if (!keyRow) {
       return res.status(401).json({ error: 'Invalid API key' });
     }
-
+ 
     const plan = keyRow.plan || 'free';
     const limits = API_RATE_LIMITS[plan] || API_RATE_LIMITS.free;
-
+ 
     // Check daily limit
     if (keyRow.requests_today >= limits.daily) {
       return res.status(429).json({ error: 'Daily API limit reached', limit: limits.daily, plan });
     }
-
+ 
     // Check per-minute limit
     const minuteKey = `api:${keyRow.id}`;
     const minuteCount = (apiMinuteCounters.get(minuteKey) || 0) + 1;
@@ -2401,13 +2413,13 @@ async function apiKeyAuth(req, res, next) {
     if (minuteCount > limits.perMinute) {
       return res.status(429).json({ error: 'Rate limit exceeded. Try again in a minute.', limit: limits.perMinute });
     }
-
+ 
     // Update usage
     await db.run(
       'UPDATE api_keys SET last_used = NOW(), requests_today = requests_today + 1, requests_total = requests_total + 1 WHERE id = $1',
       [keyRow.id]
     );
-
+ 
     req.apiUser = { id: keyRow.user_id, email: keyRow.email, plan };
     req.apiLimits = limits;
     next();
@@ -2416,9 +2428,9 @@ async function apiKeyAuth(req, res, next) {
     res.status(500).json({ error: 'Internal error' });
   }
 }
-
+ 
 // ── API Key Management ──
-
+ 
 // Create API key
 app.post('/api/keys', authMiddleware, async (req, res) => {
   try {
@@ -2430,11 +2442,11 @@ app.post('/api/keys', authMiddleware, async (req, res) => {
     if (existing.length >= 5) {
       return res.status(400).json({ error: 'Max 5 API keys per account' });
     }
-
+ 
     const rawKey = `rfly_${crypto.randomBytes(24).toString('hex')}`;
     const hash = crypto.createHash('sha256').update(rawKey).digest('hex');
     const prefix = rawKey.substring(0, 12) + '...';
-
+ 
     await db.run(
       'INSERT INTO api_keys (user_id, key_hash, key_prefix, name) VALUES ($1, $2, $3, $4)',
       [req.userId, hash, prefix, name || 'default']
@@ -2444,7 +2456,7 @@ app.post('/api/keys', authMiddleware, async (req, res) => {
     res.status(500).json({ error: 'Error al crear API key' });
   }
 });
-
+ 
 // List API keys
 app.get('/api/keys', authMiddleware, async (req, res) => {
   try {
@@ -2457,7 +2469,7 @@ app.get('/api/keys', authMiddleware, async (req, res) => {
     res.status(500).json({ error: 'Error al obtener API keys' });
   }
 });
-
+ 
 // Delete API key
 app.delete('/api/keys/:id', authMiddleware, async (req, res) => {
   try {
@@ -2468,32 +2480,32 @@ app.delete('/api/keys/:id', authMiddleware, async (req, res) => {
     res.status(500).json({ error: 'Error al eliminar API key' });
   }
 });
-
+ 
 // ── Public API Endpoints ──
-
+ 
 // POST /api/v1/sorteo/random — pick random winner(s) from a list
 app.post('/api/v1/sorteo/random', apiKeyAuth, (req, res) => {
   const { participants, count, removeDuplicates } = req.body || {};
-
+ 
   if (!Array.isArray(participants) || participants.length === 0) {
     return res.status(400).json({ error: 'participants must be a non-empty array of strings' });
   }
   if (participants.length > 10000) {
     return res.status(400).json({ error: 'Max 10,000 participants per request' });
   }
-
+ 
   let list = participants.map(p => String(p).trim()).filter(Boolean);
   if (removeDuplicates) list = [...new Set(list)];
-
+ 
   const winnerCount = Math.min(Math.max(1, parseInt(count) || 1), list.length);
   const winners = [];
   const pool2 = [...list];
-
+ 
   for (let i = 0; i < winnerCount; i++) {
     const idx = crypto.randomInt(pool2.length);
     winners.push(pool2.splice(idx, 1)[0]);
   }
-
+ 
   res.json({
     winners,
     total_participants: list.length,
@@ -2501,25 +2513,25 @@ app.post('/api/v1/sorteo/random', apiKeyAuth, (req, res) => {
     method: 'crypto.randomInt'
   });
 });
-
+ 
 // GET /api/v1/sorteos — list user's sorteo history
 app.get('/api/v1/sorteos', apiKeyAuth, async (req, res) => {
   try {
     const limit = Math.min(parseInt(req.query.limit) || 20, 100);
     const offset = parseInt(req.query.offset) || 0;
-
+ 
     const sorteos = await db.all(
       'SELECT * FROM sorteo_history WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3',
       [req.apiUser.id, limit, offset]
     );
     const total = await db.get('SELECT COUNT(*) as count FROM sorteo_history WHERE user_id = $1', [req.apiUser.id]);
-
+ 
     res.json({ sorteos, total: parseInt(total.count), limit, offset });
   } catch (err) {
     res.status(500).json({ error: 'Error al obtener sorteos' });
   }
 });
-
+ 
 // GET /api/v1/account — account info + usage
 app.get('/api/v1/account', apiKeyAuth, (req, res) => {
   res.json({
@@ -2528,7 +2540,7 @@ app.get('/api/v1/account', apiKeyAuth, (req, res) => {
     api_limits: req.apiLimits
   });
 });
-
+ 
 // API docs endpoint
 app.get('/api/v1/spec', (req, res) => {
   res.json({
@@ -2559,16 +2571,16 @@ app.get('/api/v1/spec', (req, res) => {
     components: { securitySchemes: { apiKey: { type: 'apiKey', in: 'header', name: 'X-API-Key' } } }
   });
 });
-
+ 
 // ══════════════════════════════════════════════════════════════
 //   LEVEL 8: SCHEDULED DRAWS
 // ══════════════════════════════════════════════════════════════
-
+ 
 // Create scheduled sorteo
 app.post('/api/scheduled-sorteos', authMiddleware, async (req, res) => {
   try {
     const { title, participants, winnerCount, suplenteCount, removeDuplicates, mode, scheduledAt } = req.body;
-
+ 
     if (!Array.isArray(participants) || participants.length < 2) {
       return res.status(400).json({ error: 'Se necesitan al menos 2 participantes' });
     }
@@ -2576,7 +2588,7 @@ app.post('/api/scheduled-sorteos', authMiddleware, async (req, res) => {
     if (isNaN(schedDate.getTime()) || schedDate <= new Date()) {
       return res.status(400).json({ error: 'La fecha debe ser futura' });
     }
-
+ 
     const result = await db.get(
       'INSERT INTO scheduled_sorteos (user_id, title, participants, winner_count, suplente_count, remove_duplicates, mode, scheduled_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id',
       [
@@ -2590,14 +2602,14 @@ app.post('/api/scheduled-sorteos', authMiddleware, async (req, res) => {
         schedDate.toISOString()
       ]
     );
-
+ 
     res.json({ id: result.id, scheduledAt: schedDate.toISOString() });
   } catch (err) {
     console.error('Create scheduled error:', err.message);
     res.status(500).json({ error: 'Error al crear sorteo programado' });
   }
 });
-
+ 
 // List scheduled sorteos
 app.get('/api/scheduled-sorteos', authMiddleware, async (req, res) => {
   try {
@@ -2620,7 +2632,7 @@ app.get('/api/scheduled-sorteos', authMiddleware, async (req, res) => {
     res.status(500).json({ error: 'Error al obtener sorteos programados' });
   }
 });
-
+ 
 // Get single scheduled sorteo
 app.get('/api/scheduled-sorteos/:id', authMiddleware, async (req, res) => {
   try {
@@ -2631,7 +2643,7 @@ app.get('/api/scheduled-sorteos/:id', authMiddleware, async (req, res) => {
     res.status(500).json({ error: 'Error' });
   }
 });
-
+ 
 // Delete scheduled sorteo (only if pending)
 app.delete('/api/scheduled-sorteos/:id', authMiddleware, async (req, res) => {
   try {
@@ -2645,7 +2657,7 @@ app.delete('/api/scheduled-sorteos/:id', authMiddleware, async (req, res) => {
     res.status(500).json({ error: 'Error' });
   }
 });
-
+ 
 // Public view for scheduled sorteo countdown
 app.get('/api/scheduled-sorteos/:id/public', async (req, res) => {
   try {
@@ -2659,7 +2671,7 @@ app.get('/api/scheduled-sorteos/:id/public', async (req, res) => {
     res.status(500).json({ error: 'Error' });
   }
 });
-
+ 
 // Scheduled sorteo executor — runs every 10 seconds
 async function executeScheduledSorteos() {
   try {
@@ -2668,31 +2680,31 @@ async function executeScheduledSorteos() {
       try {
         let sorteoPool = JSON.parse(sorteo.participants).map(p => String(p).trim()).filter(Boolean);
         if (sorteo.remove_duplicates) sorteoPool = [...new Set(sorteoPool)];
-
+ 
         const totalWinners = Math.min(sorteo.winner_count + sorteo.suplente_count, sorteoPool.length);
         const selected = [];
         const available = [...sorteoPool];
-
+ 
         for (let i = 0; i < totalWinners; i++) {
           const idx = crypto.randomInt(available.length);
           selected.push(available.splice(idx, 1)[0]);
         }
-
+ 
         const winners = selected.slice(0, sorteo.winner_count);
         const suplentes = selected.slice(sorteo.winner_count);
-
+ 
         await db.run(
           "UPDATE scheduled_sorteos SET status = 'completed', winners = $1, executed_at = NOW() WHERE id = $2",
           [JSON.stringify({ winners, suplentes }), sorteo.id]
         );
-
+ 
         // Send push notification
         sendPushToUser(sorteo.user_id, {
           title: '🎉 ¡Sorteo completado!',
           body: `Ganador: ${winners[0]}${winners.length > 1 ? ` (+${winners.length - 1} más)` : ''}`,
           url: `/dashboard.html`
         }).catch(() => {});
-
+ 
         // Fire webhooks
         fireWebhooks(sorteo.user_id, 'sorteo.completed', {
           sorteo_id: sorteo.id,
@@ -2703,7 +2715,7 @@ async function executeScheduledSorteos() {
           mode: sorteo.mode,
           executed_at: new Date().toISOString()
         });
-
+ 
         console.log(`  ✦ Scheduled sorteo #${sorteo.id} executed — Winner: ${winners[0]}`);
       } catch (err) {
         console.error(`  ✗ Error executing scheduled sorteo #${sorteo.id}:`, err.message);
@@ -2714,23 +2726,23 @@ async function executeScheduledSorteos() {
   }
 }
 setInterval(() => executeScheduledSorteos().catch(console.error), 10000);
-
+ 
 // ══════════════════════════════════════════════════════════════
 //   LEVEL 8: TEAMS / COLLABORATION
 // ══════════════════════════════════════════════════════════════
-
+ 
 // Create team
 app.post('/api/teams', authMiddleware, async (req, res) => {
   try {
     const { name } = req.body;
     if (!name || !name.trim()) return res.status(400).json({ error: 'Nombre requerido' });
-
+ 
     const teamCount = await db.get('SELECT COUNT(*) as c FROM teams WHERE owner_id = $1', [req.userId]);
     if (parseInt(teamCount.c) >= 5) return res.status(400).json({ error: 'Máximo 5 equipos' });
-
+ 
     const result = await db.get('INSERT INTO teams (name, owner_id) VALUES ($1, $2) RETURNING id', [name.trim(), req.userId]);
     const teamId = result.id;
-
+ 
     // Add owner as admin member
     const user = await db.get(
       'SELECT id, email, name, plan, brand_settings, email_verified, created_at FROM users WHERE id = $1',
@@ -2740,14 +2752,14 @@ app.post('/api/teams', authMiddleware, async (req, res) => {
       "INSERT INTO team_members (team_id, user_id, email, role, status, joined_at) VALUES ($1, $2, $3, 'admin', 'active', NOW())",
       [teamId, req.userId, user.email]
     );
-
+ 
     res.json({ id: teamId, name: name.trim() });
   } catch (err) {
     console.error('Create team error:', err.message);
     res.status(500).json({ error: 'Error al crear equipo' });
   }
 });
-
+ 
 // List user's teams
 app.get('/api/teams', authMiddleware, async (req, res) => {
   try {
@@ -2761,7 +2773,7 @@ app.get('/api/teams', authMiddleware, async (req, res) => {
       WHERE tm.email = $1 AND tm.status = 'active'
       ORDER BY t.created_at DESC
     `, [user.email]);
-
+ 
     const result = [];
     for (const t of teams) {
       const members = await db.all(
@@ -2770,22 +2782,22 @@ app.get('/api/teams', authMiddleware, async (req, res) => {
       );
       result.push({ ...t, members });
     }
-
+ 
     res.json({ teams: result });
   } catch (err) {
     res.status(500).json({ error: 'Error al obtener equipos' });
   }
 });
-
+ 
 // Invite member to team
 app.post('/api/teams/:teamId/invite', authMiddleware, async (req, res) => {
   try {
     const { email, role } = req.body;
     if (!email) return res.status(400).json({ error: 'Email requerido' });
-
+ 
     const team = await db.get('SELECT * FROM teams WHERE id = $1', [req.params.teamId]);
     if (!team) return res.status(404).json({ error: 'Equipo no encontrado' });
-
+ 
     // Check permission
     const member = await db.get(
       "SELECT * FROM team_members WHERE team_id = $1 AND user_id = $2 AND role IN ('admin') AND status = 'active'",
@@ -2794,24 +2806,24 @@ app.post('/api/teams/:teamId/invite', authMiddleware, async (req, res) => {
     if (team.owner_id !== req.userId && !member) {
       return res.status(403).json({ error: 'Sin permisos' });
     }
-
+ 
     const memberCount = await db.get('SELECT COUNT(*) as c FROM team_members WHERE team_id = $1', [req.params.teamId]);
     if (parseInt(memberCount.c) >= 20) return res.status(400).json({ error: 'Máximo 20 miembros por equipo' });
-
+ 
     const validRole = ['admin', 'moderator', 'viewer'].includes(role) ? role : 'viewer';
-
+ 
     await db.run(
       "INSERT INTO team_members (team_id, email, role, status) VALUES ($1, $2, $3, 'pending')",
       [req.params.teamId, email, validRole]
     );
-
+ 
     // Send invite email if configured
     if (emailTransporter) {
       sendEmail(email, `Te invitaron al equipo "${team.name}" en RAFLY`,
         `<div style="font-family:sans-serif;padding:20px"><h2>🎉 Invitación a equipo</h2><p>Te invitaron al equipo <strong>${team.name}</strong> en RAFLY como <strong>${validRole}</strong>.</p><p><a href="${BASE_URL}" style="background:#00e5ff;color:#000;padding:10px 20px;border-radius:6px;text-decoration:none;font-weight:bold">Ir a RAFLY</a></p></div>`
       ).catch(() => {});
     }
-
+ 
     res.json({ ok: true, email, role: validRole });
   } catch (err) {
     if (err.message.includes('duplicate key') || err.message.includes('unique constraint')) {
@@ -2821,7 +2833,7 @@ app.post('/api/teams/:teamId/invite', authMiddleware, async (req, res) => {
     res.status(500).json({ error: 'Error al invitar' });
   }
 });
-
+ 
 // Accept team invitation
 app.post('/api/teams/:teamId/accept', authMiddleware, async (req, res) => {
   try {
@@ -2839,30 +2851,30 @@ app.post('/api/teams/:teamId/accept', authMiddleware, async (req, res) => {
     res.status(500).json({ error: 'Error' });
   }
 });
-
+ 
 // Remove member from team
 app.delete('/api/teams/:teamId/members/:memberId', authMiddleware, async (req, res) => {
   try {
     const team = await db.get('SELECT * FROM teams WHERE id = $1', [req.params.teamId]);
     if (!team || team.owner_id !== req.userId) return res.status(403).json({ error: 'Solo el owner puede remover miembros' });
-
+ 
     const member = await db.get('SELECT * FROM team_members WHERE id = $1 AND team_id = $2', [req.params.memberId, req.params.teamId]);
     if (!member) return res.status(404).json({ error: 'Miembro no encontrado' });
     if (member.user_id === req.userId) return res.status(400).json({ error: 'No podés removerte a vos mismo' });
-
+ 
     await db.run('DELETE FROM team_members WHERE id = $1', [req.params.memberId]);
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: 'Error' });
   }
 });
-
+ 
 // Delete team
 app.delete('/api/teams/:teamId', authMiddleware, async (req, res) => {
   try {
     const team = await db.get('SELECT * FROM teams WHERE id = $1', [req.params.teamId]);
     if (!team || team.owner_id !== req.userId) return res.status(403).json({ error: 'Solo el owner puede eliminar el equipo' });
-
+ 
     await db.run('DELETE FROM team_members WHERE team_id = $1', [req.params.teamId]);
     await db.run('DELETE FROM sorteo_shares WHERE team_id = $1', [req.params.teamId]);
     await db.run('DELETE FROM teams WHERE id = $1', [req.params.teamId]);
@@ -2871,7 +2883,7 @@ app.delete('/api/teams/:teamId', authMiddleware, async (req, res) => {
     res.status(500).json({ error: 'Error' });
   }
 });
-
+ 
 // Auto-accept pending invitations on login
 async function autoAcceptInvitations(userId, email) {
   await db.run(
@@ -2879,31 +2891,31 @@ async function autoAcceptInvitations(userId, email) {
     [userId, email]
   );
 }
-
+ 
 // ══════════════════════════════════════════════════════════════
 //   LEVEL 8: WEBHOOKS
 // ══════════════════════════════════════════════════════════════
-
+ 
 // Register webhook
 app.post('/api/webhooks', authMiddleware, async (req, res) => {
   try {
     const { url, events } = req.body;
     if (!url || !url.startsWith('https://')) return res.status(400).json({ error: 'URL debe ser HTTPS' });
-
+ 
     const webhookCount = await db.get('SELECT COUNT(*) as c FROM webhooks WHERE user_id = $1', [req.userId]);
     if (parseInt(webhookCount.c) >= 10) return res.status(400).json({ error: 'Máximo 10 webhooks' });
-
+ 
     const validEvents = ['sorteo.completed', 'sorteo.scheduled', 'participant.added', 'team.member_joined'];
     const selectedEvents = Array.isArray(events) ? events.filter(e => validEvents.includes(e)) : ['sorteo.completed'];
     if (selectedEvents.length === 0) selectedEvents.push('sorteo.completed');
-
+ 
     const secret = crypto.randomBytes(32).toString('hex');
-
+ 
     const result = await db.get(
       'INSERT INTO webhooks (user_id, url, events, secret) VALUES ($1, $2, $3, $4) RETURNING id',
       [req.userId, url, JSON.stringify(selectedEvents), secret]
     );
-
+ 
     res.json({
       id: result.id,
       url,
@@ -2915,7 +2927,7 @@ app.post('/api/webhooks', authMiddleware, async (req, res) => {
     res.status(500).json({ error: 'Error al crear webhook' });
   }
 });
-
+ 
 // List webhooks
 app.get('/api/webhooks', authMiddleware, async (req, res) => {
   try {
@@ -2928,7 +2940,7 @@ app.get('/api/webhooks', authMiddleware, async (req, res) => {
     res.status(500).json({ error: 'Error' });
   }
 });
-
+ 
 // Delete webhook
 app.delete('/api/webhooks/:id', authMiddleware, async (req, res) => {
   try {
@@ -2939,26 +2951,26 @@ app.delete('/api/webhooks/:id', authMiddleware, async (req, res) => {
     res.status(500).json({ error: 'Error' });
   }
 });
-
+ 
 // Toggle webhook active/inactive
 app.patch('/api/webhooks/:id', authMiddleware, async (req, res) => {
   try {
     const wh = await db.get('SELECT * FROM webhooks WHERE id = $1 AND user_id = $2', [req.params.id, req.userId]);
     if (!wh) return res.status(404).json({ error: 'No encontrado' });
-
+ 
     await db.run('UPDATE webhooks SET active = $1 WHERE id = $2', [wh.active ? 0 : 1, wh.id]);
     res.json({ ok: true, active: !wh.active });
   } catch (err) {
     res.status(500).json({ error: 'Error' });
   }
 });
-
+ 
 // Webhook logs
 app.get('/api/webhooks/:id/logs', authMiddleware, async (req, res) => {
   try {
     const wh = await db.get('SELECT * FROM webhooks WHERE id = $1 AND user_id = $2', [req.params.id, req.userId]);
     if (!wh) return res.status(404).json({ error: 'No encontrado' });
-
+ 
     const logs = await db.all(
       'SELECT * FROM webhook_logs WHERE webhook_id = $1 ORDER BY created_at DESC LIMIT 20',
       [wh.id]
@@ -2968,30 +2980,30 @@ app.get('/api/webhooks/:id/logs', authMiddleware, async (req, res) => {
     res.status(500).json({ error: 'Error' });
   }
 });
-
+ 
 // Fire webhooks for an event
 async function fireWebhooks(userId, event, data) {
   try {
     const webhooks = await db.all("SELECT * FROM webhooks WHERE user_id = $1 AND active = 1", [userId]);
-
+ 
     for (const wh of webhooks) {
       const events = JSON.parse(wh.events);
       if (!events.includes(event)) continue;
-
+ 
       const payload = JSON.stringify({
         event,
         data,
         timestamp: new Date().toISOString(),
         webhook_id: wh.id
       });
-
+ 
       // Create HMAC signature
       const signature = crypto.createHmac('sha256', wh.secret).update(payload).digest('hex');
-
+ 
       try {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 10000);
-
+ 
         const response = await fetch(wh.url, {
           method: 'POST',
           headers: {
@@ -3004,7 +3016,7 @@ async function fireWebhooks(userId, event, data) {
           signal: controller.signal
         });
         clearTimeout(timeout);
-
+ 
         await db.run(
           'INSERT INTO webhook_logs (webhook_id, event, payload, status_code, response) VALUES ($1, $2, $3, $4, $5)',
           [wh.id, event, payload, response.status, (await response.text()).substring(0, 500)]
@@ -3027,25 +3039,25 @@ async function fireWebhooks(userId, event, data) {
     console.error('fireWebhooks error:', err.message);
   }
 }
-
+ 
 // ══════════════════════════════════════════════════════════════
 //   LEVEL 8: WHITE-LABEL EMBEDDABLE WIDGET
 // ══════════════════════════════════════════════════════════════
-
+ 
 // Create widget
 app.post('/api/widgets', authMiddleware, async (req, res) => {
   try {
     const { name, config } = req.body;
-
+ 
     const user = await db.get(
       'SELECT id, email, name, plan, brand_settings, email_verified, created_at FROM users WHERE id = $1',
       [req.userId]
     );
     if (user.plan === 'free') return res.status(403).json({ error: 'Widget embebible disponible en plan Pro o Enterprise' });
-
+ 
     const widgetCount = await db.get('SELECT COUNT(*) as c FROM widgets WHERE user_id = $1', [req.userId]);
     if (parseInt(widgetCount.c) >= 10) return res.status(400).json({ error: 'Máximo 10 widgets' });
-
+ 
     const widgetKey = 'w_' + crypto.randomBytes(12).toString('hex');
     const widgetConfig = {
       primaryColor: config?.primaryColor || '#00e5ff',
@@ -3058,12 +3070,12 @@ app.post('/api/widgets', authMiddleware, async (req, res) => {
       buttonText: config?.buttonText || 'SORTEAR',
       ...config
     };
-
+ 
     await db.run(
       'INSERT INTO widgets (user_id, widget_key, name, config) VALUES ($1, $2, $3, $4)',
       [req.userId, widgetKey, name || 'Mi Widget', JSON.stringify(widgetConfig)]
     );
-
+ 
     res.json({
       key: widgetKey,
       embedCode: `<iframe src="${BASE_URL}/widget.html?key=${widgetKey}" width="400" height="500" frameborder="0" style="border-radius:12px;overflow:hidden"></iframe>`,
@@ -3073,7 +3085,7 @@ app.post('/api/widgets', authMiddleware, async (req, res) => {
     res.status(500).json({ error: 'Error al crear widget' });
   }
 });
-
+ 
 // List widgets
 app.get('/api/widgets', authMiddleware, async (req, res) => {
   try {
@@ -3083,23 +3095,23 @@ app.get('/api/widgets', authMiddleware, async (req, res) => {
     res.status(500).json({ error: 'Error' });
   }
 });
-
+ 
 // Update widget config
 app.put('/api/widgets/:key', authMiddleware, async (req, res) => {
   try {
     const widget = await db.get('SELECT * FROM widgets WHERE widget_key = $1 AND user_id = $2', [req.params.key, req.userId]);
     if (!widget) return res.status(404).json({ error: 'Widget no encontrado' });
-
+ 
     const { name, config } = req.body;
     if (name) await db.run('UPDATE widgets SET name = $1 WHERE id = $2', [name, widget.id]);
     if (config) await db.run('UPDATE widgets SET config = $1 WHERE id = $2', [JSON.stringify(config), widget.id]);
-
+ 
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: 'Error' });
   }
 });
-
+ 
 // Delete widget
 app.delete('/api/widgets/:key', authMiddleware, async (req, res) => {
   try {
@@ -3110,7 +3122,7 @@ app.delete('/api/widgets/:key', authMiddleware, async (req, res) => {
     res.status(500).json({ error: 'Error' });
   }
 });
-
+ 
 // Public widget config endpoint
 app.get('/api/widgets/:key/config', async (req, res) => {
   try {
@@ -3121,93 +3133,93 @@ app.get('/api/widgets/:key/config', async (req, res) => {
     res.status(500).json({ error: 'Error' });
   }
 });
-
+ 
 // Widget sorteo endpoint (public, rate limited by widget key)
 const widgetRateLimits = new Map();
 setInterval(() => widgetRateLimits.clear(), 60000);
-
+ 
 app.post('/api/widgets/:key/sorteo', async (req, res) => {
   try {
     const widget = await db.get('SELECT * FROM widgets WHERE widget_key = $1 AND active = 1', [req.params.key]);
     if (!widget) return res.status(404).json({ error: 'Widget no encontrado' });
-
+ 
     // Rate limit: 30 per minute per widget
     const count = (widgetRateLimits.get(req.params.key) || 0) + 1;
     widgetRateLimits.set(req.params.key, count);
     if (count > 30) return res.status(429).json({ error: 'Rate limit' });
-
+ 
     const { participants, count: winnerCount } = req.body;
     if (!Array.isArray(participants) || participants.length < 2) {
       return res.status(400).json({ error: 'Se necesitan al menos 2 participantes' });
     }
-
+ 
     const widgetPool = participants.map(p => String(p).trim()).filter(Boolean);
     const total = Math.min(Math.max(1, parseInt(winnerCount) || 1), widgetPool.length);
     const winners = [];
     const available = [...widgetPool];
-
+ 
     for (let i = 0; i < total; i++) {
       const idx = crypto.randomInt(available.length);
       winners.push(available.splice(idx, 1)[0]);
     }
-
+ 
     res.json({ winners, total_participants: widgetPool.length });
   } catch (err) {
     res.status(500).json({ error: 'Error' });
   }
 });
-
+ 
 // ── User Analytics ─────────────────────────────────────────────
 app.get('/api/analytics', authMiddleware, async (req, res) => {
   try {
     const uid = req.user.id;
-
+ 
     // Total sorteos
     const total = await db.get('SELECT COUNT(*) as c FROM sorteo_history WHERE user_id = $1', [uid]);
-
+ 
     // Sorteos by platform
     const byPlatform = await db.all(
       'SELECT platform, COUNT(*) as c FROM sorteo_history WHERE user_id = $1 GROUP BY platform ORDER BY c DESC',
       [uid]
     );
-
+ 
     // Sorteos by mode
     const byMode = await db.all(
       'SELECT mode, COUNT(*) as c FROM sorteo_history WHERE user_id = $1 GROUP BY mode ORDER BY c DESC',
       [uid]
     );
-
+ 
     // Last 30 days activity
     const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
     const dailyActivity = await db.all(
       'SELECT date, count FROM daily_counts WHERE user_id = $1 AND date >= $2 ORDER BY date ASC',
       [uid, thirtyDaysAgo]
     );
-
+ 
     // Total participants drawn
     const totalParticipants = await db.get(
       'SELECT COALESCE(SUM(participants_count), 0) as c FROM sorteo_history WHERE user_id = $1',
       [uid]
     );
-
+ 
     // Top winners (most frequent)
     const topWinners = await db.all(
       'SELECT winner, COUNT(*) as c FROM sorteo_history WHERE user_id = $1 GROUP BY winner ORDER BY c DESC LIMIT 5',
       [uid]
     );
-
+ 
     // Average participants per sorteo
     const avgParticipants = await db.get(
       'SELECT COALESCE(AVG(participants_count), 0) as avg FROM sorteo_history WHERE user_id = $1',
       [uid]
     );
-
+ 
     // Recent sorteos
     const recent = await db.all(
       'SELECT winner, platform, mode, participants_count, created_at FROM sorteo_history WHERE user_id = $1 ORDER BY created_at DESC LIMIT 10',
       [uid]
     );
-
+ 
     res.json({
       totalSorteos: parseInt(total.c),
       totalParticipants: parseInt(totalParticipants.c),
@@ -3223,7 +3235,7 @@ app.get('/api/analytics', authMiddleware, async (req, res) => {
     res.status(500).json({ error: 'Error al obtener analytics' });
   }
 });
-
+ 
 // ── PDF Certificate Generator ──────────────────────────────────
 app.post('/api/certificate/pdf', optionalAuth, (req, res) => {
   try {
@@ -3231,51 +3243,51 @@ app.post('/api/certificate/pdf', optionalAuth, (req, res) => {
     if (!winners || !Array.isArray(winners) || winners.length === 0) {
       return res.status(400).json({ error: 'Se necesita al menos un ganador' });
     }
-
+ 
     const doc = new PDFDocument({ size: 'A4', layout: 'landscape', margin: 50 });
-
+ 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="certificado-rafly-${Date.now()}.pdf"`);
     doc.pipe(res);
-
+ 
     const w = doc.page.width;
     const h = doc.page.height;
-
+ 
     // Background
     doc.rect(0, 0, w, h).fill('#060614');
-
+ 
     // Gold border
     doc.lineWidth(3).strokeColor('#ffd700');
     doc.roundedRect(25, 25, w - 50, h - 50, 8).stroke();
     doc.lineWidth(1).strokeColor('#ffd70033');
     doc.roundedRect(40, 40, w - 80, h - 80, 5).stroke();
-
+ 
     // Corner flourishes
     const corners = [[48,48,1,1],[w-48,48,-1,1],[48,h-48,1,-1],[w-48,h-48,-1,-1]];
     doc.lineWidth(2).strokeColor('#ffd700');
     for (const [cx, cy, dx, dy] of corners) {
       doc.moveTo(cx, cy + 18*dy).lineTo(cx, cy).lineTo(cx + 18*dx, cy).stroke();
     }
-
+ 
     // Title
     doc.fontSize(28).fillColor('#ffd700').font('Helvetica-Bold');
     doc.text(title || 'CERTIFICADO DE SORTEO', 0, 80, { align: 'center', width: w });
-
+ 
     // Gold line
     doc.strokeColor('#ffd70055').lineWidth(1);
     doc.moveTo(w/2 - 120, 118).lineTo(w/2 + 120, 118).stroke();
-
+ 
     let yPos = 150;
-
+ 
     if (winners.length === 1) {
       doc.fontSize(16).fillColor('#a0a0c0').font('Helvetica');
       doc.text('Se certifica que el participante:', 0, yPos, { align: 'center', width: w });
       yPos += 60;
-
+ 
       doc.fontSize(36).fillColor('#00e5ff').font('Helvetica-Bold');
       doc.text(winners[0], 0, yPos, { align: 'center', width: w });
       yPos += 60;
-
+ 
       doc.fontSize(16).fillColor('#a0a0c0').font('Helvetica');
       doc.text('ha resultado ganador/a del sorteo realizado', 0, yPos, { align: 'center', width: w });
       yPos += 45;
@@ -3283,7 +3295,7 @@ app.post('/api/certificate/pdf', optionalAuth, (req, res) => {
       doc.fontSize(16).fillColor('#a0a0c0').font('Helvetica');
       doc.text(`Se certifican los ${winners.length} ganadores del sorteo:`, 0, yPos, { align: 'center', width: w });
       yPos += 35;
-
+ 
       for (let i = 0; i < winners.length; i++) {
         doc.fontSize(10).fillColor('#ffd700').font('Helvetica-Bold');
         doc.text(`#${i + 1}`, w/2 - 160, yPos, { width: 40 });
@@ -3292,14 +3304,14 @@ app.post('/api/certificate/pdf', optionalAuth, (req, res) => {
         yPos += 32;
       }
     }
-
+ 
     // Suplentes
     if (suplentes && Array.isArray(suplentes) && suplentes.length > 0) {
       yPos += 10;
       doc.fontSize(12).fillColor('#6a6a8a').font('Helvetica-Bold');
       doc.text('SUPLENTES', 0, yPos, { align: 'center', width: w });
       yPos += 25;
-
+ 
       for (let i = 0; i < suplentes.length; i++) {
         doc.fontSize(8).fillColor('#7b2eff').font('Helvetica-Bold');
         doc.text(`S${i + 1}`, w/2 - 140, yPos, { width: 30 });
@@ -3308,41 +3320,41 @@ app.post('/api/certificate/pdf', optionalAuth, (req, res) => {
         yPos += 28;
       }
     }
-
+ 
     // Date
     yPos += 20;
     const dateStr = date || new Date().toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' });
     const timeStr = new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
     doc.fontSize(14).fillColor('#a0a0c0').font('Helvetica');
     doc.text(`el ${dateStr} a las ${timeStr}`, 0, yPos, { align: 'center', width: w });
-
+ 
     yPos += 35;
     doc.fontSize(12).fillColor('#6a6a8a').font('Helvetica');
     doc.text(`Total de participantes: ${participants || 0}`, 0, yPos, { align: 'center', width: w });
     yPos += 22;
     doc.text(`Ref: ${ref || 'RAFLY-' + new Date().getFullYear() + '-' + String(Date.now()).slice(-6)}`, 0, yPos, { align: 'center', width: w });
-
+ 
     // RAFLY watermark
     doc.fontSize(60).fillColor('#00e5ff08').font('Helvetica-Bold');
     doc.text('RAFLY', 0, h - 100, { align: 'center', width: w });
     doc.fontSize(10).fillColor('#4a4a6a').font('Helvetica');
     doc.text('Generado por RAFLY — Sorteos en vivo', 0, h - 55, { align: 'center', width: w });
-
+ 
     doc.end();
   } catch (err) {
     console.error('PDF error:', err);
     if (!res.headersSent) res.status(500).json({ error: 'Error generando PDF' });
   }
 });
-
+ 
 // ── OBS Overlay State ──────────────────────────────────────────
 const overlayStates = new Map(); // userId → { winner, participants, animation, timestamp, config }
-
+ 
 app.post('/api/overlay/trigger', authMiddleware, async (req, res) => {
   try {
     const { winner, participants, animation, config } = req.body;
     if (!winner) return res.status(400).json({ error: 'Falta el ganador' });
-
+ 
     const state = {
       winner: typeof winner === 'string' ? winner : String(winner),
       participants: Array.isArray(participants) ? participants.length : (parseInt(participants) || 0),
@@ -3356,23 +3368,23 @@ app.post('/api/overlay/trigger', authMiddleware, async (req, res) => {
     res.status(500).json({ error: 'Error al disparar overlay' });
   }
 });
-
+ 
 app.get('/api/overlay/state/:userId', (req, res) => {
   const userId = parseInt(req.params.userId);
   const since = parseInt(req.query.since) || 0;
   const state = overlayStates.get(userId);
-
+ 
   if (!state || state.timestamp <= since) {
     return res.json({ pending: false });
   }
   res.json({ pending: true, ...state });
 });
-
+ 
 app.post('/api/overlay/clear', authMiddleware, (req, res) => {
   overlayStates.delete(req.user.id);
   res.json({ ok: true });
 });
-
+ 
 app.get('/api/overlay/config', authMiddleware, async (req, res) => {
   try {
     const user = await db.get('SELECT id, name, brand_settings FROM users WHERE id = $1', [req.user.id]);
@@ -3383,7 +3395,7 @@ app.get('/api/overlay/config', authMiddleware, async (req, res) => {
     res.status(500).json({ error: 'Error' });
   }
 });
-
+ 
 // ── Iniciar servidor ───────────────────────────────────────────
 initDB().then(() => {
   app.listen(PORT, () => {
@@ -3401,3 +3413,4 @@ initDB().then(() => {
   console.error('  ✗ Error al inicializar base de datos:', err.message);
   process.exit(1);
 });
+ 
