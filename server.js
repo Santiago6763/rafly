@@ -653,11 +653,12 @@ const IG_SCRAPERS = [
     name: 'scraper-ai',
     host: 'instagram-scraper-ai1.p.rapidapi.com',
     posts: { url: '/user/feed_v2/', method: 'GET' },
-    comments: { url: '/media/comments/', method: 'GET', usesMediaId: true },
+    comments: { url: '/media/comments/', method: 'GET' },
+    usesMediaId: true,
     buildPostsUrl: (host, user) =>
       `https://${host}/user/feed_v2/?username=${encodeURIComponent(user)}`,
-    buildCommentsUrl: (host, code, sort, mediaId) =>
-      `https://${host}/media/comments/?media_id=${encodeURIComponent(mediaId || code)}`,
+    buildCommentsUrl: (host, codeOrMediaId) =>
+      `https://${host}/media/comments/?media_id=${encodeURIComponent(codeOrMediaId)}`,
     parsePosts: (data) => {
       const rawItems = data.data?.items || data.items || data.data || [];
       return rawItems.map(raw => {
@@ -742,7 +743,7 @@ async function scrapeIgPosts(cleanUser, amount, pagination_token) {
   return null;
 }
  
-// Helper: parse comments from any API response format
+// Helper to parse comments from any API format
 function parseCommentsFromData(data) {
   const comments = [];
   const items = data.data?.comments || data.comments || data.collector || data.data || [];
@@ -759,8 +760,10 @@ function parseCommentsFromData(data) {
     const replies = c.replies || c.child_comments || c.edge_threaded_comments?.edges || [];
     for (const r of replies) {
       const rn = r.node || r;
+      const rUsername = rn.username || rn.user?.username || rn.owner?.username || 'unknown';
+      if (!rUsername || rUsername === 'unknown') continue;
       comments.push({
-        username: rn.username || rn.user?.username || rn.owner?.username || 'unknown',
+        username: rUsername,
         text: rn.text || rn.comment || '',
         timestamp: rn.created_at || rn.timestamp || null,
         likes: rn.like_count || 0,
@@ -771,26 +774,32 @@ function parseCommentsFromData(data) {
   return comments;
 }
 
-// Generic function to try all scrapers for comments (with pagination)
+// Generic function to try all scrapers for comments
 async function scrapeIgComments(code, sort, mediaId) {
   if (!RAPIDAPI_KEY) return null;
 
   for (const scraper of IG_SCRAPERS) {
-    try {
-      // Some scrapers need media_id instead of shortcode
-      if (scraper.comments.usesMediaId && !mediaId) {
-        console.log(`IG comments [${scraper.name}]: needs media_id but none provided, trying next...`);
-        continue;
-      }
+    // Skip scrapers that need media_id if we don't have one
+    if (scraper.usesMediaId && !mediaId) {
+      console.log(`IG comments [${scraper.name}]: skipped — needs media_id but none provided`);
+      continue;
+    }
 
+    try {
+      const identifier = scraper.usesMediaId ? mediaId : code;
+      const baseUrl = scraper.buildCommentsUrl(scraper.host, identifier, sort || 'popular');
+
+      // Pagination support
+      const MAX_PAGES = 20;
       let allComments = [];
-      let cursor = null;
+      let nextCursor = null;
       let page = 0;
-      const MAX_PAGES = 20; // Safety limit
 
       do {
-        let url = scraper.buildCommentsUrl(scraper.host, code, sort || 'popular', mediaId);
-        if (cursor) url += `&end_cursor=${encodeURIComponent(cursor)}`;
+        let url = baseUrl;
+        if (nextCursor) {
+          url += (url.includes('?') ? '&' : '?') + `end_cursor=${encodeURIComponent(nextCursor)}`;
+        }
 
         const response = await fetch(url, {
           headers: {
@@ -800,33 +809,34 @@ async function scrapeIgComments(code, sort, mediaId) {
         });
 
         if (response.status === 429 || response.status === 503) {
-          console.log(`IG comments [${scraper.name}]: quota/unavailable, trying next scraper...`);
-          allComments = []; // reset so we try next scraper
+          console.log(`IG comments [${scraper.name}]: quota/unavailable, trying next...`);
           break;
         }
 
         const data = await response.json();
         const errMsg = data.error || data.message || '';
         if (typeof errMsg === 'string' && (errMsg.includes('exceeded') || errMsg.includes('quota') || errMsg.includes('limit'))) {
-          console.log(`IG comments [${scraper.name}]: quota exceeded, trying next scraper...`);
-          allComments = [];
+          console.log(`IG comments [${scraper.name}]: quota exceeded, trying next...`);
           break;
         }
-        if (data.error) { allComments = []; break; }
+        if (data.error) break;
 
         const pageComments = parseCommentsFromData(data);
-        allComments.push(...pageComments);
+        allComments = allComments.concat(pageComments);
         page++;
 
         // Check for next page
-        const hasNext = data.page_info?.has_next_page || data.has_more_comments;
-        cursor = hasNext ? (data.page_info?.end_cursor || data.next_min_id || null) : null;
-
-        console.log(`IG comments [${scraper.name}]: page ${page} — ${pageComments.length} comments (total: ${allComments.length})`);
-      } while (cursor && page < MAX_PAGES);
+        const pageInfo = data.page_info || data.data?.page_info || {};
+        if (pageInfo.has_next_page && pageInfo.end_cursor) {
+          nextCursor = pageInfo.end_cursor;
+          console.log(`IG comments [${scraper.name}]: page ${page} — ${pageComments.length} comments, fetching next...`);
+        } else {
+          nextCursor = null;
+        }
+      } while (nextCursor && page < MAX_PAGES);
 
       if (allComments.length === 0) continue;
-      console.log(`IG comments [${scraper.name}]: OK — ${allComments.length} total comments`);
+      console.log(`IG comments [${scraper.name}]: OK — ${allComments.length} total comments in ${page} page(s)`);
       return { comments: allComments, source: scraper.name };
     } catch (err) {
       console.log(`IG comments [${scraper.name}]: error — ${err.message}, trying next...`);
@@ -861,13 +871,43 @@ app.post('/api/ig/posts', optionalAuth, async (req, res) => {
   }
 });
  
-// Get post comments by shortcode
+// Image proxy for Instagram CDN (hotlink blocking workaround)
+app.get('/api/ig/proxy-image', async (req, res) => {
+  const { url } = req.query;
+  if (!url) return res.status(400).send('URL requerida');
+  try {
+    const parsed = new URL(url);
+    if (!parsed.hostname.includes('cdninstagram.com') && !parsed.hostname.includes('fbcdn.net') && !parsed.hostname.includes('instagram.com')) {
+      return res.status(403).send('Dominio no permitido');
+    }
+  } catch { return res.status(400).send('URL inválida'); }
+  try {
+    const imgRes = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+        'Referer': 'https://www.instagram.com/',
+        'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'
+      }
+    });
+    if (!imgRes.ok) return res.status(imgRes.status).send('Error fetching image');
+    res.set('Content-Type', imgRes.headers.get('content-type') || 'image/jpeg');
+    res.set('Cache-Control', 'public, max-age=86400');
+    res.set('Access-Control-Allow-Origin', '*');
+    const buffer = Buffer.from(await imgRes.arrayBuffer());
+    res.send(buffer);
+  } catch (err) {
+    console.error('Image proxy error:', err.message);
+    res.status(500).send('Error proxy imagen');
+  }
+});
+
+// Get post comments by shortcode or media_id
 app.get('/api/ig/comments', optionalAuth, async (req, res) => {
   const { code, sort = 'popular', media_id } = req.query;
   if (!code && !media_id) return res.status(400).json({ error: 'Media code requerido' });
 
   try {
-    console.log(`IG comments: trying APIs for code=${code} media_id=${media_id}...`);
+    console.log(`IG comments: trying APIs for code=${code || 'N/A'}, media_id=${media_id || 'N/A'}...`);
     const result = await scrapeIgComments(code, sort, media_id);
     if (result && result.comments.length > 0) {
       return res.json({ success: true, shortcode: code, comments: result.comments, total: result.comments.length, source: result.source });
