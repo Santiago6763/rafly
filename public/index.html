@@ -1664,7 +1664,7 @@ function updatePostPreview() {
   }
   const img = post.thumbnail_url || post.media_url;
   if (img) {
-    preview.innerHTML = `<img class="panel-post-img" src="${typeof proxyIgImg === 'function' ? proxyIgImg(img) : img}" alt="Post">`;
+    preview.innerHTML = `<img class="panel-post-img" src="${img}" alt="Post">`;
   } else {
     preview.innerHTML = `<div style="aspect-ratio:1;display:flex;align-items:center;justify-content:center;background:var(--elevated);color:var(--neon-cyan);font-family:Orbitron,monospace;font-size:.8rem">${post.caption || 'Post cargado'}</div>`;
   }
@@ -1730,7 +1730,7 @@ async function fetchIgPosts() {
     container.innerHTML = '<div class="ig-posts-grid" id="igPostsGrid"></div>';
     const grid = document.getElementById('igPostsGrid');
     for (const post of data.posts) {
-      const thumb = typeof proxyIgImg === 'function' ? proxyIgImg(post.thumbnail_url || post.media_url) : (post.thumbnail_url || post.media_url);
+      const thumb = post.thumbnail_url || post.media_url;
       const div = document.createElement('div');
       div.className = 'ig-post';
       div.dataset.postId = post.id;
@@ -1873,23 +1873,14 @@ async function loadMoreIgPosts() {
   btn.textContent = 'Cargar más';
 }
 
-function proxyIgImg(url) {
-  if (!url) return '';
-  // Route Instagram CDN images through our proxy to avoid hotlink blocking
-  if (url.includes('cdninstagram.com') || url.includes('fbcdn.net') || url.includes('instagram.com')) {
-    return '/api/ig/proxy-image?url=' + encodeURIComponent(url);
-  }
-  return url;
-}
-
 function renderIgSearchPosts(posts, append) {
   const grid = document.getElementById('igSearchPostsGrid');
   if (!append) grid.innerHTML = '';
   for (const post of posts) {
     const div = document.createElement('div');
     div.className = 'ig-post';
-    div.dataset.shortcode = post.shortcode || post.code || '';
-    const thumb = proxyIgImg(post.thumbnail || '');
+    div.dataset.shortcode = post.shortcode;
+    const thumb = post.thumbnail || '';
     const typeBadge = post.type === 'video' ? '<span class="ig-post-type">VIDEO</span>'
       : post.type === 'carousel' ? '<span class="ig-post-type">ALBUM</span>' : '';
     div.innerHTML = `<img src="${thumb}" alt="" loading="lazy" onerror="this.style.background='var(--surface)'">
@@ -1981,7 +1972,7 @@ async function scrapeByUrl() {
       let html = '';
       if (data.post) {
         html += `<div class="url-result-post">`;
-        if (data.post.thumbnail) html += `<img src="${proxyIgImg(data.post.thumbnail)}" alt="">`;
+        if (data.post.thumbnail) html += `<img src="${data.post.thumbnail}" alt="">`;
         html += `<div class="info">${data.post.author ? '@' + data.post.author : platLabel}<br><b>${data.comments.length}</b> comentarios</div></div>`;
         state.currentPostAuthor = data.post.author || null;
       } else {
