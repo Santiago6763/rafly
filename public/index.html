@@ -903,6 +903,30 @@ fetch('/api/config').then(r=>r.json()).then(c=>{
   <div class="tab-content">
     <!-- ── Instagram Tab ── -->
     <div class="tab-pane active" id="pane-instagram">
+      <!-- ── Buscar usuario de Instagram (RapidAPI) ── -->
+      <div class="url-scrape-box" id="igSearchBox">
+        <label>Buscar cuenta de Instagram</label>
+        <div class="url-input-row">
+          <input type="text" id="igUsernameInput" placeholder="@username o link del perfil" autocomplete="off">
+          <button id="igSearchBtn" onclick="searchIgUser()">Buscar</button>
+        </div>
+        <div id="igSearchStatus" class="url-status" hidden></div>
+        <div id="igSearchPostsContainer" hidden>
+          <div class="ig-section-title" style="margin-top:.6rem">Seleccioná una publicación</div>
+          <div id="igSearchPostsGrid" class="ig-posts-grid"></div>
+          <div id="igSearchLoadMore" hidden style="text-align:center;margin-top:.4rem">
+            <button class="btn" onclick="loadMoreIgPosts()" style="font-size:.7rem;padding:.3rem .8rem;background:var(--surface);color:var(--text);border:1px solid var(--border)">Cargar más</button>
+          </div>
+        </div>
+        <div id="igSearchCommentInfo" hidden class="ig-comment-info">
+          <p style="margin-bottom:.5rem"><b id="igSearchCommentCount">0</b> comentarios encontrados</p>
+          <button class="btn btn-accent btn-block" onclick="loadIgSearchCommentsToWheel()">Cargar al sorteo</button>
+        </div>
+        <div id="igSearchError" hidden class="ig-error"></div>
+      </div>
+
+      <div class="url-or-divider">o pegar URL del post</div>
+
       <!-- URL Scrape (no account needed) -->
       <div class="url-scrape-box" id="urlScrapeBox">
         <label>Pegar URL del post / reel / video</label>
@@ -1762,6 +1786,147 @@ function loadIgCommentsToWheel() {
   loadParticipants(usernames);
   document.getElementById('igSourceBadge').hidden = false;
   document.getElementById('igSourceBadge').textContent = 'Comentarios de Instagram';
+  document.getElementById('exampleBadge').hidden = true;
+  document.getElementById('csvExportBtn').hidden = false;
+  closePanel();
+}
+
+/* ═══════════════════════════════════════════════════
+   RAPIDAPI INSTAGRAM SEARCH (sin vincular cuenta)
+   ═══════════════════════════════════════════════════ */
+let igSearchPaginationToken = null;
+let igSearchCurrentUser = '';
+let igSearchComments = [];
+
+async function searchIgUser() {
+  const input = document.getElementById('igUsernameInput');
+  const username = input.value.trim();
+  if (!username) return;
+
+  const statusEl = document.getElementById('igSearchStatus');
+  const postsContainer = document.getElementById('igSearchPostsContainer');
+  const grid = document.getElementById('igSearchPostsGrid');
+  const errorEl = document.getElementById('igSearchError');
+  const commentInfo = document.getElementById('igSearchCommentInfo');
+
+  errorEl.hidden = true;
+  commentInfo.hidden = true;
+  postsContainer.hidden = true;
+  grid.innerHTML = '';
+  igSearchPaginationToken = null;
+  igSearchComments = [];
+
+  statusEl.innerHTML = '<div class="spinner" style="display:inline-block;width:16px;height:16px;vertical-align:middle;margin-right:.3rem"></div> Buscando publicaciones...';
+  statusEl.hidden = false;
+  document.getElementById('igSearchBtn').disabled = true;
+
+  try {
+    const res = await fetch('/api/ig/posts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, amount: 12 })
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.error || 'Error al buscar');
+    if (!data.posts || data.posts.length === 0) {
+      statusEl.textContent = 'No se encontraron publicaciones para @' + data.username;
+      document.getElementById('igSearchBtn').disabled = false;
+      return;
+    }
+
+    igSearchCurrentUser = data.username;
+    igSearchPaginationToken = data.pagination_token || null;
+    statusEl.textContent = '@' + data.username + ' — ' + data.posts.length + ' publicaciones';
+
+    renderIgSearchPosts(data.posts, false);
+    postsContainer.hidden = false;
+    document.getElementById('igSearchLoadMore').hidden = !igSearchPaginationToken;
+  } catch (e) {
+    statusEl.hidden = true;
+    errorEl.textContent = e.message || 'Error al buscar usuario';
+    errorEl.hidden = false;
+  }
+  document.getElementById('igSearchBtn').disabled = false;
+}
+
+async function loadMoreIgPosts() {
+  if (!igSearchPaginationToken || !igSearchCurrentUser) return;
+  const btn = document.getElementById('igSearchLoadMore').querySelector('button');
+  btn.disabled = true;
+  btn.textContent = 'Cargando...';
+  try {
+    const res = await fetch('/api/ig/posts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: igSearchCurrentUser, amount: 12, pagination_token: igSearchPaginationToken })
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.error || 'Error');
+    igSearchPaginationToken = data.pagination_token || null;
+    renderIgSearchPosts(data.posts || [], true);
+    document.getElementById('igSearchLoadMore').hidden = !igSearchPaginationToken;
+  } catch (e) {
+    document.getElementById('igSearchError').textContent = e.message;
+    document.getElementById('igSearchError').hidden = false;
+  }
+  btn.disabled = false;
+  btn.textContent = 'Cargar más';
+}
+
+function renderIgSearchPosts(posts, append) {
+  const grid = document.getElementById('igSearchPostsGrid');
+  if (!append) grid.innerHTML = '';
+  for (const post of posts) {
+    const div = document.createElement('div');
+    div.className = 'ig-post';
+    div.dataset.shortcode = post.shortcode;
+    const thumb = post.thumbnail || '';
+    const typeBadge = post.type === 'video' ? '<span class="ig-post-type">VIDEO</span>'
+      : post.type === 'carousel' ? '<span class="ig-post-type">ALBUM</span>' : '';
+    div.innerHTML = `<img src="${thumb}" alt="" loading="lazy" onerror="this.style.background='var(--surface)'">
+      <span class="ig-post-badge">${post.comments_count || 0}</span>${typeBadge}`;
+    div.addEventListener('click', () => selectIgSearchPost(post, div));
+    grid.appendChild(div);
+  }
+}
+
+async function selectIgSearchPost(post, el) {
+  document.querySelectorAll('#igSearchPostsGrid .ig-post.selected').forEach(p => p.classList.remove('selected'));
+  el.classList.add('selected');
+
+  const commentInfo = document.getElementById('igSearchCommentInfo');
+  const errorEl = document.getElementById('igSearchError');
+  errorEl.hidden = true;
+  commentInfo.innerHTML = '<div class="spinner" style="display:inline-block;width:18px;height:18px;border:2px solid var(--border);border-top-color:var(--neon-cyan);border-radius:50%;animation:spin .8s linear infinite;vertical-align:middle"></div> Cargando comentarios...';
+  commentInfo.hidden = false;
+
+  try {
+    const res = await fetch(`/api/ig/comments?code=${encodeURIComponent(post.shortcode)}&sort=popular`);
+    const data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.error || 'Error al cargar comentarios');
+    igSearchComments = data.comments || [];
+    commentInfo.innerHTML = `<p style="margin-bottom:.5rem"><b>${igSearchComments.length}</b> comentarios encontrados</p>
+      <button class="btn btn-accent btn-block" onclick="loadIgSearchCommentsToWheel()">Cargar al sorteo</button>`;
+    commentInfo.hidden = false;
+  } catch (e) {
+    commentInfo.hidden = true;
+    errorEl.textContent = e.message || 'Error al cargar comentarios';
+    errorEl.hidden = false;
+  }
+}
+
+function loadIgSearchCommentsToWheel() {
+  if (!igSearchComments.length) return;
+  const usernames = igSearchComments.map(c => '@' + c.username);
+  state.rawCommentTexts = igSearchComments.map(c => c.text || '');
+  state.commentMap = {};
+  igSearchComments.forEach(c => { state.commentMap['@' + c.username] = c.text || ''; });
+  state.igSource = true;
+  state.scrapeSource = false;
+  state.currentPlatform = 'instagram';
+  loadParticipants(usernames);
+  document.getElementById('igSourceBadge').hidden = false;
+  document.getElementById('igSourceBadge').textContent = 'Instagram: @' + igSearchCurrentUser;
   document.getElementById('exampleBadge').hidden = true;
   document.getElementById('csvExportBtn').hidden = false;
   closePanel();
@@ -3987,6 +4152,9 @@ function init() {
   document.getElementById('shareImgBtn').addEventListener('click', shareResultImage);
   document.getElementById('shareCopyBtn').addEventListener('click', shareResultCopy);
   document.getElementById('shareNativeBtn').addEventListener('click', shareResultNative);
+
+  // ── RapidAPI username search: Enter key ──
+  document.getElementById('igUsernameInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') searchIgUser(); });
 
   // ── Level 2: Multi-platform URL detection ──
   document.getElementById('urlInput').addEventListener('input', (e) => updatePlatformBadge(e.target.value));
