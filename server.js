@@ -653,17 +653,18 @@ const IG_SCRAPERS = [
     name: 'scraper-ai',
     host: 'instagram-scraper-ai1.p.rapidapi.com',
     posts: { url: '/user/feed_v2/', method: 'GET' },
-    comments: { url: '/post/comments/', method: 'GET' },
+    comments: { url: '/media/comments/', method: 'GET', usesMediaId: true },
     buildPostsUrl: (host, user) =>
       `https://${host}/user/feed_v2/?username=${encodeURIComponent(user)}`,
-    buildCommentsUrl: (host, code) =>
-      `https://${host}/post/comments/?code=${encodeURIComponent(code)}`,
+    buildCommentsUrl: (host, code, sort, mediaId) =>
+      `https://${host}/media/comments/?media_id=${encodeURIComponent(mediaId || code)}`,
     parsePosts: (data) => {
       const rawItems = data.data?.items || data.items || data.data || [];
       return rawItems.map(raw => {
         const item = raw.node || raw; // unwrap node wrapper
         return {
           shortcode: item.code || item.shortcode || '',
+          media_id: item.pk || item.id || '',
           thumbnail: item.image_versions2?.candidates?.[0]?.url || item.thumbnail_url || item.display_url || '',
           caption: (typeof item.caption === 'object' ? item.caption?.text : item.caption) || '',
           likes: item.like_count || item.likes_count || 0,
@@ -741,62 +742,92 @@ async function scrapeIgPosts(cleanUser, amount, pagination_token) {
   return null;
 }
  
-// Generic function to try all scrapers for comments
-async function scrapeIgComments(code, sort) {
+// Helper: parse comments from any API response format
+function parseCommentsFromData(data) {
+  const comments = [];
+  const items = data.data?.comments || data.comments || data.collector || data.data || [];
+  for (const c of items) {
+    const username = c.username || c.user?.username || c.owner?.username || 'unknown';
+    const text = c.text || c.comment || '';
+    if (!username || username === 'unknown') continue;
+    comments.push({
+      username, text,
+      timestamp: c.created_at || c.timestamp || c.created_at_utc || null,
+      likes: c.like_count || c.likes?.count || c.comment_like_count || 0
+    });
+
+    const replies = c.replies || c.child_comments || c.edge_threaded_comments?.edges || [];
+    for (const r of replies) {
+      const rn = r.node || r;
+      comments.push({
+        username: rn.username || rn.user?.username || rn.owner?.username || 'unknown',
+        text: rn.text || rn.comment || '',
+        timestamp: rn.created_at || rn.timestamp || null,
+        likes: rn.like_count || 0,
+        is_reply: true
+      });
+    }
+  }
+  return comments;
+}
+
+// Generic function to try all scrapers for comments (with pagination)
+async function scrapeIgComments(code, sort, mediaId) {
   if (!RAPIDAPI_KEY) return null;
- 
+
   for (const scraper of IG_SCRAPERS) {
     try {
-      const url = scraper.buildCommentsUrl(scraper.host, code, sort || 'popular');
-      const response = await fetch(url, {
-        headers: {
-          'x-rapidapi-host': scraper.host,
-          'x-rapidapi-key': RAPIDAPI_KEY
-        }
-      });
- 
-      if (response.status === 429 || response.status === 503) {
-        console.log(`IG comments [${scraper.name}]: quota/unavailable, trying next...`);
+      // Some scrapers need media_id instead of shortcode
+      if (scraper.comments.usesMediaId && !mediaId) {
+        console.log(`IG comments [${scraper.name}]: needs media_id but none provided, trying next...`);
         continue;
       }
- 
-      const data = await response.json();
-      const errMsg = data.error || data.message || '';
-      if (typeof errMsg === 'string' && (errMsg.includes('exceeded') || errMsg.includes('quota') || errMsg.includes('limit'))) {
-        console.log(`IG comments [${scraper.name}]: quota exceeded, trying next...`);
-        continue;
-      }
-      if (data.error) continue;
- 
-      // Normalize comments from any API format
-      const comments = [];
-      const items = data.data?.comments || data.comments || data.collector || data.data || [];
-      for (const c of items) {
-        const username = c.username || c.user?.username || c.owner?.username || 'unknown';
-        const text = c.text || c.comment || '';
-        if (!username || username === 'unknown') continue;
-        comments.push({
-          username, text,
-          timestamp: c.created_at || c.timestamp || c.created_at_utc || null,
-          likes: c.like_count || c.likes?.count || c.comment_like_count || 0
+
+      let allComments = [];
+      let cursor = null;
+      let page = 0;
+      const MAX_PAGES = 20; // Safety limit
+
+      do {
+        let url = scraper.buildCommentsUrl(scraper.host, code, sort || 'popular', mediaId);
+        if (cursor) url += `&end_cursor=${encodeURIComponent(cursor)}`;
+
+        const response = await fetch(url, {
+          headers: {
+            'x-rapidapi-host': scraper.host,
+            'x-rapidapi-key': RAPIDAPI_KEY
+          }
         });
- 
-        const replies = c.replies || c.child_comments || c.edge_threaded_comments?.edges || [];
-        for (const r of replies) {
-          const rn = r.node || r;
-          comments.push({
-            username: rn.username || rn.user?.username || rn.owner?.username || 'unknown',
-            text: rn.text || rn.comment || '',
-            timestamp: rn.created_at || rn.timestamp || null,
-            likes: rn.like_count || 0,
-            is_reply: true
-          });
+
+        if (response.status === 429 || response.status === 503) {
+          console.log(`IG comments [${scraper.name}]: quota/unavailable, trying next scraper...`);
+          allComments = []; // reset so we try next scraper
+          break;
         }
-      }
- 
-      if (comments.length === 0) continue;
-      console.log(`IG comments [${scraper.name}]: OK — ${comments.length} comments`);
-      return { comments, source: scraper.name };
+
+        const data = await response.json();
+        const errMsg = data.error || data.message || '';
+        if (typeof errMsg === 'string' && (errMsg.includes('exceeded') || errMsg.includes('quota') || errMsg.includes('limit'))) {
+          console.log(`IG comments [${scraper.name}]: quota exceeded, trying next scraper...`);
+          allComments = [];
+          break;
+        }
+        if (data.error) { allComments = []; break; }
+
+        const pageComments = parseCommentsFromData(data);
+        allComments.push(...pageComments);
+        page++;
+
+        // Check for next page
+        const hasNext = data.page_info?.has_next_page || data.has_more_comments;
+        cursor = hasNext ? (data.page_info?.end_cursor || data.next_min_id || null) : null;
+
+        console.log(`IG comments [${scraper.name}]: page ${page} — ${pageComments.length} comments (total: ${allComments.length})`);
+      } while (cursor && page < MAX_PAGES);
+
+      if (allComments.length === 0) continue;
+      console.log(`IG comments [${scraper.name}]: OK — ${allComments.length} total comments`);
+      return { comments: allComments, source: scraper.name };
     } catch (err) {
       console.log(`IG comments [${scraper.name}]: error — ${err.message}, trying next...`);
       continue;
@@ -832,12 +863,12 @@ app.post('/api/ig/posts', optionalAuth, async (req, res) => {
  
 // Get post comments by shortcode
 app.get('/api/ig/comments', optionalAuth, async (req, res) => {
-  const { code, sort = 'popular' } = req.query;
-  if (!code) return res.status(400).json({ error: 'Media code requerido' });
- 
+  const { code, sort = 'popular', media_id } = req.query;
+  if (!code && !media_id) return res.status(400).json({ error: 'Media code requerido' });
+
   try {
-    console.log(`IG comments: trying APIs for ${code}...`);
-    const result = await scrapeIgComments(code, sort);
+    console.log(`IG comments: trying APIs for code=${code} media_id=${media_id}...`);
+    const result = await scrapeIgComments(code, sort, media_id);
     if (result && result.comments.length > 0) {
       return res.json({ success: true, shortcode: code, comments: result.comments, total: result.comments.length, source: result.source });
     }
