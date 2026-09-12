@@ -612,108 +612,223 @@ app.get('/api/platforms', authMiddleware, async (req, res) => {
   }
 });
 
-// ── API: Instagram Scraper (directo + RapidAPI fallback) ────────────
+// ── API: Instagram Scraper (múltiples APIs de RapidAPI) ────────────
 const RAPIDAPI_KEY = process.env.RAPIDAPI_KEY;
-const RAPIDAPI_HOST = 'instagram-scraper-stable-api.p.rapidapi.com';
-const IG_APP_ID = '936619743392459';
-const IG_HEADERS = {
-  'x-ig-app-id': IG_APP_ID,
-  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-  'Accept': '*/*',
-  'Accept-Language': 'en-US,en;q=0.9',
-  'Sec-Fetch-Site': 'same-site',
-  'Sec-Fetch-Mode': 'cors',
-  'Sec-Fetch-Dest': 'empty',
-  'Referer': 'https://www.instagram.com/',
-  'Origin': 'https://www.instagram.com'
-};
 
-// Helper: try direct Instagram scraping first
-async function scrapeIgPostsDirect(cleanUser) {
-  // Method 1: web_profile_info endpoint
-  const profileUrl = `https://i.instagram.com/api/v1/users/web_profile_info/?username=${encodeURIComponent(cleanUser)}`;
-  const resp = await fetch(profileUrl, { headers: IG_HEADERS });
-  if (!resp.ok) return null;
-  const json = await resp.json();
-  const user = json?.data?.user;
-  if (!user) return null;
+// Multiple RapidAPI scrapers — each has its own free quota (~100 req/month)
+// Tries them in order; if one fails (quota, error), moves to the next
+const IG_SCRAPERS = [
+  {
+    name: 'stable-api',
+    host: 'instagram-scraper-stable-api.p.rapidapi.com',
+    posts: { url: '/get_ig_user_posts.php', method: 'POST', form: true },
+    comments: { url: '/get_post_comments.php', method: 'GET' },
+    buildPostsBody: (user, amount, token) => {
+      const p = new URLSearchParams();
+      p.append('username_or_url', `https://www.instagram.com/${user}/`);
+      p.append('pagination_token', token || '');
+      p.append('amount', String(amount));
+      return p.toString();
+    },
+    buildCommentsUrl: (host, code, sort) =>
+      `https://${host}/get_post_comments.php?media_code=${encodeURIComponent(code)}&sort_order=${sort}`,
+    parsePosts: (data) => {
+      const rawItems = data.posts || data.collector || data.items || data.data || data.medias || [];
+      return rawItems.map(raw => {
+        const item = raw.node || raw;
+        return {
+          shortcode: item.shortcode || item.code || '',
+          thumbnail: item.thumbnail_url || item.display_url || item.thumbnail_src || item.image_versions2?.candidates?.[0]?.url || '',
+          caption: (typeof item.caption === 'object' ? item.caption?.text : item.caption) || item.description || item.edge_media_to_caption?.edges?.[0]?.node?.text || '',
+          likes: item.like_count || item.likes?.count || item.edge_media_preview_like?.count || 0,
+          comments_count: item.comment_count || item.comments?.count || item.edge_media_to_comment?.count || 0,
+          timestamp: item.taken_at || item.taken_at_timestamp || item.timestamp || null,
+          type: item.media_type === 2 ? 'video' : item.media_type === 8 ? 'carousel' : 'image'
+        };
+      });
+    },
+    paginationToken: (data) => data.pagination_token || data.next_max_id || null
+  },
+  {
+    name: 'scraper-ai',
+    host: 'instagram-scraper-ai1.p.rapidapi.com',
+    posts: { url: '/user/posts', method: 'GET' },
+    comments: { url: '/post/comments', method: 'GET' },
+    buildPostsUrl: (host, user) =>
+      `https://${host}/user/posts?username=${encodeURIComponent(user)}`,
+    buildCommentsUrl: (host, code) =>
+      `https://${host}/post/comments?code=${encodeURIComponent(code)}`,
+    parsePosts: (data) => {
+      const items = data.data?.items || data.items || data.data || [];
+      return items.map(item => ({
+        shortcode: item.code || item.shortcode || '',
+        thumbnail: item.thumbnail_url || item.image_versions2?.candidates?.[0]?.url || item.display_url || '',
+        caption: (typeof item.caption === 'object' ? item.caption?.text : item.caption) || '',
+        likes: item.like_count || item.likes_count || 0,
+        comments_count: item.comment_count || item.comments_count || 0,
+        timestamp: item.taken_at || null,
+        type: item.media_type === 2 ? 'video' : item.media_type === 8 ? 'carousel' : 'image'
+      }));
+    },
+    paginationToken: (data) => data.data?.next_cursor || data.next_cursor || null
+  },
+  {
+    name: 'free-scraper',
+    host: 'free-instagram-scraper.p.rapidapi.com',
+    posts: { url: '/posts', method: 'GET' },
+    comments: { url: '/comments', method: 'GET' },
+    buildPostsUrl: (host, user) =>
+      `https://${host}/posts?username=${encodeURIComponent(user)}`,
+    buildCommentsUrl: (host, code) =>
+      `https://${host}/comments?code=${encodeURIComponent(code)}`,
+    parsePosts: (data) => {
+      const items = data.data || data.posts || data.items || [];
+      return items.map(item => {
+        const n = item.node || item;
+        return {
+          shortcode: n.shortcode || n.code || '',
+          thumbnail: n.thumbnail_src || n.display_url || n.thumbnail_url || '',
+          caption: n.edge_media_to_caption?.edges?.[0]?.node?.text || (typeof n.caption === 'object' ? n.caption?.text : n.caption) || '',
+          likes: n.edge_media_preview_like?.count || n.like_count || 0,
+          comments_count: n.edge_media_to_comment?.count || n.comment_count || 0,
+          timestamp: n.taken_at_timestamp || n.taken_at || null,
+          type: n.is_video ? 'video' : (n.__typename === 'GraphSidecar' || n.media_type === 8) ? 'carousel' : 'image'
+        };
+      });
+    },
+    paginationToken: (data) => data.pagination_token || data.next_max_id || null
+  }
+];
 
-  const edges = user.edge_owner_to_timeline_media?.edges || [];
-  if (edges.length === 0) return null;
-
-  const posts = edges.map(e => {
-    const n = e.node;
-    return {
-      shortcode: n.shortcode || '',
-      thumbnail: n.thumbnail_src || n.display_url || '',
-      caption: n.edge_media_to_caption?.edges?.[0]?.node?.text || '',
-      likes: n.edge_media_preview_like?.count || n.edge_liked_by?.count || 0,
-      comments_count: n.edge_media_to_comment?.count || 0,
-      timestamp: n.taken_at_timestamp || null,
-      type: n.is_video ? 'video' : (n.__typename === 'GraphSidecar' ? 'carousel' : 'image')
-    };
-  });
-
-  return {
-    success: true,
-    username: cleanUser,
-    posts,
-    pagination_token: user.edge_owner_to_timeline_media?.page_info?.end_cursor || null,
-    total: posts.length,
-    source: 'direct'
-  };
-}
-
-// Helper: RapidAPI fallback
-async function scrapeIgPostsRapidAPI(cleanUser, amount, pagination_token) {
+// Generic function to try all scrapers for posts
+async function scrapeIgPosts(cleanUser, amount, pagination_token) {
   if (!RAPIDAPI_KEY) return null;
 
-  const params = new URLSearchParams();
-  params.append('username_or_url', `https://www.instagram.com/${cleanUser}/`);
-  params.append('pagination_token', pagination_token);
-  params.append('amount', String(amount));
+  for (const scraper of IG_SCRAPERS) {
+    try {
+      let response;
+      if (scraper.posts.method === 'POST' && scraper.posts.form) {
+        response = await fetch(`https://${scraper.host}${scraper.posts.url}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'x-rapidapi-host': scraper.host,
+            'x-rapidapi-key': RAPIDAPI_KEY
+          },
+          body: scraper.buildPostsBody(cleanUser, amount, pagination_token)
+        });
+      } else {
+        const url = scraper.buildPostsUrl(scraper.host, cleanUser);
+        response = await fetch(url, {
+          headers: {
+            'x-rapidapi-host': scraper.host,
+            'x-rapidapi-key': RAPIDAPI_KEY
+          }
+        });
+      }
 
-  const response = await fetch(`https://${RAPIDAPI_HOST}/get_ig_user_posts.php`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'x-rapidapi-host': RAPIDAPI_HOST,
-      'x-rapidapi-key': RAPIDAPI_KEY
-    },
-    body: params.toString()
-  });
+      const rawText = await response.text();
+      if (response.status === 429 || response.status === 503) {
+        console.log(`IG [${scraper.name}]: quota/unavailable (${response.status}), trying next...`);
+        continue;
+      }
 
-  const rawText = await response.text();
-  let data;
-  try { data = JSON.parse(rawText); } catch { return null; }
-  if (data.error || data.message) return null;
+      let data;
+      try { data = JSON.parse(rawText); } catch { continue; }
 
-  const posts = [];
-  const rawItems = data.posts || data.collector || data.items || data.data || data.medias || [];
-  for (const rawItem of rawItems) {
-    const item = rawItem.node || rawItem;
-    posts.push({
-      shortcode: item.shortcode || item.code || '',
-      thumbnail: item.thumbnail_url || item.display_url || item.thumbnail_src || item.image_versions2?.candidates?.[0]?.url || '',
-      caption: (typeof item.caption === 'object' ? item.caption?.text : item.caption) || item.description || item.edge_media_to_caption?.edges?.[0]?.node?.text || '',
-      likes: item.like_count || item.likes?.count || item.edge_media_preview_like?.count || 0,
-      comments_count: item.comment_count || item.comments?.count || item.edge_media_to_comment?.count || 0,
-      timestamp: item.taken_at || item.taken_at_timestamp || item.timestamp || null,
-      type: item.media_type === 2 ? 'video' : item.media_type === 8 ? 'carousel' : 'image'
-    });
+      // Check for error messages (quota exceeded, etc)
+      const errMsg = data.error || data.message || '';
+      if (typeof errMsg === 'string' && (errMsg.includes('exceeded') || errMsg.includes('quota') || errMsg.includes('limit') || errMsg.includes('subscribe'))) {
+        console.log(`IG [${scraper.name}]: ${errMsg.substring(0, 80)}, trying next...`);
+        continue;
+      }
+      if (data.error || (data.message && !data.data)) continue;
+
+      const posts = scraper.parsePosts(data);
+      if (posts.length === 0) continue;
+
+      console.log(`IG [${scraper.name}]: OK — ${posts.length} posts`);
+      return {
+        success: true,
+        username: cleanUser,
+        posts,
+        pagination_token: scraper.paginationToken(data),
+        total: posts.length,
+        source: scraper.name
+      };
+    } catch (err) {
+      console.log(`IG [${scraper.name}]: error — ${err.message}, trying next...`);
+      continue;
+    }
   }
-
-  return {
-    success: true,
-    username: cleanUser,
-    posts,
-    pagination_token: data.pagination_token || data.next_max_id || null,
-    total: posts.length,
-    source: 'rapidapi'
-  };
+  return null;
 }
 
-// Get user posts by username — tries direct scraping first, then RapidAPI
+// Generic function to try all scrapers for comments
+async function scrapeIgComments(code, sort) {
+  if (!RAPIDAPI_KEY) return null;
+
+  for (const scraper of IG_SCRAPERS) {
+    try {
+      const url = scraper.buildCommentsUrl(scraper.host, code, sort || 'popular');
+      const response = await fetch(url, {
+        headers: {
+          'x-rapidapi-host': scraper.host,
+          'x-rapidapi-key': RAPIDAPI_KEY
+        }
+      });
+
+      if (response.status === 429 || response.status === 503) {
+        console.log(`IG comments [${scraper.name}]: quota/unavailable, trying next...`);
+        continue;
+      }
+
+      const data = await response.json();
+      const errMsg = data.error || data.message || '';
+      if (typeof errMsg === 'string' && (errMsg.includes('exceeded') || errMsg.includes('quota') || errMsg.includes('limit'))) {
+        console.log(`IG comments [${scraper.name}]: quota exceeded, trying next...`);
+        continue;
+      }
+      if (data.error) continue;
+
+      // Normalize comments from any API format
+      const comments = [];
+      const items = data.data?.comments || data.comments || data.collector || data.data || [];
+      for (const c of items) {
+        const username = c.username || c.user?.username || c.owner?.username || 'unknown';
+        const text = c.text || c.comment || '';
+        if (!username || username === 'unknown') continue;
+        comments.push({
+          username, text,
+          timestamp: c.created_at || c.timestamp || c.created_at_utc || null,
+          likes: c.like_count || c.likes?.count || c.comment_like_count || 0
+        });
+
+        const replies = c.replies || c.child_comments || c.edge_threaded_comments?.edges || [];
+        for (const r of replies) {
+          const rn = r.node || r;
+          comments.push({
+            username: rn.username || rn.user?.username || rn.owner?.username || 'unknown',
+            text: rn.text || rn.comment || '',
+            timestamp: rn.created_at || rn.timestamp || null,
+            likes: rn.like_count || 0,
+            is_reply: true
+          });
+        }
+      }
+
+      if (comments.length === 0) continue;
+      console.log(`IG comments [${scraper.name}]: OK — ${comments.length} comments`);
+      return { comments, source: scraper.name };
+    } catch (err) {
+      console.log(`IG comments [${scraper.name}]: error — ${err.message}, trying next...`);
+      continue;
+    }
+  }
+  return null;
+}
+
+// Get user posts by username
 app.post('/api/ig/posts', optionalAuth, async (req, res) => {
   const { username, amount = 12, pagination_token = '' } = req.body;
   if (!username) return res.status(400).json({ error: 'Username requerido' });
@@ -725,26 +840,12 @@ app.post('/api/ig/posts', optionalAuth, async (req, res) => {
   }
 
   try {
-    // Try direct Instagram scraping first (no pagination_token support)
-    if (!pagination_token) {
-      console.log(`IG scrape: trying direct for @${cleanUser}...`);
-      const directResult = await scrapeIgPostsDirect(cleanUser);
-      if (directResult && directResult.posts.length > 0) {
-        console.log(`IG scrape: direct OK — ${directResult.posts.length} posts`);
-        return res.json(directResult);
-      }
-      console.log('IG scrape: direct failed, trying RapidAPI...');
+    console.log(`IG scrape: trying APIs for @${cleanUser}...`);
+    const result = await scrapeIgPosts(cleanUser, amount, pagination_token);
+    if (result && result.posts.length > 0) {
+      return res.json(result);
     }
-
-    // Fallback to RapidAPI
-    const rapidResult = await scrapeIgPostsRapidAPI(cleanUser, amount, pagination_token);
-    if (rapidResult && rapidResult.posts.length > 0) {
-      console.log(`IG scrape: RapidAPI OK — ${rapidResult.posts.length} posts`);
-      return res.json(rapidResult);
-    }
-
-    // Both failed
-    console.log('IG scrape: both methods failed');
+    console.log('IG scrape: all APIs failed');
     res.json({ success: true, username: cleanUser, posts: [], pagination_token: null, total: 0 });
   } catch (err) {
     console.error('IG posts error:', err.message);
@@ -752,112 +853,21 @@ app.post('/api/ig/posts', optionalAuth, async (req, res) => {
   }
 });
 
-// Helper: scrape comments directly from Instagram
-async function scrapeIgCommentsDirect(shortcode) {
-  // Try the GraphQL endpoint for post details with comments
-  const postUrl = `https://www.instagram.com/p/${shortcode}/?__a=1&__d=dis`;
-  const resp = await fetch(postUrl, { headers: IG_HEADERS });
-  if (!resp.ok) return null;
-  const text = await resp.text();
-  let data;
-  try { data = JSON.parse(text); } catch { return null; }
-
-  const media = data?.graphql?.shortcode_media || data?.items?.[0];
-  if (!media) return null;
-
-  const comments = [];
-  const edges = media.edge_media_to_parent_comment?.edges || media.edge_media_to_comment?.edges || [];
-  for (const e of edges) {
-    const c = e.node;
-    comments.push({
-      username: c.owner?.username || 'unknown',
-      text: c.text || '',
-      timestamp: c.created_at || null,
-      likes: c.edge_liked_by?.count || 0
-    });
-    // Replies
-    const replyEdges = c.edge_threaded_comments?.edges || [];
-    for (const r of replyEdges) {
-      const rc = r.node;
-      comments.push({
-        username: rc.owner?.username || 'unknown',
-        text: rc.text || '',
-        timestamp: rc.created_at || null,
-        likes: rc.edge_liked_by?.count || 0,
-        is_reply: true
-      });
-    }
-  }
-  return comments.length > 0 ? comments : null;
-}
-
-// Get post comments by shortcode — tries direct, then RapidAPI
+// Get post comments by shortcode
 app.get('/api/ig/comments', optionalAuth, async (req, res) => {
   const { code, sort = 'popular' } = req.query;
   if (!code) return res.status(400).json({ error: 'Media code requerido' });
 
   try {
-    // Try direct scraping first
-    console.log(`IG comments: trying direct for ${code}...`);
-    const directComments = await scrapeIgCommentsDirect(code);
-    if (directComments && directComments.length > 0) {
-      console.log(`IG comments: direct OK — ${directComments.length} comments`);
-      return res.json({ success: true, shortcode: code, comments: directComments, total: directComments.length, source: 'direct' });
+    console.log(`IG comments: trying APIs for ${code}...`);
+    const result = await scrapeIgComments(code, sort);
+    if (result && result.comments.length > 0) {
+      return res.json({ success: true, shortcode: code, comments: result.comments, total: result.comments.length, source: result.source });
     }
-    console.log('IG comments: direct failed, trying RapidAPI...');
-
-    // Fallback to RapidAPI
-    if (!RAPIDAPI_KEY) return res.json({ success: true, shortcode: code, comments: [], total: 0 });
-
-    const url = `https://${RAPIDAPI_HOST}/get_post_comments.php?media_code=${encodeURIComponent(code)}&sort_order=${sort}`;
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-rapidapi-host': RAPIDAPI_HOST,
-        'x-rapidapi-key': RAPIDAPI_KEY
-      }
-    });
-
-    const data = await response.json();
-    if (data.error) return res.status(400).json({ error: data.error });
-
-    // Normalize comments
-    const comments = [];
-    const items = data.collector || data.comments || data.data || [];
-    for (const c of items) {
-      const username = c.username || c.user?.username || c.owner?.username || 'unknown';
-      const text = c.text || c.comment || '';
-      comments.push({
-        username,
-        text,
-        timestamp: c.created_at || c.timestamp || c.created_at_utc || null,
-        likes: c.like_count || c.likes?.count || c.comment_like_count || 0
-      });
-
-      // Also include replies if available
-      const replies = c.replies || c.child_comments || c.edge_threaded_comments?.edges || [];
-      for (const r of replies) {
-        const replyNode = r.node || r;
-        comments.push({
-          username: replyNode.username || replyNode.user?.username || replyNode.owner?.username || 'unknown',
-          text: replyNode.text || replyNode.comment || '',
-          timestamp: replyNode.created_at || replyNode.timestamp || null,
-          likes: replyNode.like_count || 0,
-          is_reply: true
-        });
-      }
-    }
-
-    res.json({
-      success: true,
-      shortcode: code,
-      comments,
-      total: comments.length,
-      method: 'rapidapi'
-    });
+    console.log('IG comments: all APIs failed');
+    res.json({ success: true, shortcode: code, comments: [], total: 0 });
   } catch (err) {
-    console.error('RapidAPI comments error:', err.message);
+    console.error('IG comments error:', err.message);
     res.status(500).json({ error: 'Error al obtener comentarios: ' + err.message });
   }
 });
