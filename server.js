@@ -16,6 +16,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { Pool } = require('pg');
 const path = require('path');
+const rateLimit = require('express-rate-limit');
 const app = express();
 
 // ── Configuración ──────────────────────────────────────────────
@@ -1366,6 +1367,24 @@ function downgradeEmailHTML(name) {
     </div>`;
 }
 
+// ── Rate Limiters (must be before auth routes) ──
+const globalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Demasiadas solicitudes. Intentá de nuevo en unos minutos.' }
+});
+app.use('/api/', globalLimiter);
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 15,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Demasiados intentos. Esperá 15 minutos.' }
+});
+
 // ── Register ──
 app.post('/api/auth/register', authLimiter, async (req, res) => {
   const { email, password, name } = req.body;
@@ -2318,7 +2337,6 @@ const PDFDocument = require('pdfkit');
 // ══════════════════════════════════════════════════════════════
 
 const helmet = require('helmet');
-const rateLimit = require('express-rate-limit');
 
 // Security headers
 app.use(helmet({
@@ -2326,24 +2344,7 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false,
 }));
 
-// Global rate limiter
-const globalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 300, // 300 requests per 15 min
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Demasiadas solicitudes. Intentá de nuevo en unos minutos.' }
-});
-app.use('/api/', globalLimiter);
-
-// Strict auth rate limiter (login, register, password reset)
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 15, // 15 attempts per 15 min
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Demasiados intentos. Esperá 15 minutos.' }
-});
+// (Rate limiters moved above auth routes)
 
 // Reset daily API usage at midnight
 let lastResetDate = new Date().toDateString();
