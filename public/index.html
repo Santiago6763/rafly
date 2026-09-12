@@ -1901,7 +1901,10 @@ async function selectIgSearchPost(post, el) {
   commentInfo.hidden = false;
 
   try {
-    const res = await fetch(`/api/ig/comments?code=${encodeURIComponent(post.shortcode)}&sort=popular`);
+    const params = new URLSearchParams({ sort: 'popular' });
+    if (post.shortcode) params.set('code', post.shortcode);
+    if (post.media_id) params.set('media_id', post.media_id);
+    const res = await fetch(`/api/ig/comments?${params}`);
     const data = await res.json();
     if (!res.ok || data.error) throw new Error(data.error || 'Error al cargar comentarios');
     igSearchComments = data.comments || [];
