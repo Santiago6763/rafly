@@ -18,6 +18,7 @@ const { Pool } = require('pg');
 const path = require('path');
 const rateLimit = require('express-rate-limit');
 const app = express();
+app.set('trust proxy', 1); // trust Render's proxy for rate-limiting
  
 // ── Configuración ──────────────────────────────────────────────
 const {
@@ -85,6 +86,24 @@ const db = {
  
 // Initialize all tables
 async function initDB() {
+  // Migrate: add missing columns to existing tables
+  const migrations = [
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_token TEXT DEFAULT NULL`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token TEXT DEFAULT NULL`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token_expires TIMESTAMP DEFAULT NULL`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified INTEGER DEFAULT 0`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS payment_failed_at TIMESTAMP DEFAULT NULL`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS payment_grace_until TIMESTAMP DEFAULT NULL`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS downgrade_warned INTEGER DEFAULT 0`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_customer_id TEXT DEFAULT NULL`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_subscription_id TEXT DEFAULT NULL`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_subscription_status TEXT DEFAULT NULL`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS brand_settings TEXT DEFAULT NULL`,
+  ];
+  for (const mig of migrations) {
+    try { await pool.query(mig); } catch (e) { /* column may already exist */ }
+  }
+ 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
       id SERIAL PRIMARY KEY,
@@ -3415,3 +3434,4 @@ initDB().then(() => {
   console.error('  ✗ Error al inicializar base de datos:', err.message);
   process.exit(1);
 });
+ 
